@@ -11,13 +11,7 @@
 #include <tigergrav/fixed_real.hpp>
 #include <tigergrav/vect.hpp>
 
-#include <hpx/lcos/local/spinlock.hpp>
-
-#include <mutex>
-#include <stack>
 #include <vector>
-
-#include <forward_list>
 
 struct particle {
 	vect<fixed_real> x;
@@ -27,6 +21,7 @@ struct particle {
 };
 
 using part_vect = std::vector<particle>;
+using part_iter = part_vect::iterator;
 
 template<class I, class F>
 I bisect(I begin, I end, F &&below) {
