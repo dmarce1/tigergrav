@@ -171,10 +171,9 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.h / (a + eps)));
 				min_dt = std::min(min_dt, dt);
 #ifdef STORE_G
-				i->g = f[j];
-#else
-				i->g = f[j].g;
+				i->phi = f[j].phi;
 #endif
+				i->g = f[j].g;
 			}
 		}
 	}
@@ -232,17 +231,39 @@ void tree::drift(float dt) {
 #ifdef GLOBAL_DT
 void tree::kick(float dt) {
 	for (auto i = part_begin; i != part_end; i++) {
-#ifdef STORE_G
-		const vect<float> g = i->g.g;
-#else
-		const vect<float> g = i->g;
-#endif
-		i->v = i->v + g * dt;
+		i->v = i->v + i->g * dt;
 	}
 }
 #endif
 
-void tree::output(float t, int num) {
+stats tree::statistics() const {
+	const auto &opts = options::get();
+	const auto m = 1.0 / opts.problem_size;
+	stats s;
+	s.kin_tot = 0.0;
+	s.mom_tot = vect<double>(0.0);
+	for (auto i = part_begin; i != part_end; i++) {
+		const auto &v = i->v;
+		s.kin_tot += 0.5 * m * v.dot(v);
+		s.mom_tot += v * m;
+	}
+#ifdef STORE_G
+	s.pot_tot = 0.0;
+	s.acc_tot = vect<double>(0.0);
+	for (auto i = part_begin; i != part_end; i++) {
+		const auto &g = i->g;
+		s.pot_tot += 0.5 * m * i->phi;
+		s.acc_tot += g * m;
+	}
+	s.ene_tot = s.pot_tot + s.kin_tot;
+	const auto a = 2.0 * s.kin_tot;
+	const auto b = s.pot_tot;
+	s.virial_err = (a + b) / (std::abs(a) + std::abs(b));
+#endif
+	return s;
+}
+
+void tree::output(float t, int num) const {
 	std::string filename = std::string("parts.") + std::to_string(num) + std::string(".silo");
 	DBfile *db = DBCreateReal(filename.c_str(), DB_CLOBBER, DB_LOCAL, "Meshless", DB_HDF5);
 	auto optlist = DBMakeOptlist(1);
@@ -282,28 +303,23 @@ void tree::output(float t, int num) {
 	}
 #ifdef STORE_G
 	{
-		std::array<std::vector<float>, NDIM> g;
 		std::vector<float> phi;
 		phi.reserve(nnodes);
-		for (int dim = 0; dim < NDIM; dim++) {
-			g[dim].reserve(nnodes);
-		}
 		for (auto i = part_begin; i != part_end; i++) {
-			phi.push_back(i->g.phi);
-			for (int dim = 0; dim < NDIM; dim++) {
-				g[dim].push_back(i->g.g[dim]);
-			}
+			phi.push_back(i->phi);
 		}
 		DBPutPointvar1(db, "phi", "points", phi.data(), nnodes, DB_FLOAT, optlist);
-		for (int dim = 0; dim < NDIM; dim++) {
-			std::string nm = std::string() + "g_" + char('x' + char(dim));
-			DBPutPointvar1(db, nm.c_str(), "points", g[dim].data(), nnodes, DB_FLOAT, optlist);
-		}
 	}
 #endif
 
 #ifdef GLOBAL_DT
-#ifndef STORE_G
+#define OUTPUT_ACCEL
+#endif
+#ifdef STORE_G
+#define OUTPUT_ACCEL
+#endif
+
+#ifdef OUTPUT_ACCEL
 	{
 		std::array<std::vector<float>, NDIM> g;
 		for (int dim = 0; dim < NDIM; dim++) {
@@ -320,7 +336,8 @@ void tree::output(float t, int num) {
 		}
 	}
 #endif
-#else
+
+#ifndef GLOBAL_DT
 	{
 		std::vector<int> rung;
 		rung.reserve(nnodes);

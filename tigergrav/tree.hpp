@@ -12,6 +12,18 @@ class tree;
 
 using tree_ptr = std::shared_ptr<tree>;
 
+struct stats {
+	vect<double> mom_tot;
+#ifdef STORE_G
+	vect<double> acc_tot;
+#endif
+	double kin_tot;
+#ifdef STORE_G
+	double pot_tot;
+	double ene_tot;
+	double virial_err;
+#endif
+};
 
 class tree {
 	monopole mono;
@@ -29,7 +41,8 @@ public:
 	std::array<tree_ptr, NCHILD> get_children() const;
 	std::vector<vect<float>> get_positions() const;
 	void drift(float);
-	void output(float,int);
+	void output(float,int) const;
+	stats statistics() const;
 #ifdef GLOBAL_DT
 	void kick(float);
 	float compute_gravity(std::vector<tree_ptr> checklist, std::vector<source> sources);

@@ -10,7 +10,7 @@ int hpx_main(int argc, char *argv[]) {
 	options opts;
 	opts.process_options(argc, argv);
 
-	auto parts = initial_particle_set(opts.problem_size);
+	auto parts = initial_particle_set(opts.problem,opts.problem_size);
 
 	range root_box;
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -22,11 +22,31 @@ int hpx_main(int argc, char *argv[]) {
 	printf("Done forming tree\n");
 
 	float t = 0.0;
+	int iter = 0;
 	float dt;
+
+	const auto show_stats = [&](stats s) {
+		if (iter % 25 == 0) {
+			printf("%4s %13s %13s %13s %13s %13s %13s ", "i", "t", "dt", "ek", "px", "py", "pz");
+#ifdef STORE_G
+			printf("%13s %13s %13s %13s %13s %13s ", "ep", "ax", "ay", "az", "etot", "virial");
+#endif
+			printf("\n");
+		}
+		printf("%4i %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e ", iter, t, dt, s.kin_tot, s.mom_tot[0], s.mom_tot[1], s.mom_tot[2]);
+#ifdef STORE_G
+		printf("%13.6e %13.6e %13.6e %13.6e %13.6e %13.6e ", s.pot_tot, s.acc_tot[0], s.acc_tot[1], s.acc_tot[2], s.ene_tot, s.virial_err);
+#endif
+		printf( "\n");
+	};
+
 	int oi = 0;
 #ifdef GLOBAL_DT
 	dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
+#endif
 	while (t < opts.t_max) {
+		show_stats(root_ptr->statistics());
+#ifdef GLOBAL_DT
 		if (t / opts.dt_max >= oi) {
 			root_ptr->output(t, oi);
 			oi++;
@@ -37,11 +57,12 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr->kick(0.5 * dt);
 		t += dt;
 		dt = next_dt;
-	}
 #else
-	printf( "Variable dt not yet implemented\n");
+		printf( "Variable dt not yet implemented\n");
 #endif
-
+		iter++;
+	}
+	show_stats(root_ptr->statistics());
 	root_ptr->output(t, oi);
 	return hpx::finalize();
 }

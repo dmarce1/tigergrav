@@ -33,7 +33,8 @@ struct particle {
 	vect<std::uint64_t> x;
 	vect<float> v;
 #ifdef STORE_G
-	force g;
+	vect<float> g;
+	float phi;
 #ifndef GLOBAL_DT
 	std::int8_t rung;
 #endif

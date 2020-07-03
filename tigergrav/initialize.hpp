@@ -3,4 +3,4 @@
 
 #include <tigergrav/particle.hpp>
 
-part_vect initial_particle_set(int);
+part_vect initial_particle_set(std::string, int);

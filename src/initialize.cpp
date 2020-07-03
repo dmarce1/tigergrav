@@ -2,19 +2,36 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/rand.hpp>
 
-part_vect initial_particle_set(int N) {
+part_vect initial_particle_set(std::string pn, int N) {
 	part_vect parts;
 	parts.reserve(N);
-	for (int i = 0; i < N; i++) {
-		particle p;
-		for (int dim = 0; dim < NDIM; dim++) {
-			p.x[dim] = double_to_pos(rand1());
-			p.v[dim] = 0.0;
+
+	if (pn == "cosmos") {
+		for (int i = 0; i < N; i++) {
+			particle p;
+			for (int dim = 0; dim < NDIM; dim++) {
+				p.x[dim] = double_to_pos(rand1());
+				p.v[dim] = 0.0;
+			}
+			parts.push_back(std::move(p));
 		}
-#ifndef GLOBAL_DT
-		p.rung = -1;
-#endif
-		parts.push_back(std::move(p));
+	} else if (pn == "two_body") {
+		for (int i = 0; i < 2; i++) {
+			parts[i].x = double_to_pos(vect<float>(0.5));
+			parts[i].v = vect<float>(0.0);
+		}
+		parts[0].x[0] = double_to_pos(0.75);
+		parts[0].v[1] = 0.5;
+		parts[1].x[0] = double_to_pos(0.25);
+		parts[1].v[1] = -0.5;
+	} else {
+		printf("Problem %s unknown\n", pn.c_str());
+		abort();
 	}
+#ifndef GLOBAL_DT
+	for( auto i = parts.begin(); i != parts.end(); i++) {
+		parts[i].rung = -1;
+	}
+#endif
 	return parts;
 }
