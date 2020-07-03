@@ -24,6 +24,7 @@ struct stats {
 	double ene_tot;
 	double virial_err;
 #endif
+	std::uint64_t flop;
 };
 
 class tree {

@@ -223,7 +223,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator/(T r) const {
 template<class T, int N>
 CUDA_EXPORT inline T general_vect<T, N>::dot(const general_vect<T, N> &other) const {
 	T result = v[0] * other[0];
-#pragma loop unroll 3
+#pragma loop unroll 2
 	for (int dim = 1; dim < N; dim++) {
 		result += v[dim] * other[dim];
 	}

@@ -24,18 +24,20 @@ find_package(Boost REQUIRED)
 
 
 set(tigergrav_source_files
+	src/gravity.cpp
 	src/initialize.cpp
-	src/tree.cpp
 	src/main.cpp
 	src/options.cpp
 	src/rand.cpp
 	src/range.cpp
+	src/tree.cpp
 )
 
 set(tigergrav_header_files
 	tigergrav/cuda_export.hpp
 	tigergrav/defs.hpp
 	tigergrav/fixed_real.hpp
+	tigergrav/gravity.hpp
 	tigergrav/initialize.hpp
 	tigergrav/options.hpp
 	tigergrav/particle.hpp

@@ -1,3 +1,4 @@
+#include <tigergrav/gravity.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/tree.hpp>
 
@@ -93,29 +94,6 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-std::vector<force> gravity(const std::vector<vect<float>> &x, const std::vector<source> &y) {
-	const auto h = options::get().soft_len;
-	const auto h3inv = 1.0 / (h * h * h);
-	const auto h2 = h * h;
-	std::vector<force> f(x.size());
-	for (int i = 0; i < x.size(); i++) {
-		auto &g = f[i].g;
-		auto &phi = f[i].phi;
-		phi = 0.0;
-		g = vect<float>(0.0);
-		for (int j = 0; j < y.size(); j++) {
-			const vect<float> dx = x[i] - y[j].x;
-			const float m = y[j].m;
-			const float r = abs(dx);
-			const float rinv = 1.0 / std::sqrt(r * r + h2);
-			const float rinv3 = rinv * rinv * rinv;
-			g -= dx * (m * rinv3);
-			phi -= m * rinv;
-		}
-	}
-	return f;
-}
-
 #ifdef GLOBAL_DT
 float tree::compute_gravity(std::vector<tree_ptr> checklist, std::vector<source> sources) {
 #else
@@ -159,7 +137,8 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 			for (auto i = part_begin; i != part_end; i++) {
 				x.push_back(pos_to_double(i->x));
 			}
-			const auto f = gravity(x, sources);
+			std::vector<force> f(x.size());
+			flop += gravity(f, x, sources);
 			int j = 0;
 			min_dt = std::numeric_limits<float>::max();
 			for (auto i = part_begin; i != part_end; i++, j++) {
@@ -190,7 +169,8 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 					x.push_back(pos_to_double(i->x));
 				}
 			}
-			const auto f = gravity(x, sources);
+			std::vector<force> f(x.size());
+			flop += gravity(f, x, sources);
 			int j = 0;
 			max_rung = 0;
 			for (auto i = part_begin; i != part_end; i++, j++) {
@@ -256,6 +236,7 @@ stats tree::statistics() const {
 	const auto a = 2.0 * s.kin_tot;
 	const auto b = s.pot_tot;
 	s.virial_err = (a + b) / (std::abs(a) + std::abs(b));
+	s.flop = flop;
 #endif
 	return s;
 }
