@@ -1,3 +1,8 @@
+
+#ifndef __AVX__
+#error 'Must have AVX or higher'
+#endif
+
 #include <hpx/hpx_init.hpp>
 
 #include <tigergrav/initialize.hpp>

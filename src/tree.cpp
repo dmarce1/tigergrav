@@ -225,7 +225,7 @@ stats tree::statistics() const {
 		s.mom_tot += v * m;
 	}
 #ifdef STORE_G
-	s.pot_tot = m / h;
+	s.pot_tot = 0.5 * m / h;
 	s.acc_tot = vect<double>(0.0);
 	for (auto i = part_begin; i != part_end; i++) {
 		const auto &g = i->g;
