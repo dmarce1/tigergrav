@@ -9,7 +9,7 @@ public:
 	int problem_size;
 	float theta;
 	float eta;
-	float h;
+	float soft_len;
 	float dt_max;
 	float t_max;
 
@@ -22,7 +22,7 @@ public:
 		arc & problem_size;
 		arc & theta;
 		arc & eta;
-		arc & h;
+		arc & soft_len;
 		arc & dt_max;
 		arc & t_max;
 	}

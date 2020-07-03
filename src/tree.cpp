@@ -54,18 +54,16 @@ monopole tree::compute_monopoles() {
 			mono.r = std::max(mono.r, (float) abs(pos_to_double(i->x) - mono.x));
 		}
 	} else {
-		for (int ci = 0; ci < NCHILD; ci++) {
-			monopole ml, mr;
-			ml = children[0]->compute_monopoles();
-			mr = children[1]->compute_monopoles();
-			mono.m = ml.m + mr.m;
-			if (mono.m != 0.0) {
-				mono.x = (ml.x * ml.m + mr.x * mr.m) / mono.m;
-			} else {
-				mono.x = vect<float>(0.0);
-			}
-			mono.r = std::max(abs(ml.x - mono.x) + ml.r, abs(mr.x - mono.x) + mr.r);
+		monopole ml, mr;
+		ml = children[0]->compute_monopoles();
+		mr = children[1]->compute_monopoles();
+		mono.m = ml.m + mr.m;
+		if (mono.m != 0.0) {
+			mono.x = (ml.x * ml.m + mr.x * mr.m) / mono.m;
+		} else {
+			mono.x = vect<float>(0.0);
 		}
+		mono.r = std::max(abs(ml.x - mono.x) + ml.r, abs(mr.x - mono.x) + mr.r);
 	}
 	return mono;
 }
@@ -94,7 +92,7 @@ std::vector<vect<float>> tree::get_positions() const {
 }
 
 std::vector<force> gravity(const std::vector<vect<float>> &x, const std::vector<source> &y) {
-	const auto h = options::get().h;
+	const auto h = options::get().soft_len;
 	const auto h3inv = 1.0 / (h * h * h);
 	const auto h2 = h * h;
 	std::vector<force> f(x.size());
@@ -113,8 +111,9 @@ std::vector<force> gravity(const std::vector<vect<float>> &x, const std::vector<
 				g -= dx * (m * rinv3);
 				phi -= m * rinv;
 			} else if (r > 0.0) {
-				g -= dx * h3inv;
-				phi -= (1.5 * h2 - 0.5 * r * r) * h3inv;
+				const auto mh3inv = m * h3inv;
+				g -= dx * mh3inv;
+				phi -= (1.5 * h2 - 0.5 * r * r) * mh3inv;
 			}
 		}
 	}
@@ -133,6 +132,7 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 	for (auto c : checklist) {
 		const auto other = c->get_monopole();
 		const auto dx = abs(mono.x - other.x);
+//		printf( "%e %e\n", dx,  (mono.r + other.r) / opts.theta);
 		if (dx > (mono.r + other.r) / opts.theta) {
 			sources.push_back( { other.m, other.x });
 		} else {
@@ -168,7 +168,7 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 			min_dt = std::numeric_limits<float>::max();
 			for (auto i = part_begin; i != part_end; i++, j++) {
 				const float a = abs(f[j].g);
-				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.h / (a + eps)));
+				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
 				min_dt = std::min(min_dt, dt);
 #ifdef STORE_G
 				i->phi = f[j].phi;
@@ -204,7 +204,7 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 						i->v = i->v + f[j].g * (0.5 * dt);
 					}
 					const float a = abs(f[j].g);
-					float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.h / (a + eps)));
+					float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
 					std::int8_t rung = dt_to_rung(dt);
 					rung = std::max(rung, min_rung);
 					max_rung = std::max(max_rung, rung);

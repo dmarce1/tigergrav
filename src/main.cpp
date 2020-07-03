@@ -42,6 +42,8 @@ int hpx_main(int argc, char *argv[]) {
 
 	int oi = 0;
 #ifdef GLOBAL_DT
+	root_ptr->compute_monopoles();
+	printf( "Solving gravity\n");
 	dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 #endif
 	while (t < opts.t_max) {
@@ -53,6 +55,7 @@ int hpx_main(int argc, char *argv[]) {
 		}
 		root_ptr->kick(0.5 * dt);
 		root_ptr->drift(dt);
+		root_ptr->compute_monopoles();
 		const float next_dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 		root_ptr->kick(0.5 * dt);
 		t += dt;
