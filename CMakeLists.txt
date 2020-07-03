@@ -34,7 +34,7 @@ set(tigergrav_source_files
 
 set(tigergrav_header_files
 	tigergrav/cuda_export.hpp
-	tigergrav/dim.hpp
+	tigergrav/defs.hpp
 	tigergrav/fixed_real.hpp
 	tigergrav/initialize.hpp
 	tigergrav/options.hpp

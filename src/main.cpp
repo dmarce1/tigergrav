@@ -17,11 +17,32 @@ int hpx_main(int argc, char *argv[]) {
 		root_box.min[dim] = 0.0;
 		root_box.max[dim] = 1.0;
 	}
-	for (int i = 0; i < 2; i++) {
-		printf("Forming tree\n");
-		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end());
-		printf("Done forming tree\n");
+	printf("Forming tree\n");
+	tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end());
+	printf("Done forming tree\n");
+
+	float t = 0.0;
+	float dt;
+	int oi = 0;
+#ifdef GLOBAL_DT
+	dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
+	while (t < opts.t_max) {
+		if (t / opts.dt_max >= oi) {
+			root_ptr->output(t, oi);
+			oi++;
+		}
+		root_ptr->kick(0.5 * dt);
+		root_ptr->drift(dt);
+		const float next_dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
+		root_ptr->kick(0.5 * dt);
+		t += dt;
+		dt = next_dt;
 	}
+#else
+	printf( "Variable dt not yet implemented\n");
+#endif
+
+	root_ptr->output(t, oi);
 	return hpx::finalize();
 }
 

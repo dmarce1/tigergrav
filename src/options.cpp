@@ -26,8 +26,14 @@ bool options::process_options(int argc, char *argv[]) {
 	command_opts.add_options() //
 	("help", "produce help message") //
 	("config_file", po::value < std::string > (&config_file)->default_value(""), "configuration file") //
+	("problem", po::value < std::string > (&problem)->default_value("cosmos"), "problem type") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(16), "maximum number of particles on a node") //
 	("problem_size", po::value<int>(&problem_size)->default_value(4096), "number of particles") //
+	("theta", po::value<float>(&theta)->default_value(0.7), "separation parameter") //
+	("eta", po::value<float>(&eta)->default_value(0.2), "accuracy parameter") //
+	("h", po::value<float>(&h)->default_value(-1), "softening parameter") //
+	("dt_max", po::value<float>(&dt_max)->default_value(0.01), "maximum timestep size") //
+	("t_max", po::value<float>(&t_max)->default_value(1.0), "end time") //
 			;
 
 	boost::program_options::variables_map vm;
@@ -51,13 +57,23 @@ bool options::process_options(int argc, char *argv[]) {
 	const auto loc = hpx::find_all_localities();
 	const auto sz = loc.size();
 	std::vector<hpx::future<void>> futs;
+	if (h == -1) {
+		h = 0.02 * std::pow(problem_size, 1.0 / 3.0);
+	}
 	set(*this);
 	for (int i = 1; i < sz; i++) {
 		futs.push_back(hpx::async < set_options_action > (loc[i], *this));
 	}
 	hpx::wait_all(futs);
 #define SHOW( opt ) std::cout << std::string( #opt ) << " = " << std::to_string(opt) << '\n';
+#define SHOW_STR( opt ) std::cout << std::string( #opt ) << " = " << opt << '\n';
+	SHOW(dt_max);
+	SHOW(eta);
+	SHOW(h);
 	SHOW(parts_per_node);
+	SHOW_STR(problem);
 	SHOW(problem_size);
+	SHOW(t_max);
+	SHOW(theta);
 	return true;
 }

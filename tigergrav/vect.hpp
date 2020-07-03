@@ -8,7 +8,7 @@
 #ifndef VECT_HPP_
 #define VECT_HPP_
 
-#include <tigergrav/dim.hpp>
+#include <tigergrav/defs.hpp>
 #include <tigergrav/cuda_export.hpp>
 
 #include <array>
