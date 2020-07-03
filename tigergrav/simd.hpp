@@ -18,6 +18,7 @@
 #define _mmx_mul_ps(a,b)  _mm256_mul_ps((a),(b))
 #define _mmx_div_ps(a,b)  _mm256_div_ps((a),(b))
 #define _mmx_sqrt_ps(a)   _mm256_sqrt_ps(a)
+#define _mmx_rsqrt_ps(a)   _mm256_rsqrt_ps(a)
 #define _mmx_max_ps(a, b) _mm256_max_ps((a),(b))
 
 class simd_vector {
@@ -138,6 +139,7 @@ public:
 		return std::min(e, f);
 	}
 	friend simd_vector sqrt(const simd_vector&);
+	friend simd_vector rsqrt(const simd_vector&);
 	friend simd_vector operator*(float, const simd_vector &other);
 	friend simd_vector operator/(float, const simd_vector &other);
 	friend simd_vector max(const simd_vector &a, const simd_vector &b);
@@ -147,6 +149,12 @@ public:
 inline simd_vector sqrt(const simd_vector &vec) {
 	simd_vector r;
 	r.v = _mmx_sqrt_ps(vec.v);
+	return r;
+}
+
+inline simd_vector rsqrt(const simd_vector &vec) {
+	simd_vector r;
+	r.v = _mmx_rsqrt_ps(vec.v);
 	return r;
 }
 

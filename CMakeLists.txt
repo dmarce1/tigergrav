@@ -60,5 +60,5 @@ add_hpx_executable(
  )
 
 target_include_directories(tigergrav PUBLIC ${PROJECT_SOURCE_DIR})
-
+target_compile_options(tigergrav PUBLIC "-march=native")
 
