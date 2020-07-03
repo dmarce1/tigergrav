@@ -2,6 +2,8 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/tree.hpp>
 
+#include <hpx/include/async.hpp>
+
 #include <silo.h>
 
 std::atomic<std::uint64_t> tree::flop(0);
@@ -126,9 +128,11 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 #ifdef GLOBAL_DT
 	float min_dt;
 	if (!is_leaf()) {
-		const auto dt_l = children[0]->compute_gravity(checklist, sources);
+		auto dt_l_fut = hpx::async([=](){
+			return children[0]->compute_gravity(std::move(checklist), std::move(sources));
+		});
 		const auto dt_r = children[1]->compute_gravity(std::move(checklist), std::move(sources));
-		min_dt = std::min(dt_l, dt_r);
+		min_dt = std::min(dt_l_fut.get(), dt_r);
 	} else {
 		if (!checklist.empty()) {
 			min_dt = compute_gravity(std::move(checklist), std::move(sources));
