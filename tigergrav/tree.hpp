@@ -6,6 +6,7 @@
 #include <tigergrav/tree_id.hpp>
 
 #include <array>
+#include <atomic>
 #include <memory>
 
 class tree;
@@ -31,6 +32,8 @@ class tree {
 	part_iter part_end;
 	bool leaf;
 	std::array<tree_ptr, NCHILD> children;
+
+	static std::atomic<std::uint64_t> flop;
 
 public:
 	static tree_ptr new_(range, part_iter, part_iter);

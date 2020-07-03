@@ -3,6 +3,8 @@
 
 #include <silo.h>
 
+std::atomic<std::uint64_t> tree::flop(0);
+
 tree_ptr tree::new_(range r, part_iter b, part_iter e) {
 	return std::make_shared<tree>(r, b, e);
 }
@@ -105,16 +107,10 @@ std::vector<force> gravity(const std::vector<vect<float>> &x, const std::vector<
 			const vect<float> dx = x[i] - y[j].x;
 			const float m = y[j].m;
 			const float r = abs(dx);
-			const float rinv = 1.0 / r;
+			const float rinv = 1.0 / std::sqrt(r * r + h2);
 			const float rinv3 = rinv * rinv * rinv;
-			if (r > h) {
-				g -= dx * (m * rinv3);
-				phi -= m * rinv;
-			} else if (r > 0.0) {
-				const auto mh3inv = m * h3inv;
-				g -= dx * mh3inv;
-				phi -= (1.5 * h2 - 0.5 * r * r) * mh3inv;
-			}
+			g -= dx * (m * rinv3);
+			phi -= m * rinv;
 		}
 	}
 	return f;
@@ -237,8 +233,9 @@ void tree::kick(float dt) {
 #endif
 
 stats tree::statistics() const {
-	const auto &opts = options::get();
-	const auto m = 1.0 / opts.problem_size;
+	static const auto &opts = options::get();
+	static const auto m = 1.0 / opts.problem_size;
+	static const auto h = opts.soft_len;
 	stats s;
 	s.kin_tot = 0.0;
 	s.mom_tot = vect<double>(0.0);
@@ -248,7 +245,7 @@ stats tree::statistics() const {
 		s.mom_tot += v * m;
 	}
 #ifdef STORE_G
-	s.pot_tot = 0.0;
+	s.pot_tot = m / h;
 	s.acc_tot = vect<double>(0.0);
 	for (auto i = part_begin; i != part_end; i++) {
 		const auto &g = i->g;
