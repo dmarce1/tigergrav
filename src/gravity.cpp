@@ -4,9 +4,11 @@
 
 #include <hpx/include/async.hpp>
 
-constexpr int EWALD_NBIN = 64;
+constexpr int NE = 64;
+constexpr int NEP1 = 65;
+constexpr int NEP12 = NEP1 * NEP1;
 
-using ewald_table_t = std::array<std::array<std::array<float, EWALD_NBIN + 1>, EWALD_NBIN + 1>, EWALD_NBIN + 1>;
+using ewald_table_t = std::array<float,NEP1*NEP1*NEP1>;
 static ewald_table_t epot;
 static std::array<ewald_table_t, NDIM> eforce;
 
@@ -158,11 +160,11 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 				dX[dim] = min(absdx, one - absdx);                                      // 6 OP
 			}
 
-			vect<std::array<std::uint32_t, SIMD_LEN>> I;
+			vect<simd_int_vector> I;
 			vect<simd_vector> wm;
 			vect<simd_vector> w;
-			static const simd_vector dx0(0.5 / EWALD_NBIN);
-			static const simd_vector max_i(EWALD_NBIN - 1);
+			static const simd_vector dx0(0.5 / NE);
+			static const simd_vector max_i(NE - 1);
 			for (int dim = 0; dim < NDIM; dim++) {
 				I[dim] = min(dX[dim] / dx0, max_i).to_int();								// 9 OP
 				wm[dim] = (dX[dim] / dx0 - simd_vector(I[dim]));							// 9 OP
@@ -180,20 +182,27 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 			const simd_vector w101 = w10 * wm[2];											// 1 OP
 			const simd_vector w110 = w11 * w[2];											// 1 OP
 			const simd_vector w111 = w11 * wm[2];											// 1 OP
-			simd_vector y000, y001, y010, y011, y100, y101, y110, y111;
 			vect<simd_vector> F;
 			simd_vector Pot;
+			const simd_int_vector J = I[0] * simd_int_vector(NEP12) + I[1] * simd_int_vector(NEP1) + I[2];
+			const simd_int_vector J000 = J;
+			const simd_int_vector J001 = J + simd_int_vector(1);
+			const simd_int_vector J010 = J + simd_int_vector(NEP1);
+			const simd_int_vector J011 = J + simd_int_vector(1 + NEP1);
+			const simd_int_vector J100 = J + simd_int_vector(NEP12);
+			const simd_int_vector J101 = J + simd_int_vector(1 + NEP12);
+			const simd_int_vector J110 = J + simd_int_vector(NEP1 + NEP12);
+			const simd_int_vector J111 = J + simd_int_vector(1 + NEP1 + NEP12);
+			simd_vector y000, y001, y010, y011, y100, y101, y110, y111;
 			for (int dim = 0; dim < NDIM; dim++) {
-				for (int k = 0; k < SIMD_LEN; k++) {
-					y000[k] = eforce[dim][I[0][k]][I[1][k]][I[2][k]];
-					y001[k] = eforce[dim][I[0][k]][I[1][k]][I[2][k] + 1];
-					y010[k] = eforce[dim][I[0][k]][I[1][k] + 1][I[2][k]];
-					y011[k] = eforce[dim][I[0][k]][I[1][k] + 1][I[2][k] + 1];
-					y100[k] = eforce[dim][I[0][k] + 1][I[1][k]][I[2][k]];
-					y101[k] = eforce[dim][I[0][k] + 1][I[1][k]][I[2][k] + 1];
-					y110[k] = eforce[dim][I[0][k] + 1][I[1][k] + 1][I[2][k]];
-					y111[k] = eforce[dim][I[0][k] + 1][I[1][k] + 1][I[2][k] + 1];
-				}
+				y000.gather(eforce[dim].data(), J000);
+				y001.gather(eforce[dim].data(), J001);
+				y010.gather(eforce[dim].data(), J010);
+				y011.gather(eforce[dim].data(), J011);
+				y100.gather(eforce[dim].data(), J100);
+				y101.gather(eforce[dim].data(), J101);
+				y110.gather(eforce[dim].data(), J110);
+				y111.gather(eforce[dim].data(), J111);
 				F[dim] = w000 * y000;															// 3 OP
 				F[dim] += w001 * y001;															// 6 OP
 				F[dim] += w010 * y010;															// 6 OP
@@ -203,17 +212,14 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 				F[dim] += w110 * y110;															// 6 OP
 				F[dim] += w111 * y111;															// 6 OP
 			}
-			for (int k = 0; k < SIMD_LEN; k++) {
-				y000[k] = epot[I[0][k]][I[1][k]][I[2][k]];
-				y001[k] = epot[I[0][k]][I[1][k]][I[2][k] + 1];
-				y010[k] = epot[I[0][k]][I[1][k] + 1][I[2][k]];
-				y011[k] = epot[I[0][k]][I[1][k] + 1][I[2][k] + 1];
-				y100[k] = epot[I[0][k] + 1][I[1][k]][I[2][k]];
-				y101[k] = epot[I[0][k] + 1][I[1][k]][I[2][k] + 1];
-				y110[k] = epot[I[0][k] + 1][I[1][k] + 1][I[2][k]];
-				y111[k] = epot[I[0][k] + 1][I[1][k] + 1][I[2][k] + 1];
-//				printf( "%i %i %i\n", I[0][k], I[1][k], I[2][k]);
-			}
+			y000.gather(epot.data(), J000);
+			y001.gather(epot.data(), J001);
+			y010.gather(epot.data(), J010);
+			y011.gather(epot.data(), J011);
+			y100.gather(epot.data(), J100);
+			y101.gather(epot.data(), J101);
+			y110.gather(epot.data(), J110);
+			y111.gather(epot.data(), J111);
 			Pot = w000 * y000;																// 1 OP
 			Pot += w001 * y001;																// 2 OP
 			Pot += w010 * y010;																// 2 OP
@@ -242,7 +248,7 @@ void init_ewald() {
 	if (fp) {
 		int cnt = 0;
 		printf("Found ewald.dat\n");
-		const int sz = (EWALD_NBIN + 1) * (EWALD_NBIN + 1) * (EWALD_NBIN + 1);
+		const int sz = (NEP1) * (NEP1) * (NEP1);
 		cnt += fread(&epot, sizeof(float), sz, fp);
 		cnt += fread(&eforce, sizeof(float), NDIM * sz, fp);
 		int expected = sz * (1 + NDIM);
@@ -255,19 +261,19 @@ void init_ewald() {
 		printf("ewald.dat not found\n");
 		printf("Initializing Ewald (this may take some time)\n");
 
-		const double dx0 = 0.5 / EWALD_NBIN;
+		const double dx0 = 0.5 / NE;
 		for (int dim = 0; dim < NDIM; dim++) {
-			eforce[dim][0][0][0] = 0.0;
+			eforce[dim][0] = 0.0;
 		}
-		epot[0][0][0] = 2.8372975;
+		epot[0] = 2.8372975;
 		float n = 0;
-		for (int i = 0; i <= EWALD_NBIN; i++) {
-			for (int j = 0; j <= EWALD_NBIN; j++) {
-				printf("%% %.2f complete\r", n / double(EWALD_NBIN + 1) / double(EWALD_NBIN + 1) * 100.0);
+		for (int i = 0; i <= NE; i++) {
+			for (int j = 0; j <= NE; j++) {
+				printf("%% %.2f complete\r", n / double(NEP1) / double(NEP1) * 100.0);
 				n += 1.0;
 				fflush(stdout);
 				std::vector<hpx::future<void>> futs;
-				for (int k = 0; k <= EWALD_NBIN; k++) {
+				for (int k = 0; k <= NE; k++) {
 					const auto func = [i, j, k, dx0]() {
 						general_vect<double, NDIM> x;
 						x[0] = i * dx0;
@@ -281,10 +287,10 @@ void init_ewald() {
 								ym[dim] -= 0.5 * dx;
 								yp[dim] += 0.5 * dx;
 								const auto f = -(EW(yp) - EW(ym)) / dx;
-								eforce[dim][i][j][k] = f;
+								eforce[dim][i * NEP12 + j * NEP1 + k] = f;
 							}
 							const auto p = EW(x);
-							epot[i][j][k] = p;
+							epot[i * NEP12 + j * NEP1 + k] = p;
 						}
 					};
 					futs.push_back(hpx::async(func));
@@ -294,7 +300,7 @@ void init_ewald() {
 		}
 		printf("\nDone initializing Ewald\n");
 		fp = fopen("ewald.dat", "wb");
-		const int sz = (EWALD_NBIN + 1) * (EWALD_NBIN + 1) * (EWALD_NBIN + 1);
+		const int sz = (NEP1) * (NEP1) * (NEP1);
 		fwrite(&epot, sizeof(float), sz, fp);
 		fwrite(&eforce, sizeof(float), NDIM * sz, fp);
 		fclose(fp);

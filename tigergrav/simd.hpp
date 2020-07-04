@@ -11,28 +11,21 @@
 #include <immintrin.h>
 
 #define SIMD_LEN  8
-#define __mxs __m256
-#define _mmx_set_ps(d)    _mm256_set_ps((d),(d),(d),(d),(d),(d),(d),(d))
-#define _mmx_add_ps(a,b)  _mm256_add_ps((a),(b))
-#define _mmx_sub_ps(a,b)  _mm256_sub_ps((a),(b))
-#define _mmx_mul_ps(a,b)  _mm256_mul_ps((a),(b))
-#define _mmx_div_ps(a,b)  _mm256_div_ps((a),(b))
-#define _mmx_sqrt_ps(a)   _mm256_sqrt_ps(a)
-#define _mmx_rsqrt_ps(a)  _mm256_rsqrt_ps(a)
-#define _mmx_max_ps(a, b) _mm256_max_ps((a),(b))
-#define _mmx_min_ps(a, b) _mm256_min_ps((a),(b))
+
+class simd_int_vector;
 
 class simd_vector {
 private:
-	__mxs v;
+	__m256 v;
 public:
 	simd_vector() {
 		*this = 0;
 	}
+	inline simd_vector gather(float *base, simd_int_vector indices);
 	inline ~simd_vector() = default;
 	simd_vector(const simd_vector&) = default;
 	inline simd_vector(float d) {
-		v = _mmx_set_ps(d);
+		v = _mm256_set_ps(d, d, d, d, d, d, d, d);
 	}
 	inline float sum() const {
 		const float r0 = (*this)[0] + (*this)[4];
@@ -46,16 +39,8 @@ public:
 	inline simd_vector(simd_vector &&other) {
 		*this = std::move(other);
 	}
-	inline simd_vector(const std::array<std::uint32_t,SIMD_LEN> &other) {
-		const auto *ptr = reinterpret_cast<const __m256i*>(&other);
-		v = _mm256_cvtepi32_ps(*ptr);
-	}
-	inline std::array<std::uint32_t,SIMD_LEN> to_int() const {
-		std::array<std::uint32_t, SIMD_LEN> a;
-		auto *ptr = reinterpret_cast<__m256i*>(&a);
-		*ptr = _mm256_cvtps_epi32(v);
-		return a;
-	}
+	inline simd_vector(const simd_int_vector &other);
+	inline simd_int_vector to_int() const;
 	inline simd_vector& operator=(const simd_vector &other) = default;
 	simd_vector& operator=(simd_vector &&other) {
 		v = std::move(other.v);
@@ -63,22 +48,22 @@ public:
 	}
 	inline simd_vector operator+(const simd_vector &other) const {
 		simd_vector r;
-		r.v = _mmx_add_ps(v, other.v);
+		r.v = _mm256_add_ps(v, other.v);
 		return r;
 	}
 	inline simd_vector operator-(const simd_vector &other) const {
 		simd_vector r;
-		r.v = _mmx_sub_ps(v, other.v);
+		r.v = _mm256_sub_ps(v, other.v);
 		return r;
 	}
 	inline simd_vector operator*(const simd_vector &other) const {
 		simd_vector r;
-		r.v = _mmx_mul_ps(v, other.v);
+		r.v = _mm256_mul_ps(v, other.v);
 		return r;
 	}
 	inline simd_vector operator/(const simd_vector &other) const {
 		simd_vector r;
-		r.v = _mmx_div_ps(v, other.v);
+		r.v = _mm256_div_ps(v, other.v);
 		return r;
 	}
 	inline simd_vector operator+() const {
@@ -169,13 +154,13 @@ inline simd_vector copysign(const simd_vector &x, const simd_vector &y) {
 
 inline simd_vector sqrt(const simd_vector &vec) {
 	simd_vector r;
-	r.v = _mmx_sqrt_ps(vec.v);
+	r.v = _mm256_sqrt_ps(vec.v);
 	return r;
 }
 
 inline simd_vector rsqrt(const simd_vector &vec) {
 	simd_vector r;
-	r.v = _mmx_rsqrt_ps(vec.v);
+	r.v = _mm256_rsqrt_ps(vec.v);
 	return r;
 }
 
@@ -203,18 +188,111 @@ inline void simd_unpack(float *dest, simd_vector *src, int src_len, int pos) {
 
 inline simd_vector max(const simd_vector &a, const simd_vector &b) {
 	simd_vector r;
-	r.v = _mmx_max_ps(a.v, b.v);
+	r.v = _mm256_max_ps(a.v, b.v);
 	return r;
 }
 
 inline simd_vector min(const simd_vector &a, const simd_vector &b) {
 	simd_vector r;
-	r.v = _mmx_min_ps(a.v, b.v);
+	r.v = _mm256_min_ps(a.v, b.v);
 	return r;
 }
 
 inline simd_vector abs(const simd_vector &a) {
 	return max(a, -a);
 }
+
+class simd_int_vector {
+private:
+	__m256i v;
+public:
+	simd_int_vector() {
+		*this = 0;
+	}
+	inline ~simd_int_vector() = default;
+	simd_int_vector(const simd_int_vector&) = default;
+	inline simd_int_vector(std::int32_t d) {
+		v = _mm256_set_epi32(d, d, d, d, d, d, d, d);
+	}
+	inline simd_int_vector(simd_int_vector &&other) {
+		*this = std::move(other);
+	}
+	inline simd_int_vector& operator=(const simd_int_vector &other) = default;
+	simd_int_vector& operator=(simd_int_vector &&other) {
+		v = std::move(other.v);
+		return *this;
+	}
+	inline simd_int_vector operator+(const simd_int_vector &other) const {
+		simd_int_vector r;
+		r.v = _mm256_add_epi32(v, other.v);
+		return r;
+	}
+	inline simd_int_vector operator-(const simd_int_vector &other) const {
+		simd_int_vector r;
+		r.v = _mm256_sub_epi32(v, other.v);
+		return r;
+	}
+	inline simd_int_vector operator*(const simd_int_vector &other) const {
+		simd_int_vector r;
+		r.v = _mm256_mullo_epi32(v, other.v);
+		return r;
+	}
+	inline simd_int_vector operator+() const {
+		return *this;
+	}
+	inline simd_int_vector operator-() const {
+		return simd_int_vector(0.0) - *this;
+	}
+	inline simd_int_vector& operator+=(const simd_int_vector &other) {
+		*this = *this + other;
+		return *this;
+	}
+	inline simd_int_vector& operator-=(const simd_int_vector &other) {
+		*this = *this - other;
+		return *this;
+	}
+	inline simd_int_vector& operator*=(const simd_int_vector &other) {
+		*this = *this * other;
+		return *this;
+	}
+	inline simd_int_vector operator*(std::int32_t d) const {
+		const simd_int_vector other = d;
+		return other * *this;
+	}
+	inline simd_int_vector operator*=(std::int32_t d) {
+		*this = *this * d;
+		return *this;
+	}
+	inline simd_int_vector operator/=(std::int32_t d) {
+		*this = *this * (1.0 / d);
+		return *this;
+	}
+	inline std::int32_t& operator[](std::size_t i) {
+		std::int32_t *a = reinterpret_cast<std::int32_t*>(&v);
+		return a[i];
+	}
+	inline std::int32_t operator[](std::size_t i) const {
+		const std::int32_t *a = reinterpret_cast<const std::int32_t*>(&v);
+		return a[i];
+	}
+	friend class simd_vector;
+};
+
+inline simd_vector::simd_vector(const simd_int_vector &other) {
+	v = _mm256_cvtepi32_ps(other.v);
+}
+
+inline simd_int_vector simd_vector::to_int() const {
+	simd_int_vector a;
+	a.v = _mm256_cvtps_epi32(v);
+	return a;
+}
+
+
+inline simd_vector simd_vector::gather(float *base, simd_int_vector indices) {
+	v = _mm256_i32gather_ps(base, indices.v, sizeof(float));
+	return *this;
+}
+
 
 #endif /* TIGERGRAV_SIMD_HPP_ */
