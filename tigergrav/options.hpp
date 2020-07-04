@@ -5,6 +5,7 @@ class options {
 public:
 	std::string config_file;
 	std::string problem;
+	bool ewald;
 	int parts_per_node;
 	int problem_size;
 	float theta;
@@ -16,6 +17,7 @@ public:
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc & ewald;
 		arc & config_file;
 		arc & problem;
 		arc & parts_per_node;

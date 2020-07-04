@@ -124,9 +124,17 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	static const float eps = 10.0 * std::numeric_limits<float>::min();
+	std::function<float(const vect<float>)> separation;
+	if (opts.ewald) {
+		separation = ewald_separation;
+	} else {
+		separation = [](const vect<float> x) {
+			return abs(x);
+		};
+	}
 	for (auto c : checklist) {
-		const auto other = c->get_monopole();
-		const auto dx = abs(mono.x - other.x);
+		auto other = c->get_monopole();
+		const auto dx = separation(mono.x - other.x);
 //		printf( "%e %e\n", dx,  (mono.r + other.r) / opts.theta);
 		if (dx > (mono.r + other.r) / opts.theta) {
 			sources.push_back( { other.m, other.x });

@@ -9,7 +9,7 @@
 #include <atomic>
 #include <memory>
 
-#include <hpx/lcos/local/spinlock.hpp>
+#include <hpx/synchronization/spinlock.hpp>
 
 class tree;
 

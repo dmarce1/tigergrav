@@ -18,8 +18,9 @@
 #define _mmx_mul_ps(a,b)  _mm256_mul_ps((a),(b))
 #define _mmx_div_ps(a,b)  _mm256_div_ps((a),(b))
 #define _mmx_sqrt_ps(a)   _mm256_sqrt_ps(a)
-#define _mmx_rsqrt_ps(a)   _mm256_rsqrt_ps(a)
+#define _mmx_rsqrt_ps(a)  _mm256_rsqrt_ps(a)
 #define _mmx_max_ps(a, b) _mm256_max_ps((a),(b))
+#define _mmx_min_ps(a, b) _mm256_max_ps((a),(b))
 
 class simd_vector {
 private:
@@ -138,13 +139,24 @@ public:
 		const float f = std::min(c, d);
 		return std::min(e, f);
 	}
+	friend simd_vector copysign(const simd_vector&, const simd_vector&);
 	friend simd_vector sqrt(const simd_vector&);
 	friend simd_vector rsqrt(const simd_vector&);
 	friend simd_vector operator*(float, const simd_vector &other);
 	friend simd_vector operator/(float, const simd_vector &other);
 	friend simd_vector max(const simd_vector &a, const simd_vector &b);
+	friend simd_vector min(const simd_vector &a, const simd_vector &b);
 
 };
+
+inline simd_vector copysign(const simd_vector &x, const simd_vector &y) {
+	// From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
+	constexpr float signbit = -0.f;
+	static auto const avx_signbit = _mm256_broadcast_ss(&signbit);
+	simd_vector v;
+	v.v = _mm256_or_ps(_mm256_and_ps(avx_signbit, x.v), _mm256_andnot_ps(avx_signbit, y.v)); // (avx_signbit & from) | (~avx_signbit & to)
+	return v;
+}
 
 inline simd_vector sqrt(const simd_vector &vec) {
 	simd_vector r;
@@ -183,6 +195,12 @@ inline void simd_unpack(float *dest, simd_vector *src, int src_len, int pos) {
 inline simd_vector max(const simd_vector &a, const simd_vector &b) {
 	simd_vector r;
 	r.v = _mmx_max_ps(a.v, b.v);
+	return r;
+}
+
+inline simd_vector min(const simd_vector &a, const simd_vector &b) {
+	simd_vector r;
+	r.v = _mmx_min_ps(a.v, b.v);
 	return r;
 }
 
