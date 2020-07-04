@@ -3,10 +3,29 @@
 #include <tigergrav/tree.hpp>
 
 #include <hpx/include/async.hpp>
+#include <hpx/include/threads.hpp>
 
 #include <silo.h>
 
 std::atomic<std::uint64_t> tree::flop(0);
+int tree::num_threads = 1;
+mutex_type tree::mtx;
+
+bool tree::inc_thread() {
+	std::lock_guard<mutex_type> lock(mtx);
+	static const int nmax = 2 * hpx::threads::hardware_concurrency();
+	if (num_threads < nmax) {
+		num_threads++;
+		return true;
+	} else {
+		return false;
+	}
+}
+
+void tree::dec_thread() {
+	std::lock_guard<mutex_type> lock(mtx);
+	num_threads--;
+}
 
 tree_ptr tree::new_(range r, part_iter b, part_iter e) {
 	return std::make_shared<tree>(r, b, e);
@@ -128,9 +147,16 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 #ifdef GLOBAL_DT
 	float min_dt;
 	if (!is_leaf()) {
-		auto dt_l_fut = hpx::async([=](){
-			return children[0]->compute_gravity(std::move(checklist), std::move(sources));
-		});
+		hpx::future<float> dt_l_fut;
+		if (inc_thread()) {
+			dt_l_fut = hpx::async([=]() {
+				const auto rc = children[0]->compute_gravity(std::move(checklist), std::move(sources));
+				dec_thread();
+				return rc;
+			});
+		} else {
+			dt_l_fut = hpx::make_ready_future(children[0]->compute_gravity(checklist, sources));
+		}
 		const auto dt_r = children[1]->compute_gravity(std::move(checklist), std::move(sources));
 		min_dt = std::min(dt_l_fut.get(), dt_r);
 	} else {
@@ -160,9 +186,18 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 #else
 	std::int8_t max_rung;
 	if (!is_leaf()) {
-		const auto rung_l = children[0]->kick(checklist, sources, min_rung);
+		hpx::future<std::int8_t> rung_l_fut;
+		if (inc_thread()) {
+			rung_l_fut = hpx::async([=]() {
+				const auto rc = children[0]->kick(std::move(checklist), std::move(sources), min_rung);
+				dec_thread();
+				return rc;
+			});
+		} else {
+			rung_l_fut = hpx::make_ready_future(children[0]->kick(checklist, sources, min_rung));
+		}
 		const auto rung_r = children[1]->kick(std::move(checklist), std::move(sources), min_rung);
-		max_rung = std::max(rung_l, rung_r);
+		max_rung = std::max(rung_l_fut.get(), rung_r);
 	} else {
 		if (!checklist.empty()) {
 			max_rung = kick(std::move(checklist), std::move(sources), min_rung);

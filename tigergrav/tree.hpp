@@ -9,6 +9,8 @@
 #include <atomic>
 #include <memory>
 
+#include <hpx/lcos/local/spinlock.hpp>
+
 class tree;
 
 using tree_ptr = std::shared_ptr<tree>;
@@ -27,6 +29,8 @@ struct stats {
 	std::uint64_t flop;
 };
 
+using mutex_type = hpx::lcos::local::spinlock;
+
 class tree {
 	monopole mono;
 	part_iter part_begin;
@@ -35,6 +39,10 @@ class tree {
 	std::array<tree_ptr, NCHILD> children;
 
 	static std::atomic<std::uint64_t> flop;
+	static int num_threads;
+	static mutex_type mtx;
+	static bool inc_thread();
+	static void dec_thread();
 
 public:
 	static tree_ptr new_(range, part_iter, part_iter);
