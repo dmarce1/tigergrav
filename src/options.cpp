@@ -26,7 +26,7 @@ bool options::process_options(int argc, char *argv[]) {
 	command_opts.add_options() //
 	("help", "produce help message") //
 	("config_file", po::value < std::string > (&config_file)->default_value(""), "configuration file") //
-	("problem", po::value < std::string > (&problem)->default_value("two_body"), "problem type") //
+	("problem", po::value < std::string > (&problem)->default_value("cosmos"), "problem type") //
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
 	("problem_size", po::value<int>(&problem_size)->default_value(4096), "number of particles") //

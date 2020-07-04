@@ -20,7 +20,7 @@
 #define _mmx_sqrt_ps(a)   _mm256_sqrt_ps(a)
 #define _mmx_rsqrt_ps(a)  _mm256_rsqrt_ps(a)
 #define _mmx_max_ps(a, b) _mm256_max_ps((a),(b))
-#define _mmx_min_ps(a, b) _mm256_max_ps((a),(b))
+#define _mmx_min_ps(a, b) _mm256_min_ps((a),(b))
 
 class simd_vector {
 private:
@@ -50,7 +50,7 @@ public:
 		const auto *ptr = reinterpret_cast<const __m256i*>(&other);
 		v = _mm256_cvtepi32_ps(*ptr);
 	}
-	inline operator std::array<std::uint32_t,SIMD_LEN>() const {
+	inline std::array<std::uint32_t,SIMD_LEN> to_int() const {
 		std::array<std::uint32_t, SIMD_LEN> a;
 		auto *ptr = reinterpret_cast<__m256i*>(&a);
 		*ptr = _mm256_cvtps_epi32(v);

@@ -60,7 +60,7 @@ float ewald_separation(const vect<float> x) {
 	return std::sqrt(d);
 }
 
-std::uint64_t gravity(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
+std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -129,12 +129,8 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 	static const auto half = simd_vector(0.5);
 	vect<simd_vector> X, Y;
 	simd_vector M;
-	std::vector<vect<simd_vector>> G(x.size());
-	std::vector<simd_vector> Phi(x.size());
-	for (int i = 0; i < x.size(); i++) {
-		G[i] = f[i].g;
-		Phi[i] = f[i].phi;
-	}
+	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_vector> Phi(x.size(), 0.0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
 	y.resize(cnt2);
@@ -144,7 +140,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 	}
 	for (int j = 0; j < cnt1; j += SIMD_LEN) {
 		for (int k = 0; k < SIMD_LEN; k++) {
-			M[k] = y[j].m;
+			M[k] = y[j + k].m;
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
@@ -168,7 +164,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 			static const simd_vector dx0(0.5 / EWALD_NBIN);
 			static const simd_vector max_i(EWALD_NBIN - 1);
 			for (int dim = 0; dim < NDIM; dim++) {
-				I = (decltype(I)) min(dX[dim] / dx0, max_i);								// 9 OP
+				I[dim] = min(dX[dim] / dx0, max_i).to_int();								// 9 OP
 				wm[dim] = (dX[dim] / dx0 - simd_vector(I[dim]));							// 9 OP
 				w[dim] = simd_vector(1.0) - wm[dim];										// 3 OP
 			}
@@ -198,14 +194,14 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 					y110[k] = eforce[dim][I[0][k] + 1][I[1][k] + 1][I[2][k]];
 					y111[k] = eforce[dim][I[0][k] + 1][I[1][k] + 1][I[2][k] + 1];
 				}
-				F = w000 * y000;															// 3 OP
-				F += w001 * y001;															// 6 OP
-				F += w010 * y010;															// 6 OP
-				F += w011 * y011;															// 6 OP
-				F += w100 * y100;															// 6 OP
-				F += w101 * y101;															// 6 OP
-				F += w110 * y110;															// 6 OP
-				F += w111 * y111;															// 6 OP
+				F[dim] = w000 * y000;															// 3 OP
+				F[dim] += w001 * y001;															// 6 OP
+				F[dim] += w010 * y010;															// 6 OP
+				F[dim] += w011 * y011;															// 6 OP
+				F[dim] += w100 * y100;															// 6 OP
+				F[dim] += w101 * y101;															// 6 OP
+				F[dim] += w110 * y110;															// 6 OP
+				F[dim] += w111 * y111;															// 6 OP
 			}
 			for (int k = 0; k < SIMD_LEN; k++) {
 				y000[k] = epot[I[0][k]][I[1][k]][I[2][k]];
@@ -216,6 +212,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 				y101[k] = epot[I[0][k] + 1][I[1][k]][I[2][k] + 1];
 				y110[k] = epot[I[0][k] + 1][I[1][k] + 1][I[2][k]];
 				y111[k] = epot[I[0][k] + 1][I[1][k] + 1][I[2][k] + 1];
+//				printf( "%i %i %i\n", I[0][k], I[1][k], I[2][k]);
 			}
 			Pot = w000 * y000;																// 1 OP
 			Pot += w001 * y001;																// 2 OP
@@ -226,16 +223,16 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 			Pot += w110 * y110;																// 2 OP
 			Pot += w111 * y111;																// 2 OP
 			for (int dim = 0; dim < NDIM; dim++) {
-				G[i][dim] += dX[dim] * M * sgn[dim];                       					// 9 OP
+				G[i][dim] += F[dim] * M * sgn[dim];                       					// 9 OP
 			}
 			Phi[i] += M * Pot;																// 2 OP
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] = G[i][dim].sum();
+			f[i].g[dim] += G[i][dim].sum();
 		}
-		f[i].phi = Phi[i].sum();
+		f[i].phi += Phi[i].sum();
 	}
 	return 125 * cnt1 * x.size();
 }

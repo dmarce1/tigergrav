@@ -186,7 +186,10 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 				x.push_back(pos_to_double(i->x));
 			}
 			std::vector<force> f(x.size());
-			flop += gravity(f, x, sources);
+			flop += gravity_direct(f, x, sources);
+			if (opts.ewald) {
+				flop += gravity_ewald(f, x, ewald_sources);
+			}
 			int j = 0;
 			min_dt = std::numeric_limits<float>::max();
 			for (auto i = part_begin; i != part_end; i++, j++) {
@@ -227,7 +230,10 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 				}
 			}
 			std::vector<force> f(x.size());
-			flop += gravity(f, x, sources);
+			flop += gravity_direct(f, x, sources);
+			if (opts.ewald) {
+				flop += gravity_ewald(f, x, ewald_sources);
+			}
 			int j = 0;
 			max_rung = 0;
 			for (auto i = part_begin; i != part_end; i++, j++) {
