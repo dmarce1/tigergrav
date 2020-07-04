@@ -1,7 +1,7 @@
 #pragma once
 
 
-#define GLOBAL_DT
+//#define GLOBAL_DT
 #define STORE_G
 
 #define NDIM    3

@@ -44,6 +44,7 @@ set(tigergrav_header_files
 	tigergrav/rand.hpp
 	tigergrav/range.hpp
 	tigergrav/taylor.hpp
+	tigergrav/time.hpp
 	tigergrav/tree.hpp
 	tigergrav/vect.hpp
 )

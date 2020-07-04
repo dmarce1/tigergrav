@@ -1,5 +1,6 @@
 #include <tigergrav/gravity.hpp>
 #include <tigergrav/options.hpp>
+#include <tigergrav/time.hpp>
 #include <tigergrav/tree.hpp>
 
 #include <hpx/include/async.hpp>
@@ -130,7 +131,7 @@ std::vector<vect<float>> tree::get_positions() const {
 #ifdef GLOBAL_DT
 float tree::compute_gravity(std::vector<tree_ptr> checklist, std::vector<source> sources) {
 #else
-std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sources, std::int8_t min_rung) {
+rung_type tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sources, rung_type min_rung) {
 #endif
 	std::vector<tree_ptr> next_checklist;
 	static const auto opts = options::get();
@@ -194,7 +195,7 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 			}
 			int j = 0;
 			min_dt = std::numeric_limits<float>::max();
-			for (auto i = part_begin; i != part_end; i++, j++) {
+			for (auto i = part_begin; i != part_end; i++) {
 				const float a = abs(f[j].g);
 				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
 				min_dt = std::min(min_dt, dt);
@@ -202,14 +203,15 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 				i->phi = f[j].phi;
 #endif
 				i->g = f[j].g;
+				j++;
 			}
 		}
 	}
 	return min_dt;
 #else
-	std::int8_t max_rung;
+	rung_type max_rung;
 	if (!is_leaf()) {
-		hpx::future<std::int8_t> rung_l_fut;
+		hpx::future<rung_type> rung_l_fut;
 		if (inc_thread()) {
 			rung_l_fut = hpx::async([=]() {
 				const auto rc = children[0]->kick(std::move(checklist), std::move(sources), min_rung);
@@ -227,7 +229,7 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == -1) {
+				if (i->rung >= min_rung || i->rung == null_rung) {
 					x.push_back(pos_to_double(i->x));
 				}
 			}
@@ -238,20 +240,25 @@ std::int8_t tree::kick(std::vector<tree_ptr> checklist, std::vector<source> sour
 			}
 			int j = 0;
 			max_rung = 0;
-			for (auto i = part_begin; i != part_end; i++, j++) {
-				if (i->rung >= min_rung || i->rung == -1) {
+			for (auto i = part_begin; i != part_end; i++) {
+				if (i->rung >= min_rung || i->rung == null_rung) {
 					if (i->rung != -1) {
 						const float dt = rung_to_dt(i->rung);
 						i->v = i->v + f[j].g * (0.5 * dt);
 					}
 					const float a = abs(f[j].g);
 					float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
-					std::int8_t rung = dt_to_rung(dt);
+					rung_type rung = dt_to_rung(dt);
 					rung = std::max(rung, min_rung);
 					max_rung = std::max(max_rung, rung);
 					dt = rung_to_dt(rung);
 					i->rung = rung;
 					i->v = i->v + f[j].g * (0.5 * dt);
+#ifdef STORE_G
+					i->phi = f[j].phi;
+					i->g = f[j].g;
+#endif
+					j++;
 				}
 			}
 		}

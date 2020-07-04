@@ -9,6 +9,7 @@
 #define TIGERGRAV_PARTICLE_HPP_
 
 #include <tigergrav/fixed_real.hpp>
+#include <tigergrav/time.hpp>
 #include <tigergrav/vect.hpp>
 
 #include <vector>
@@ -36,13 +37,13 @@ struct particle {
 	vect<float> g;
 	float phi;
 #ifndef GLOBAL_DT
-	std::int8_t rung;
+	rung_type rung;
 #endif
 #else
 #ifdef GLOBAL_DT
 	vect<float> g;
 #else
-	std::int8_t rung;
+	rung_type rung;
 #endif
 #endif
 };
@@ -69,22 +70,6 @@ inline vect<std::uint64_t> double_to_pos(vect<double> d) {
 		x[dim] = double_to_pos(d[dim]);
 	}
 	return x;
-}
-
-inline float rung_to_dt(std::int8_t rung) {
-	return 1.0 / (1 << rung);
-}
-
-inline std::int8_t dt_to_rung(float dt) {
-	int rung = 0;
-	while (rung_to_dt(rung) > dt) {
-		rung++;
-		if (rung == std::numeric_limits<std::int8_t>::max()) {
-			printf("logic error %s %i\n", __FILE__, __LINE__);
-			abort();
-		}
-	}
-	return rung;
 }
 
 using part_vect = std::vector<particle>;

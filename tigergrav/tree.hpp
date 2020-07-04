@@ -63,6 +63,6 @@ public:
 	void kick(float);
 	float compute_gravity(std::vector<tree_ptr> checklist, std::vector<source> sources);
 #else
-	std::int8_t kick(std::vector<tree_ptr> checklist, std::vector<source> sources, std::int8_t min_rung);
+	rung_type kick(std::vector<tree_ptr> checklist, std::vector<source> sources, rung_type min_rung);
 #endif
 };
