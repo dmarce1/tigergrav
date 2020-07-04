@@ -43,10 +43,19 @@ public:
 		const float r5 = r2 + r3;
 		return r4 + r5;
 	}
-	simd_vector(simd_vector &&other) {
+	inline simd_vector(simd_vector &&other) {
 		*this = std::move(other);
 	}
-
+	inline simd_vector(const std::array<std::uint32_t,SIMD_LEN> &other) {
+		const auto *ptr = reinterpret_cast<const __m256i*>(&other);
+		v = _mm256_cvtepi32_ps(*ptr);
+	}
+	inline operator std::array<std::uint32_t,SIMD_LEN>() const {
+		std::array<std::uint32_t, SIMD_LEN> a;
+		auto *ptr = reinterpret_cast<__m256i*>(&a);
+		*ptr = _mm256_cvtps_epi32(v);
+		return a;
+	}
 	inline simd_vector& operator=(const simd_vector &other) = default;
 	simd_vector& operator=(simd_vector &&other) {
 		v = std::move(other.v);

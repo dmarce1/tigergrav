@@ -3,6 +3,7 @@
 #include <tigergrav/initialize.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/particle.hpp>
+#include <tigergrav/gravity.hpp>
 #include <tigergrav/tree.hpp>
 
 int hpx_main(int argc, char *argv[]) {
@@ -10,6 +11,9 @@ int hpx_main(int argc, char *argv[]) {
 	options opts;
 	opts.process_options(argc, argv);
 
+	if( opts.ewald) {
+		init_ewald();
+	}
 	auto parts = initial_particle_set(opts.problem, opts.problem_size);
 
 	range root_box;
@@ -50,6 +54,8 @@ int hpx_main(int argc, char *argv[]) {
 	int oi = 0;
 #ifdef GLOBAL_DT
 	root_ptr->compute_monopoles();
+	tree::reset_ewald_sources();
+	root_ptr->set_ewald_sources();
 	printf("Solving gravity\n");
 	dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 #endif
@@ -63,6 +69,8 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr->kick(0.5 * dt);
 		root_ptr->drift(dt);
 		root_ptr->compute_monopoles();
+		tree::reset_ewald_sources();
+		root_ptr->set_ewald_sources();
 		const float next_dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 		root_ptr->kick(0.5 * dt);
 		t += dt;

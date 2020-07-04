@@ -36,8 +36,10 @@ class tree {
 	part_iter part_begin;
 	part_iter part_end;
 	bool leaf;
+	float max_span;
 	std::array<tree_ptr, NCHILD> children;
 
+	static std::vector<source> ewald_sources;
 	static std::atomic<std::uint64_t> flop;
 	static int num_threads;
 	static mutex_type mtx;
@@ -55,6 +57,8 @@ public:
 	void drift(float);
 	void output(float,int) const;
 	stats statistics() const;
+	static void reset_ewald_sources();
+	void set_ewald_sources();
 #ifdef GLOBAL_DT
 	void kick(float);
 	float compute_gravity(std::vector<tree_ptr> checklist, std::vector<source> sources);

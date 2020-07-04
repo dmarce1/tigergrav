@@ -7,6 +7,7 @@
 
 #include <silo.h>
 
+std::vector<source> tree::ewald_sources;
 std::atomic<std::uint64_t> tree::flop(0);
 int tree::num_threads = 1;
 mutex_type tree::mtx;
@@ -35,7 +36,11 @@ tree::tree(range box, part_iter b, part_iter e) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
-	if (e - b > opts.parts_per_node) {
+	max_span = box.max[0] - box.min[0];
+	for (int dim = 1; dim < NDIM; dim++) {
+		max_span = std::max(max_span, box.max[dim] - box.min[dim]);
+	}
+	if (e - b > opts.parts_per_node || (opts.ewald && max_span >= opts.theta * 0.25)) {
 		leaf = false;
 		float max_span = 0.0;
 		int max_dim;
@@ -50,9 +55,14 @@ tree::tree(range box, part_iter b, part_iter e) {
 		range boxr = box;
 		float mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
-		const auto mid_iter = bisect(b, e, [max_dim, mid](const particle &p) {
-			return pos_to_double(p.x[max_dim]) < mid;
-		});
+		decltype(b) mid_iter;
+		if (e - b == 0) {
+			mid_iter = e;
+		} else {
+			mid_iter = bisect(b, e, [max_dim, mid](const particle &p) {
+				return pos_to_double(p.x[max_dim]) < mid;
+			});
+		}
 		children[0] = new_(boxl, b, mid_iter);
 		children[1] = new_(boxr, mid_iter, e);
 	} else {
@@ -272,7 +282,7 @@ stats tree::statistics() const {
 		s.mom_tot += v * m;
 	}
 #ifdef STORE_G
-	s.pot_tot = m / h;
+	s.pot_tot = 0.0;
 	s.acc_tot = vect<double>(0.0);
 	for (auto i = part_begin; i != part_end; i++) {
 		const auto &g = i->g;
@@ -377,3 +387,20 @@ void tree::output(float t, int num) const {
 	DBFreeOptlist(optlist);
 
 }
+
+void tree::reset_ewald_sources() {
+	ewald_sources.resize(0);
+}
+
+void tree::set_ewald_sources() {
+	static const auto opts = options::get();
+	if (opts.ewald) {
+		if (max_span < opts.theta * 0.25) {
+			ewald_sources.push_back( { mono.m, mono.x });
+		} else {
+			children[0]->set_ewald_sources();
+			children[1]->set_ewald_sources();
+		}
+	}
+}
+
