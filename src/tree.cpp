@@ -7,6 +7,8 @@
 
 #include <silo.h>
 
+#define EWALD_CRIT 0.25
+
 std::vector<source> tree::ewald_sources;
 std::atomic<std::uint64_t> tree::flop(0);
 int tree::num_threads = 1;
@@ -40,7 +42,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 	for (int dim = 1; dim < NDIM; dim++) {
 		max_span = std::max(max_span, box.max[dim] - box.min[dim]);
 	}
-	if (e - b > opts.parts_per_node || (opts.ewald && max_span >= opts.theta * 0.25)) {
+	if (e - b > opts.parts_per_node || (opts.ewald && max_span >= opts.theta * EWALD_CRIT)) {
 		leaf = false;
 		float max_span = 0.0;
 		int max_dim;
@@ -401,7 +403,7 @@ void tree::reset_ewald_sources() {
 void tree::set_ewald_sources() {
 	static const auto opts = options::get();
 	if (opts.ewald) {
-		if (max_span < opts.theta * 0.25) {
+		if (max_span < opts.theta * EWALD_CRIT) {
 			ewald_sources.push_back( { mono.m, mono.x });
 		} else {
 			children[0]->set_ewald_sources();

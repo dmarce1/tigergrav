@@ -12,6 +12,10 @@ using ewald_table_t = std::array<float,NEP1*NEP1*NEP1>;
 static ewald_table_t epot;
 static std::array<ewald_table_t, NDIM> eforce;
 
+static const auto one = simd_vector(1.0);
+static const auto half = simd_vector(0.5);
+static const simd_vector eps = simd_vector(std::numeric_limits<float>::min());
+
 float EW(general_vect<double, NDIM> x) {
 	general_vect<double, NDIM> n, h;
 	constexpr int nmax = 5;
@@ -73,8 +77,6 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 	static const auto h2 = h * h;
 	static const simd_vector H(h);
 	static const simd_vector H2(h2);
-	static const auto one = simd_vector(1.0);
-	static const auto half = simd_vector(0.5);
 	vect<simd_vector> X, Y;
 	simd_vector M;
 	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
@@ -109,7 +111,8 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 			const simd_vector rinv = rsqrt(r2 + H2);        // 2 OP
 			const simd_vector rinv3 = rinv * rinv * rinv;   // 2 OP
 			G[i] -= dX * (M * rinv3);                       // 7 OP
-			Phi[i] -= M * rinv;								// 2 OP
+			const simd_vector kill_zero = r2 / (r2 + eps);  // 2 OP
+			Phi[i] -= M * rinv * kill_zero;		    		// 3 OP
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
@@ -118,7 +121,7 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 		}
 		f[i].phi = Phi[i].sum();
 	}
-	return (21 + ewald ? 18 : 0) * cnt1 * x.size();
+	return (24 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
 std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
@@ -231,7 +234,9 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 			for (int dim = 0; dim < NDIM; dim++) {
 				G[i][dim] += F[dim] * M * sgn[dim];                       					// 9 OP
 			}
-			Phi[i] += M * Pot;																// 2 OP
+			const simd_vector r2 = dX.dot(dX);                                              // 5 OP
+			const simd_vector kill_zero = r2 / (r2 + eps);  // 2 OP
+			Phi[i] += M * Pot * kill_zero;													// 3 OP
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
@@ -240,7 +245,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 		}
 		f[i].phi += Phi[i].sum();
 	}
-	return 125 * cnt1 * x.size();
+	return 133 * cnt1 * x.size();
 }
 
 void init_ewald() {

@@ -21,6 +21,18 @@ public:
 	simd_vector() {
 		*this = 0;
 	}
+	__m256 operator!=(simd_vector other) const {
+		return _mm256_cmp_ps(v, other.v, _CMP_NEQ_OQ);
+	}
+	simd_vector maskz_load(simd_vector other, __m256 m0) {
+		float *ptr = reinterpret_cast<float*>(&v);
+		static const auto allones = _mm256_castsi256_ps(_mm256_set1_epi32(-1));
+		const auto m1 = _mm256_andnot_ps(m0, allones);
+		_mm256_maskstore_ps(ptr, _mm256_castps_si256(m0), other.v);
+		_mm256_maskstore_ps(ptr, _mm256_castps_si256(m1), simd_vector(0.0).v);
+		return *this;
+	}
+
 	inline simd_vector gather(float *base, simd_int_vector indices);
 	inline ~simd_vector() = default;
 	simd_vector(const simd_vector&) = default;
@@ -288,11 +300,9 @@ inline simd_int_vector simd_vector::to_int() const {
 	return a;
 }
 
-
 inline simd_vector simd_vector::gather(float *base, simd_int_vector indices) {
 	v = _mm256_i32gather_ps(base, indices.v, sizeof(float));
 	return *this;
 }
-
 
 #endif /* TIGERGRAV_SIMD_HPP_ */
