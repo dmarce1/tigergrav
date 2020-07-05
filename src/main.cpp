@@ -69,8 +69,8 @@ int hpx_main(int argc, char *argv[]) {
 	int si = 1;
 	root_ptr->compute_monopoles();
 	const auto mrung = min_rung(0);
-	root_ptr->active_particles(mrung);
-	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats);
+	root_ptr->active_particles(mrung, true);
+	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats, true);
 	dt = rung_to_dt(kr.rung);
 	while (t < opts.t_max) {
 		show();
@@ -90,8 +90,8 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr->compute_monopoles();
 		itime = inc(itime, kr.rung);
 		const auto mrung = min_rung(itime);
-		root_ptr->active_particles(mrung);
-		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats);
+		root_ptr->active_particles(mrung, false);
+		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats, false);
 		t = time_to_float(itime);
 		dt = rung_to_dt(kr.rung);
 		iter++;

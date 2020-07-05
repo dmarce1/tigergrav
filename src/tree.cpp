@@ -13,6 +13,8 @@
 std::atomic<std::uint64_t> tree::flop(0);
 int tree::num_threads = 1;
 mutex_type tree::mtx;
+std::vector<output> tree::output_parts;
+
 
 bool tree::inc_thread() {
 	std::lock_guard<mutex_type> lock(mtx);
@@ -128,7 +130,7 @@ std::vector<vect<float>> tree::get_positions() const {
 }
 
 kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
-		rung_type min_rung, bool do_stats) {
+		rung_type min_rung, bool do_stats, bool do_out) {
 
 	kick_return rc;
 	if (!has_active && !do_stats) {
@@ -193,14 +195,14 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 		hpx::future<kick_return> rc_l_fut;
 		if (inc_thread()) {
 			rc_l_fut = hpx::async([=]() {
-				const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats);
+				const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
 				dec_thread();
 				return rc;
 			});
 		} else {
-			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung, do_stats));
+			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung, do_stats, do_out));
 		}
-		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats);
+		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_stats) {
@@ -221,7 +223,7 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 			rc.stats.kin = 0.0;
 		}
 		if (!dchecklist.empty() || !echecklist.empty()) {
-			rc = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats);
+			rc = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
@@ -278,19 +280,19 @@ std::uint64_t tree::get_flop() {
 	return flop;
 }
 
-bool tree::active_particles(int rung) {
+bool tree::active_particles(int rung, bool do_out) {
 	bool rc;
 	if (is_leaf()) {
 		rc = false;
 		for (auto i = part_begin; i != part_end; i++) {
-			if (i->rung >= rung || i->rung == null_rung) {
+			if (i->rung >= rung || i->rung == null_rung || (do_out && i->flags.out)) {
 				rc = true;
 				break;
 			}
 		}
 	} else {
-		const auto rc1 = children[0]->active_particles(rung);
-		const auto rc2 = children[1]->active_particles(rung);
+		const auto rc1 = children[0]->active_particles(rung, do_out);
+		const auto rc2 = children[1]->active_particles(rung, do_out);
 		rc = rc1 || rc2;
 	}
 	has_active = rc;

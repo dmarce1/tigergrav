@@ -32,6 +32,7 @@ part_vect initial_particle_set(std::string pn, int N) {
 #ifndef GLOBAL_DT
 	for( auto i = parts.begin(); i != parts.end(); i++) {
 		i->rung = null_rung;
+		i->flags.out = 1;
 	}
 #endif
 	return parts;

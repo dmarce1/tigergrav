@@ -34,6 +34,9 @@ struct particle {
 	vect<std::uint64_t> x;
 	vect<float> v;
 	rung_type rung;
+	struct {
+		std::uint8_t out : 1;
+	} flags;
 };
 
 inline double pos_to_double(std::uint64_t x) {

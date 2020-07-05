@@ -15,7 +15,6 @@ class tree;
 
 using tree_ptr = std::shared_ptr<tree>;
 
-
 using mutex_type = hpx::lcos::local::spinlock;
 
 struct statistics {
@@ -23,6 +22,12 @@ struct statistics {
 	vect<double> p;
 	double pot;
 	double kin;
+};
+
+struct output {
+	const particle *part;
+	vect<float> g;
+	float phi;
 };
 
 struct kick_return {
@@ -42,6 +47,7 @@ class tree {
 	static std::atomic<std::uint64_t> flop;
 	static int num_threads;
 	static mutex_type mtx;
+	static std::vector<output> output_parts;
 	static bool inc_thread();
 	static void dec_thread();
 
@@ -56,9 +62,8 @@ public:
 	std::vector<vect<float>> get_positions() const;
 	void drift(float);
 //	void output(float,int) const;
-	bool active_particles(int rung);
-	kick_return kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung, bool do_statistics);
+	bool active_particles(int rung, bool do_out);
+	kick_return kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
+			rung_type min_rung, bool do_statistics, bool do_output);
 };
-
-
 
