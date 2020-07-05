@@ -128,9 +128,10 @@ std::vector<vect<float>> tree::get_positions() const {
 }
 
 #ifdef GLOBAL_DT
-float tree::compute_gravity(std::vector<tree_ptr> dchecklist, std::vector<source> dsources) {
+float tree::compute_gravity(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources) {
 #else
-rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, rung_type min_rung) {
+rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
+		rung_type min_rung) {
 #endif
 	std::vector<tree_ptr> next_dchecklist;
 	static const auto opts = options::get();
@@ -170,18 +171,18 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		hpx::future<float> dt_l_fut;
 		if (inc_thread()) {
 			dt_l_fut = hpx::async([=]() {
-				const auto rc = children[0]->compute_gravity(std::move(dchecklist), std::move(dsources));
+				const auto rc = children[0]->compute_gravity(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources));
 				dec_thread();
 				return rc;
 			});
 		} else {
-			dt_l_fut = hpx::make_ready_future(children[0]->compute_gravity(dchecklist, dsources));
+			dt_l_fut = hpx::make_ready_future(children[0]->compute_gravity(dchecklist, dsources, echecklist, esources));
 		}
-		const auto dt_r = children[1]->compute_gravity(std::move(dchecklist), std::move(dsources));
+		const auto dt_r = children[1]->compute_gravity(std::move(dchecklist), std::move(dsources),std::move(echecklist), std::move(esources));
 		min_dt = std::min(dt_l_fut.get(), dt_r);
 	} else {
 		if (!dchecklist.empty()) {
-			min_dt = compute_gravity(std::move(dchecklist), std::move(dsources));
+			min_dt = compute_gravity(std::move(dchecklist), std::move(dsources),std::move(echecklist), std::move(esources));
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
@@ -213,18 +214,18 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		hpx::future<rung_type> rung_l_fut;
 		if (inc_thread()) {
 			rung_l_fut = hpx::async([=]() {
-				const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), min_rung);
+				const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung);
 				dec_thread();
 				return rc;
 			});
 		} else {
-			rung_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, min_rung));
+			rung_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung));
 		}
-		const auto rung_r = children[1]->kick(std::move(dchecklist), std::move(dsources), min_rung);
+		const auto rung_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung);
 		max_rung = std::max(rung_l_fut.get(), rung_r);
 	} else {
 		if (!dchecklist.empty()) {
-			max_rung = kick(std::move(dchecklist), std::move(dsources), min_rung);
+			max_rung = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung);
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {

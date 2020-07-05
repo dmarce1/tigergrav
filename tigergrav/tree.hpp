@@ -58,8 +58,8 @@ public:
 	stats statistics() const;
 #ifdef GLOBAL_DT
 	void kick(float);
-	float compute_gravity(std::vector<tree_ptr> dchecklist, std::vector<source> dsources);
+	float compute_gravity(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources);
 #else
-	rung_type kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, rung_type min_rung);
+	rung_type kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung);
 #endif
 };

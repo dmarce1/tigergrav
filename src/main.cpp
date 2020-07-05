@@ -14,7 +14,6 @@ int hpx_main(int argc, char *argv[]) {
 	feenableexcept(FE_INVALID);
 	feenableexcept(FE_OVERFLOW);
 
-
 	options opts;
 	opts.process_options(argc, argv);
 
@@ -78,9 +77,9 @@ int hpx_main(int argc, char *argv[]) {
 	int oi = 0;
 	root_ptr->compute_monopoles();
 #ifdef GLOBAL_DT
-	dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
+	dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(),std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 #else
-	rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), 0);
+	rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), 0);
 	dt = rung_to_dt(rung);
 #endif
 	while (t < opts.t_max) {
@@ -95,7 +94,7 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr->drift(dt);
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		root_ptr->compute_monopoles();
-		const float next_dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
+		const float next_dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(),std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 		root_ptr->kick(0.5 * dt);
 		t += dt;
 		dt = next_dt;
@@ -104,7 +103,8 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		root_ptr->compute_monopoles();
 		itime = inc(itime, rung);
-		rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), min_rung(itime));
+		rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(),
+				min_rung(itime));
 		t = time_to_float(itime);
 		dt = rung_to_dt(rung);
 #endif
