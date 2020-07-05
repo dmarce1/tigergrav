@@ -34,7 +34,7 @@ int hpx_main(int argc, char *argv[]) {
 	float t = 0.0;
 	int iter = 0;
 	float dt;
-	rung_type rung;
+	kick_return kr;
 	time_type itime = 0;
 
 	const auto timer = []() {
@@ -43,58 +43,60 @@ int hpx_main(int argc, char *argv[]) {
 
 	const auto tstart = timer();
 
-	const auto show_stats = [&](stats s) {
+	bool do_stats = true;
+	const auto show = [&]() {
 		if (iter % 25 == 0) {
-			printf("%4s %13s %13s %13s %13s %13s %13s ", "i", "t", "dt", "ek", "px", "py", "pz");
-#ifdef STORE_G
-		printf("%13s %13s %13s %13s %13s %13s ", "ep", "ax", "ay", "az", "etot", "virial");
-#endif
-		printf("%9s ", "itime");
-		printf("%9s ", "max rung");
-		printf("%9s ", "min active");
-		printf("%13s\n", "GFLOPS");
-	}
-	printf("%4i %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e ", iter, t, dt, s.kin_tot, s.mom_tot[0], s.mom_tot[1], s.mom_tot[2]);
-#ifdef STORE_G
-		printf("%13.6e %13.6e %13.6e %13.6e %13.6e %13.6e ", s.pot_tot, s.acc_tot[0], s.acc_tot[1], s.acc_tot[2], s.ene_tot, s.virial_err);
-#endif
+			printf("%4s %13s %13s %9s %9s %9s %13s ", "i", "t", "dt", "itime", "max rung", "min act.", "GFLOP");
+			printf(" %13s %13s %13s %13s %13s %13s %13s %13s %13s\n", "gx", "gy", "gz", "px", "py", "pz", "epot", "ekin", "etot");
+		}
+		printf("%4i %13.6e %13.6e  ", iter, t, dt);
 		printf("%9x ", (int) itime);
-		printf("%9i ", (int) rung);
+		printf("%9i ", (int) kr.rung);
 		printf("%9i ", (int) min_rung(itime));
-		printf("%13.6e \n", s.flop / (timer() - tstart + std::numeric_limits<float>::min()) / std::pow(1024, 3));
+		printf("%13.6e ", root_ptr->get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
+		if (do_stats) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				printf("%13.6e ", kr.stats.g[dim]);
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				printf("%13.6e ", kr.stats.p[dim]);
+			}
+			printf("%13.6e %13.6e %13.6e ", kr.stats.pot, kr.stats.kin, kr.stats.pot + kr.stats.kin);
+		}
+		printf("\n");
 	};
-
-	const auto solve_gravity = [&]() {
-
-	};
-
 	int oi = 0;
+	int si = 1;
 	root_ptr->compute_monopoles();
 	const auto mrung = min_rung(0);
 	root_ptr->active_particles(mrung);
-	rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(),
-			mrung);
-	dt = rung_to_dt(rung);
+	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats);
+	dt = rung_to_dt(kr.rung);
 	while (t < opts.t_max) {
-		show_stats(root_ptr->statistics());
-		if (t / opts.dt_max >= oi) {
+		show();
+		if (t / opts.dt_out >= oi) {
 			printf("output %i\n", oi);
 			root_ptr->output(t, oi);
 			oi++;
 		}
+		if (t / opts.dt_stat >= si) {
+			do_stats = true;
+			si++;
+		} else {
+			do_stats = false;
+		}
 		root_ptr->drift(dt);
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		root_ptr->compute_monopoles();
-		itime = inc(itime, rung);
+		itime = inc(itime, kr.rung);
 		const auto mrung = min_rung(itime);
 		root_ptr->active_particles(mrung);
-		rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(),
-				mrung);
+		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats);
 		t = time_to_float(itime);
-		dt = rung_to_dt(rung);
+		dt = rung_to_dt(kr.rung);
 		iter++;
 	}
-	show_stats(root_ptr->statistics());
+	show();
 	root_ptr->output(t, oi);
 	return hpx::finalize();
 }

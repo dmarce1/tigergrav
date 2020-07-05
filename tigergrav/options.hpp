@@ -11,6 +11,8 @@ public:
 	float theta;
 	float eta;
 	float soft_len;
+	float dt_stat;
+	float dt_out;
 	float dt_max;
 	float t_max;
 
@@ -27,6 +29,8 @@ public:
 		arc & soft_len;
 		arc & dt_max;
 		arc & t_max;
+		arc & dt_stat;
+		arc & dt_out;
 	}
 	static options global;
 	static options& get();

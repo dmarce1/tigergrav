@@ -34,6 +34,8 @@ bool options::process_options(int argc, char *argv[]) {
 	("eta", po::value<float>(&eta)->default_value(0.2), "accuracy parameter") //
 	("soft_len", po::value<float>(&soft_len)->default_value(-1), "softening parameter") //
 	("dt_max", po::value<float>(&dt_max)->default_value(-1), "maximum timestep size") //
+	("dt_stat", po::value<float>(&dt_stat)->default_value(-1), "statistics frequency") //
+	("dt_out", po::value<float>(&dt_out)->default_value(-1), "output frequency") //
 	("t_max", po::value<float>(&t_max)->default_value(1.0), "end time") //
 			;
 
@@ -67,6 +69,12 @@ bool options::process_options(int argc, char *argv[]) {
 	if( dt_max < 0.0) {
 		dt_max = t_max / 100.0;
 	}
+	if( dt_stat < 0.0) {
+		dt_stat = dt_max;
+	}
+	if( dt_out < 0.0) {
+		dt_out = dt_max;
+	}
 	set(*this);
 	for (int i = 1; i < sz; i++) {
 		futs.push_back(hpx::async < set_options_action > (loc[i], *this));
@@ -75,6 +83,8 @@ bool options::process_options(int argc, char *argv[]) {
 #define SHOW( opt ) std::cout << std::string( #opt ) << " = " << std::to_string(opt) << '\n';
 #define SHOW_STR( opt ) std::cout << std::string( #opt ) << " = " << opt << '\n';
 	SHOW(dt_max);
+	SHOW(dt_out);
+	SHOW(dt_stat);
 	SHOW(ewald);
 	SHOW(eta);
 	SHOW(soft_len);

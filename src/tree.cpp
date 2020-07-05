@@ -127,10 +127,13 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung) {
+kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
+		rung_type min_rung, bool do_stats) {
 
-	if (!has_active) {
-		return 0;
+	kick_return rc;
+	if (!has_active && !do_stats) {
+		rc.rung = 0;
+		return rc;
 	}
 
 	std::vector<tree_ptr> next_dchecklist;
@@ -186,27 +189,43 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		}
 	}
 	echecklist = std::move(next_echecklist);
-	rung_type max_rung;
 	if (!is_leaf()) {
-		hpx::future<rung_type> rung_l_fut;
+		hpx::future<kick_return> rc_l_fut;
 		if (inc_thread()) {
-			rung_l_fut = hpx::async([=]() {
-				const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung);
+			rc_l_fut = hpx::async([=]() {
+				const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats);
 				dec_thread();
 				return rc;
 			});
 		} else {
-			rung_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung));
+			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung, do_stats));
 		}
-		const auto rung_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung);
-		max_rung = std::max(rung_l_fut.get(), rung_r);
+		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats);
+		const auto rc_l = rc_l_fut.get();
+		rc.rung = std::max(rc_r.rung, rc_l.rung);
+		if (do_stats) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				rc.stats.g[dim] = rc_r.stats.g[dim] + rc_l.stats.g[dim];
+				rc.stats.p[dim] = rc_r.stats.p[dim] + rc_l.stats.p[dim];
+			}
+			rc.stats.pot = rc_r.stats.pot + rc_l.stats.pot;
+			rc.stats.kin = rc_r.stats.kin + rc_l.stats.kin;
+		}
 	} else {
+		if (do_stats) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				rc.stats.g[dim] = 0.0;
+				rc.stats.p[dim] = 0.0;
+			}
+			rc.stats.pot = 0.0;
+			rc.stats.kin = 0.0;
+		}
 		if (!dchecklist.empty() || !echecklist.empty()) {
-			max_rung = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung);
+			rc = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats);
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung) {
+				if (i->rung >= min_rung || i->rung == null_rung || do_stats) {
 					x.push_back(pos_to_double(i->x));
 				}
 			}
@@ -216,31 +235,39 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 				flop += gravity_ewald(f, x, esources);
 			}
 			int j = 0;
-			max_rung = 0;
+			rc.rung = 0;
 			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung) {
-					if (i->rung != -1) {
-						const float dt = rung_to_dt(i->rung);
+				if (i->rung >= min_rung || i->rung == null_rung || do_stats) {
+					if (i->rung >= min_rung || i->rung == null_rung) {
+						if (i->rung != -1) {
+							const float dt = rung_to_dt(i->rung);
+							i->v = i->v + f[j].g * (0.5 * dt);
+						}
+						const float a = abs(f[j].g);
+						float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
+						rung_type rung = dt_to_rung(dt);
+						rung = std::max(rung, min_rung);
+						rc.rung = std::max(rc.rung, rung);
+						dt = rung_to_dt(rung);
+						i->rung = rung;
 						i->v = i->v + f[j].g * (0.5 * dt);
-					}
-					const float a = abs(f[j].g);
-					float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
-					rung_type rung = dt_to_rung(dt);
-					rung = std::max(rung, min_rung);
-					max_rung = std::max(max_rung, rung);
-					dt = rung_to_dt(rung);
-					i->rung = rung;
-					i->v = i->v + f[j].g * (0.5 * dt);
 #ifdef STORE_G
-					i->phi = f[j].phi;
-					i->g = f[j].g;
+						i->phi = f[j].phi;
+						i->g = f[j].g;
 #endif
+					}
+					if (do_stats) {
+						rc.stats.g = rc.stats.g + f[j].g * m;
+						rc.stats.p = rc.stats.p + i->v * m;
+						rc.stats.pot += 0.5 * m * i->phi;
+						rc.stats.kin += 0.5 * m * i->v.dot(i->v);
+					}
 					j++;
 				}
 			}
 		}
 	}
-	return max_rung;
+	return rc;
 }
 
 void tree::drift(float dt) {
@@ -251,34 +278,8 @@ void tree::drift(float dt) {
 	}
 }
 
-
-stats tree::statistics() const {
-	static const auto &opts = options::get();
-	static const auto m = 1.0 / opts.problem_size;
-	static const auto h = opts.soft_len;
-	stats s;
-	s.kin_tot = 0.0;
-	s.mom_tot = vect<double>(0.0);
-	for (auto i = part_begin; i != part_end; i++) {
-		const auto &v = i->v;
-		s.kin_tot += 0.5 * m * v.dot(v);
-		s.mom_tot += v * m;
-	}
-#ifdef STORE_G
-	s.pot_tot = 0.0;
-	s.acc_tot = vect<double>(0.0);
-	for (auto i = part_begin; i != part_end; i++) {
-		const auto &g = i->g;
-		s.pot_tot += 0.5 * m * i->phi;
-		s.acc_tot += g * m;
-	}
-	s.ene_tot = s.pot_tot + s.kin_tot;
-	const auto a = 2.0 * s.kin_tot;
-	const auto b = s.pot_tot;
-	s.virial_err = (a + b) / (std::abs(a) + std::abs(b));
-	s.flop = flop;
-#endif
-	return s;
+std::uint64_t tree::get_flop() {
+	return flop;
 }
 
 bool tree::active_particles(int rung) {

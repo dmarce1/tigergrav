@@ -31,6 +31,18 @@ struct stats {
 
 using mutex_type = hpx::lcos::local::spinlock;
 
+struct statistics {
+	vect<double> g;
+	vect<double> p;
+	double pot;
+	double kin;
+};
+
+struct kick_return {
+	statistics stats;
+	rung_type rung;
+};
+
 class tree {
 	monopole mono;
 	part_iter part_begin;
@@ -47,6 +59,7 @@ class tree {
 	static void dec_thread();
 
 public:
+	static std::uint64_t get_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
 	tree(range, part_iter, part_iter);
 	monopole compute_monopoles();
@@ -56,7 +69,9 @@ public:
 	std::vector<vect<float>> get_positions() const;
 	void drift(float);
 	void output(float,int) const;
-	stats statistics() const;
 	bool active_particles(int rung);
-	rung_type kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung);
+	kick_return kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung, bool do_statistics);
 };
+
+
+
