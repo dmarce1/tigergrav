@@ -8,7 +8,6 @@
 #ifndef TIGERGRAV_PARTICLE_HPP_
 #define TIGERGRAV_PARTICLE_HPP_
 
-#include <tigergrav/fixed_real.hpp>
 #include <tigergrav/time.hpp>
 #include <tigergrav/vect.hpp>
 

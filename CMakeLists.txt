@@ -36,9 +36,9 @@ set(tigergrav_source_files
 set(tigergrav_header_files
 	tigergrav/cuda_export.hpp
 	tigergrav/defs.hpp
-	tigergrav/fixed_real.hpp
 	tigergrav/gravity.hpp
 	tigergrav/initialize.hpp
+	tigergrav/output.hpp
 	tigergrav/options.hpp
 	tigergrav/particle.hpp
 	tigergrav/rand.hpp
@@ -46,6 +46,16 @@ set(tigergrav_header_files
 	tigergrav/taylor.hpp
 	tigergrav/time.hpp
 	tigergrav/tree.hpp
+	tigergrav/vect.hpp
+)
+
+
+set(bin2silo_source_files
+	src/bin2silo.cpp
+)
+
+set(bin2silo_header_files
+	tigergrav/output.hpp
 	tigergrav/vect.hpp
 )
 
@@ -60,6 +70,18 @@ add_hpx_executable(
     ${tigergrav_header_files}
  )
 
+
+add_hpx_executable(
+  bin2silo
+  DEPENDENCIES
+    Silo::silo Boost::boost
+  SOURCES
+    ${bin2silo_source_files}
+  HEADERS
+    ${bin2silo_header_files}
+ )
+
 target_include_directories(tigergrav PUBLIC ${PROJECT_SOURCE_DIR})
+target_include_directories(bin2silo PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(tigergrav PUBLIC "-march=native")
 

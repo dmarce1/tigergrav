@@ -1,5 +1,6 @@
 #pragma once
 
+#include <tigergrav/output.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/particle.hpp>
 #include <tigergrav/range.hpp>
@@ -22,13 +23,6 @@ struct statistics {
 	vect<double> p;
 	double pot;
 	double kin;
-};
-
-struct output {
-	vect<double> x;
-	vect<float> v;
-	vect<float> g;
-	float phi;
 };
 
 struct kick_return {

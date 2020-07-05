@@ -2,6 +2,8 @@
 
 #include <tigergrav/options.hpp>
 
+#include <limits>
+
 using rung_type = std::int8_t;
 using time_type = std::uint32_t;
 

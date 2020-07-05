@@ -6,6 +6,8 @@ public:
 	std::string config_file;
 	std::string problem;
 	bool ewald;
+	bool silo_on_fly;
+	int out_parts;
 	int parts_per_node;
 	int problem_size;
 	float theta;
@@ -17,8 +19,11 @@ public:
 	float t_max;
 
 
+
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc & silo_on_fly;
+		arc & out_parts;
 		arc & ewald;
 		arc & config_file;
 		arc & problem;

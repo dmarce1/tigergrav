@@ -6,8 +6,6 @@
 #include <hpx/include/async.hpp>
 #include <hpx/include/threads.hpp>
 
-#include <silo.h>
-
 #define EWALD_CRIT 0.25
 
 std::atomic<std::uint64_t> tree::flop(0);
@@ -267,6 +265,7 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 						out.v = i->v;
 						out.g = f[j].g;
 						out.phi = f[j].phi;
+						out.rung = i->rung;
 						std::lock_guard<mutex_type> lock(out_mtx);
 						FILE *fp = fopen("output.bin", "ab");
 						fwrite(&out, sizeof(output), 1, fp);

@@ -28,6 +28,8 @@ bool options::process_options(int argc, char *argv[]) {
 	("config_file", po::value < std::string > (&config_file)->default_value(""), "configuration file") //
 	("problem", po::value < std::string > (&problem)->default_value("cosmos"), "problem type") //
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
+	("silo_on_fly", po::value<bool>(&silo_on_fly)->default_value(true), "convert to SILO on the fly") //
+	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
 	("problem_size", po::value<int>(&problem_size)->default_value(4096), "number of particles") //
 	("theta", po::value<float>(&theta)->default_value(0.7), "separation parameter") //
@@ -75,6 +77,9 @@ bool options::process_options(int argc, char *argv[]) {
 	if( dt_out < 0.0) {
 		dt_out = dt_max;
 	}
+	if( out_parts < 0) {
+		out_parts = problem_size;
+	}
 	set(*this);
 	for (int i = 1; i < sz; i++) {
 		futs.push_back(hpx::async < set_options_action > (loc[i], *this));
@@ -87,10 +92,12 @@ bool options::process_options(int argc, char *argv[]) {
 	SHOW(dt_stat);
 	SHOW(ewald);
 	SHOW(eta);
-	SHOW(soft_len);
+	SHOW(out_parts);
 	SHOW(parts_per_node);
 	SHOW_STR(problem);
 	SHOW(problem_size);
+	SHOW(silo_on_fly);
+	SHOW(soft_len);
 	SHOW(t_max);
 	SHOW(theta);
 	return true;

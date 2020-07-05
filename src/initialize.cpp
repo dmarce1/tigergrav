@@ -2,7 +2,7 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/rand.hpp>
 
-part_vect initial_particle_set(std::string pn, int N) {
+part_vect initial_particle_set(std::string pn, int N, int Nout) {
 	part_vect parts;
 	parts.reserve(N);
 
@@ -30,9 +30,10 @@ part_vect initial_particle_set(std::string pn, int N) {
 		abort();
 	}
 #ifndef GLOBAL_DT
-	for( auto i = parts.begin(); i != parts.end(); i++) {
+	int j = 0;
+	for (auto i = parts.begin(); i != parts.end(); i++, j++) {
 		i->rung = null_rung;
-		i->flags.out = 1;
+		i->flags.out = j < Nout;
 	}
 #endif
 	return parts;
