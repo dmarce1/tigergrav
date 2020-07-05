@@ -127,18 +127,12 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-#ifdef GLOBAL_DT
-float tree::compute_gravity(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources) {
-#else
-rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
-		rung_type min_rung) {
-#endif
+rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung) {
 
-#ifndef GLOBAL_DT
 	if (!has_active) {
 		return 0;
 	}
-#endif
+
 	std::vector<tree_ptr> next_dchecklist;
 	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
@@ -192,50 +186,6 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		}
 	}
 	echecklist = std::move(next_echecklist);
-#ifdef GLOBAL_DT
-	float min_dt;
-	if (!is_leaf()) {
-		hpx::future<float> dt_l_fut;
-		if (inc_thread()) {
-			dt_l_fut = hpx::async([=]() {
-				const auto rc = children[0]->compute_gravity(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources));
-				dec_thread();
-				return rc;
-			});
-		} else {
-			dt_l_fut = hpx::make_ready_future(children[0]->compute_gravity(dchecklist, dsources, echecklist, esources));
-		}
-		const auto dt_r = children[1]->compute_gravity(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources));
-		min_dt = std::min(dt_l_fut.get(), dt_r);
-	} else {
-		if (!dchecklist.empty() || !echecklist.empty()) {
-			min_dt = compute_gravity(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources));
-		} else {
-			std::vector<vect<float>> x;
-			for (auto i = part_begin; i != part_end; i++) {
-				x.push_back(pos_to_double(i->x));
-			}
-			std::vector<force> f(x.size());
-			flop += gravity_direct(f, x, dsources);
-			if (opts.ewald) {
-				flop += gravity_ewald(f, x, esources);
-			}
-			int j = 0;
-			min_dt = std::numeric_limits<float>::max();
-			for (auto i = part_begin; i != part_end; i++) {
-				const float a = abs(f[j].g);
-				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
-				min_dt = std::min(min_dt, dt);
-#ifdef STORE_G
-				i->phi = f[j].phi;
-#endif
-				i->g = f[j].g;
-				j++;
-			}
-		}
-	}
-	return min_dt;
-#else
 	rung_type max_rung;
 	if (!is_leaf()) {
 		hpx::future<rung_type> rung_l_fut;
@@ -291,8 +241,6 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		}
 	}
 	return max_rung;
-#endif
-
 }
 
 void tree::drift(float dt) {
@@ -303,13 +251,6 @@ void tree::drift(float dt) {
 	}
 }
 
-#ifdef GLOBAL_DT
-void tree::kick(float dt) {
-	for (auto i = part_begin; i != part_end; i++) {
-		i->v = i->v + i->g * dt;
-	}
-}
-#endif
 
 stats tree::statistics() const {
 	static const auto &opts = options::get();
@@ -340,7 +281,6 @@ stats tree::statistics() const {
 	return s;
 }
 
-#ifndef GLOBAL_DT
 bool tree::active_particles(int rung) {
 	bool rc;
 	if (is_leaf()) {
@@ -359,7 +299,6 @@ bool tree::active_particles(int rung) {
 	has_active = rc;
 	return rc;
 }
-#endif
 
 void tree::output(float t, int num) const {
 	std::string filename = std::string("parts.") + std::to_string(num) + std::string(".silo");
@@ -410,14 +349,7 @@ void tree::output(float t, int num) const {
 	}
 #endif
 
-#ifdef GLOBAL_DT
-#define OUTPUT_ACCEL
-#endif
 #ifdef STORE_G
-#define OUTPUT_ACCEL
-#endif
-
-#ifdef OUTPUT_ACCEL
 	{
 		std::array<std::vector<float>, NDIM> g;
 		for (int dim = 0; dim < NDIM; dim++) {
@@ -435,7 +367,6 @@ void tree::output(float t, int num) const {
 	}
 #endif
 
-#ifndef GLOBAL_DT
 	{
 		std::vector<int> rung;
 		rung.reserve(nnodes);
@@ -444,7 +375,6 @@ void tree::output(float t, int num) const {
 		}
 		DBPutPointvar1(db, "rung", "points", rung.data(), nnodes, DB_INT, optlist);
 	}
-#endif
 
 	DBClose(db);
 	DBFreeOptlist(optlist);
