@@ -168,12 +168,8 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 	if (opts.ewald) {
 		for (auto c : echecklist) {
 			auto other = c->get_monopole();
-			const auto dx_far = ewald_far_separation(mono.x - other.x) - float(2) * other.r;
-			const auto dx_near = ewald_near_separation(mono.x - other.x);
-			const auto dx = std::max(dx_far, dx_near);
-			if ((dx > (mono.r + other.r) / opts.theta) && dx_near > other.r + mono.r) {
-//			const auto dx = separation(mono.x - other.x);
-//			if (dx > (mono.r + other.r) / opts.theta) {
+			const auto dx = ewald_far_separation(mono.x - other.x);
+			if (dx > (mono.r + other.r) / opts.theta) {
 				esources.push_back( { other.m, other.x });
 			} else {
 				if (c->is_leaf()) {

@@ -70,10 +70,10 @@ float ewald_far_separation(const vect<float> x) {
 	float d = 0.0;
 	for (int dim = 0; dim < NDIM; dim++) {
 		const float absx = std::abs(x[dim]);
-		float this_d = std::max(absx, (float) 1.0 - absx);
+		const float this_d = std::min(absx, (float) 1.0 - absx);
 		d += this_d * this_d;
 	}
-	return std::sqrt(d);
+	return std::max(std::sqrt(d), float(0.25));
 }
 
 std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
