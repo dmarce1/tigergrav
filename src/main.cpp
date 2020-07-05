@@ -43,7 +43,20 @@ int hpx_main(int argc, char *argv[]) {
 
 	const auto tstart = timer();
 
+	const auto system_cmd = [](std::string cmd) {
+		if (system(cmd.c_str()) != 0) {
+			printf("Unable to execute system command %s\n", cmd.c_str());
+			abort();
+		}
+	};
+	FILE *fp;
+	fp = fopen("output.bin", "rb");
+	if (fp) {
+		fclose(fp);
+		system_cmd("rm output.bin\n");
+	}
 	bool do_stats = true;
+	bool do_out = true;
 	const auto show = [&]() {
 		if (iter % 25 == 0) {
 			printf("%4s %13s %13s %9s %9s %9s %13s ", "i", "t", "dt", "itime", "max rung", "min act.", "GFLOP");
@@ -65,21 +78,27 @@ int hpx_main(int argc, char *argv[]) {
 		}
 		printf("\n");
 	};
-	int oi = 0;
+	int oi = 1;
 	int si = 1;
 	root_ptr->compute_monopoles();
 	const auto mrung = min_rung(0);
-	root_ptr->active_particles(mrung, true);
-	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats, true);
+	root_ptr->active_particles(mrung, do_out);
+	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats,
+			do_out);
+	if (do_out) {
+		system_cmd(std::string("mv output.bin out.") + std::to_string(oi) + ".bin");
+	}
 	dt = rung_to_dt(kr.rung);
 	while (t < opts.t_max) {
 		show();
-		if (t / opts.dt_out >= oi) {
-//			printf("output %i\n", oi);
-//			root_ptr->output(t, oi);
+		if ((t + dt) / opts.dt_out >= oi) {
+			do_out = true;
+			printf("Doing output\n");
 			oi++;
+		} else {
+			do_out = false;
 		}
-		if (t + dt / opts.dt_stat >= si) {
+		if ((t + dt) / opts.dt_stat >= si) {
 			do_stats = true;
 			si++;
 		} else {
@@ -90,8 +109,12 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr->compute_monopoles();
 		itime = inc(itime, kr.rung);
 		const auto mrung = min_rung(itime);
-		root_ptr->active_particles(mrung, false);
-		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats, false);
+		root_ptr->active_particles(mrung, do_out);
+		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
+				do_stats, do_out);
+		if (do_out) {
+			system_cmd(std::string("mv output.bin out.") + std::to_string(oi) + ".bin");
+		}
 		t = time_to_float(itime);
 		dt = rung_to_dt(kr.rung);
 		iter++;

@@ -25,7 +25,8 @@ struct statistics {
 };
 
 struct output {
-	const particle *part;
+	vect<double> x;
+	vect<float> v;
 	vect<float> g;
 	float phi;
 };
@@ -46,8 +47,8 @@ class tree {
 
 	static std::atomic<std::uint64_t> flop;
 	static int num_threads;
-	static mutex_type mtx;
-	static std::vector<output> output_parts;
+	static mutex_type thread_mtx;
+	static mutex_type out_mtx;
 	static bool inc_thread();
 	static void dec_thread();
 

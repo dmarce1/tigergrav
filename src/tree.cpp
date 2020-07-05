@@ -12,12 +12,11 @@
 
 std::atomic<std::uint64_t> tree::flop(0);
 int tree::num_threads = 1;
-mutex_type tree::mtx;
-std::vector<output> tree::output_parts;
-
+mutex_type tree::thread_mtx;
+mutex_type tree::out_mtx;
 
 bool tree::inc_thread() {
-	std::lock_guard<mutex_type> lock(mtx);
+	std::lock_guard<mutex_type> lock(thread_mtx);
 	static const int nmax = 2 * hpx::threads::hardware_concurrency();
 	if (num_threads < nmax) {
 		num_threads++;
@@ -28,7 +27,7 @@ bool tree::inc_thread() {
 }
 
 void tree::dec_thread() {
-	std::lock_guard<mutex_type> lock(mtx);
+	std::lock_guard<mutex_type> lock(thread_mtx);
 	num_threads--;
 }
 
@@ -194,11 +193,13 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 	if (!is_leaf()) {
 		hpx::future<kick_return> rc_l_fut;
 		if (inc_thread()) {
-			rc_l_fut = hpx::async([=]() {
-				const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
-				dec_thread();
-				return rc;
-			});
+			rc_l_fut = hpx::async(
+					[=]() {
+						const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung,
+								do_stats, do_out);
+						dec_thread();
+						return rc;
+					});
 		} else {
 			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung, do_stats, do_out));
 		}
@@ -227,7 +228,7 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_stats) {
+				if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
 					x.push_back(pos_to_double(i->x));
 				}
 			}
@@ -239,7 +240,7 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 			int j = 0;
 			rc.rung = 0;
 			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_stats) {
+				if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
 					if (i->rung >= min_rung || i->rung == null_rung) {
 						if (i->rung != -1) {
 							const float dt = rung_to_dt(i->rung);
@@ -259,6 +260,17 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 						rc.stats.p = rc.stats.p + i->v * m;
 						rc.stats.pot += 0.5 * m * f[j].phi;
 						rc.stats.kin += 0.5 * m * i->v.dot(i->v);
+					}
+					if (do_out && i->flags.out) {
+						output out;
+						out.x = pos_to_double(i->x);
+						out.v = i->v;
+						out.g = f[j].g;
+						out.phi = f[j].phi;
+						std::lock_guard<mutex_type> lock(out_mtx);
+						FILE *fp = fopen("output.bin", "ab");
+						fwrite(&out, sizeof(output), 1, fp);
+						fclose(fp);
 					}
 					j++;
 				}
