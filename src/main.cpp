@@ -77,8 +77,6 @@ int hpx_main(int argc, char *argv[]) {
 
 	int oi = 0;
 	root_ptr->compute_monopoles();
-	tree::reset_ewald_sources();
-	root_ptr->set_ewald_sources();
 #ifdef GLOBAL_DT
 	dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 #else
@@ -97,8 +95,6 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr->drift(dt);
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		root_ptr->compute_monopoles();
-		tree::reset_ewald_sources();
-		root_ptr->set_ewald_sources();
 		const float next_dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 		root_ptr->kick(0.5 * dt);
 		t += dt;
@@ -107,8 +103,6 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr->drift(dt);
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		root_ptr->compute_monopoles();
-		tree::reset_ewald_sources();
-		root_ptr->set_ewald_sources();
 		itime = inc(itime, rung);
 		rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), min_rung(itime));
 		t = time_to_float(itime);
