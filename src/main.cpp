@@ -75,11 +75,11 @@ int hpx_main(int argc, char *argv[]) {
 	while (t < opts.t_max) {
 		show();
 		if (t / opts.dt_out >= oi) {
-			printf("output %i\n", oi);
-			root_ptr->output(t, oi);
+//			printf("output %i\n", oi);
+//			root_ptr->output(t, oi);
 			oi++;
 		}
-		if (t / opts.dt_stat >= si) {
+		if (t + dt / opts.dt_stat >= si) {
 			do_stats = true;
 			si++;
 		} else {
@@ -97,7 +97,7 @@ int hpx_main(int argc, char *argv[]) {
 		iter++;
 	}
 	show();
-	root_ptr->output(t, oi);
+//	root_ptr->output(t, oi);
 	return hpx::finalize();
 }
 

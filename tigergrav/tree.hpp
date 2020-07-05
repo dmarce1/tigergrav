@@ -15,19 +15,6 @@ class tree;
 
 using tree_ptr = std::shared_ptr<tree>;
 
-struct stats {
-	vect<double> mom_tot;
-#ifdef STORE_G
-	vect<double> acc_tot;
-#endif
-	double kin_tot;
-#ifdef STORE_G
-	double pot_tot;
-	double ene_tot;
-	double virial_err;
-#endif
-	std::uint64_t flop;
-};
 
 using mutex_type = hpx::lcos::local::spinlock;
 
@@ -68,7 +55,7 @@ public:
 	std::array<tree_ptr, NCHILD> get_children() const;
 	std::vector<vect<float>> get_positions() const;
 	void drift(float);
-	void output(float,int) const;
+//	void output(float,int) const;
 	bool active_particles(int rung);
 	kick_return kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung, bool do_statistics);
 };

@@ -33,19 +33,7 @@ struct force {
 struct particle {
 	vect<std::uint64_t> x;
 	vect<float> v;
-#ifdef STORE_G
-	vect<float> g;
-	float phi;
-#ifndef GLOBAL_DT
 	rung_type rung;
-#endif
-#else
-#ifdef GLOBAL_DT
-	vect<float> g;
-#else
-	rung_type rung;
-#endif
-#endif
 };
 
 inline double pos_to_double(std::uint64_t x) {

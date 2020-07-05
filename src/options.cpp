@@ -67,7 +67,7 @@ bool options::process_options(int argc, char *argv[]) {
 		problem_size = 2;
 	}
 	if( dt_max < 0.0) {
-		dt_max = t_max / 100.0;
+		dt_max = t_max / 128.0;
 	}
 	if( dt_stat < 0.0) {
 		dt_stat = dt_max;

@@ -251,15 +251,11 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 						dt = rung_to_dt(rung);
 						i->rung = rung;
 						i->v = i->v + f[j].g * (0.5 * dt);
-#ifdef STORE_G
-						i->phi = f[j].phi;
-						i->g = f[j].g;
-#endif
 					}
 					if (do_stats) {
 						rc.stats.g = rc.stats.g + f[j].g * m;
 						rc.stats.p = rc.stats.p + i->v * m;
-						rc.stats.pot += 0.5 * m * i->phi;
+						rc.stats.pot += 0.5 * m * f[j].phi;
 						rc.stats.kin += 0.5 * m * i->v.dot(i->v);
 					}
 					j++;
@@ -301,83 +297,83 @@ bool tree::active_particles(int rung) {
 	return rc;
 }
 
-void tree::output(float t, int num) const {
-	std::string filename = std::string("parts.") + std::to_string(num) + std::string(".silo");
-	DBfile *db = DBCreateReal(filename.c_str(), DB_CLOBBER, DB_LOCAL, "Meshless", DB_HDF5);
-	auto optlist = DBMakeOptlist(1);
-	DBAddOption(optlist, DBOPT_TIME, &t);
-
-	const int nnodes = std::distance(part_begin, part_end);
-
-	{
-		double *coords[NDIM];
-		for (int dim = 0; dim < NDIM; dim++) {
-			coords[dim] = new double[nnodes];
-			int j = 0;
-			for (auto i = part_begin; i != part_end; i++, j++) {
-				coords[dim][j] = pos_to_double(i->x[dim]);
-			}
-		}
-		DBPutPointmesh(db, "points", NDIM, coords, nnodes, DB_DOUBLE, optlist);
-		for (int dim = 0; dim < NDIM; dim++) {
-			delete[] coords[dim];
-		}
-	}
-
-	{
-		std::array<std::vector<float>, NDIM> v;
-		for (int dim = 0; dim < NDIM; dim++) {
-			v[dim].reserve(nnodes);
-		}
-		for (auto i = part_begin; i != part_end; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				v[dim].push_back(i->v[dim]);
-			}
-		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			std::string nm = std::string() + "v_" + char('x' + char(dim));
-			DBPutPointvar1(db, nm.c_str(), "points", v[dim].data(), nnodes, DB_FLOAT, optlist);
-		}
-	}
-#ifdef STORE_G
-	{
-		std::vector<float> phi;
-		phi.reserve(nnodes);
-		for (auto i = part_begin; i != part_end; i++) {
-			phi.push_back(i->phi);
-		}
-		DBPutPointvar1(db, "phi", "points", phi.data(), nnodes, DB_FLOAT, optlist);
-	}
-#endif
-
-#ifdef STORE_G
-	{
-		std::array<std::vector<float>, NDIM> g;
-		for (int dim = 0; dim < NDIM; dim++) {
-			g[dim].reserve(nnodes);
-		}
-		for (auto i = part_begin; i != part_end; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				g[dim].push_back(i->g[dim]);
-			}
-		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			std::string nm = std::string() + "g_" + char('x' + char(dim));
-			DBPutPointvar1(db, nm.c_str(), "points", g[dim].data(), nnodes, DB_FLOAT, optlist);
-		}
-	}
-#endif
-
-	{
-		std::vector<int> rung;
-		rung.reserve(nnodes);
-		for (auto i = part_begin; i != part_end; i++) {
-			rung.push_back(i->rung);
-		}
-		DBPutPointvar1(db, "rung", "points", rung.data(), nnodes, DB_INT, optlist);
-	}
-
-	DBClose(db);
-	DBFreeOptlist(optlist);
-
-}
+//void tree::output(float t, int num) const {
+//	std::string filename = std::string("parts.") + std::to_string(num) + std::string(".silo");
+//	DBfile *db = DBCreateReal(filename.c_str(), DB_CLOBBER, DB_LOCAL, "Meshless", DB_HDF5);
+//	auto optlist = DBMakeOptlist(1);
+//	DBAddOption(optlist, DBOPT_TIME, &t);
+//
+//	const int nnodes = std::distance(part_begin, part_end);
+//
+//	{
+//		double *coords[NDIM];
+//		for (int dim = 0; dim < NDIM; dim++) {
+//			coords[dim] = new double[nnodes];
+//			int j = 0;
+//			for (auto i = part_begin; i != part_end; i++, j++) {
+//				coords[dim][j] = pos_to_double(i->x[dim]);
+//			}
+//		}
+//		DBPutPointmesh(db, "points", NDIM, coords, nnodes, DB_DOUBLE, optlist);
+//		for (int dim = 0; dim < NDIM; dim++) {
+//			delete[] coords[dim];
+//		}
+//	}
+//
+//	{
+//		std::array<std::vector<float>, NDIM> v;
+//		for (int dim = 0; dim < NDIM; dim++) {
+//			v[dim].reserve(nnodes);
+//		}
+//		for (auto i = part_begin; i != part_end; i++) {
+//			for (int dim = 0; dim < NDIM; dim++) {
+//				v[dim].push_back(i->v[dim]);
+//			}
+//		}
+//		for (int dim = 0; dim < NDIM; dim++) {
+//			std::string nm = std::string() + "v_" + char('x' + char(dim));
+//			DBPutPointvar1(db, nm.c_str(), "points", v[dim].data(), nnodes, DB_FLOAT, optlist);
+//		}
+//	}
+//#ifdef STORE_G
+//	{
+//		std::vector<float> phi;
+//		phi.reserve(nnodes);
+//		for (auto i = part_begin; i != part_end; i++) {
+//			phi.push_back(i->phi);
+//		}
+//		DBPutPointvar1(db, "phi", "points", phi.data(), nnodes, DB_FLOAT, optlist);
+//	}
+//#endif
+//
+//#ifdef STORE_G
+//	{
+//		std::array<std::vector<float>, NDIM> g;
+//		for (int dim = 0; dim < NDIM; dim++) {
+//			g[dim].reserve(nnodes);
+//		}
+//		for (auto i = part_begin; i != part_end; i++) {
+//			for (int dim = 0; dim < NDIM; dim++) {
+//				g[dim].push_back(i->g[dim]);
+//			}
+//		}
+//		for (int dim = 0; dim < NDIM; dim++) {
+//			std::string nm = std::string() + "g_" + char('x' + char(dim));
+//			DBPutPointvar1(db, nm.c_str(), "points", g[dim].data(), nnodes, DB_FLOAT, optlist);
+//		}
+//	}
+//#endif
+//
+//	{
+//		std::vector<int> rung;
+//		rung.reserve(nnodes);
+//		for (auto i = part_begin; i != part_end; i++) {
+//			rung.push_back(i->rung);
+//		}
+//		DBPutPointvar1(db, "rung", "points", rung.data(), nnodes, DB_INT, optlist);
+//	}
+//
+//	DBClose(db);
+//	DBFreeOptlist(optlist);
+//
+//}
