@@ -4,7 +4,6 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/particle.hpp>
 #include <tigergrav/range.hpp>
-#include <tigergrav/tree_id.hpp>
 
 #include <array>
 #include <atomic>

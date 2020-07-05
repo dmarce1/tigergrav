@@ -43,7 +43,6 @@ int hpx_main(int argc, char *argv[]) {
 		phi.push_back(part.phi);
 	}
 	fclose(fp);
-	printf( "Read %i\n", phi.size());
 	DBfile *db = DBCreateReal(argv[2], DB_CLOBBER, DB_LOCAL, "Meshless", DB_HDF5);
 	const int nparts = phi.size();
 	double *coords[NDIM] = { x[0].data(), x[1].data(), x[2].data() };
