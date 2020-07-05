@@ -134,12 +134,13 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		rung_type min_rung) {
 #endif
 	std::vector<tree_ptr> next_dchecklist;
+	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	static const float eps = 10.0 * std::numeric_limits<float>::min();
 	std::function<float(const vect<float>)> separation;
 	if (opts.ewald) {
-		separation = ewald_separation;
+		separation = ewald_near_separation;
 	} else {
 		separation = [](const vect<float> x) {
 			return abs(x);
@@ -148,7 +149,6 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 	for (auto c : dchecklist) {
 		auto other = c->get_monopole();
 		const auto dx = separation(mono.x - other.x);
-//		printf( "%e %e\n", dx,  (mono.r + other.r) / opts.theta);
 		if (dx > (mono.r + other.r) / opts.theta) {
 			dsources.push_back( { other.m, other.x });
 		} else {
@@ -165,6 +165,31 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		}
 	}
 	dchecklist = std::move(next_dchecklist);
+	if (opts.ewald) {
+		for (auto c : echecklist) {
+			auto other = c->get_monopole();
+			const auto dx_far = ewald_far_separation(mono.x - other.x) - float(2) * other.r;
+			const auto dx_near = ewald_near_separation(mono.x - other.x);
+			const auto dx = std::max(dx_far, dx_near);
+			if ((dx > (mono.r + other.r) / opts.theta) && dx_near > other.r + mono.r) {
+//			const auto dx = separation(mono.x - other.x);
+//			if (dx > (mono.r + other.r) / opts.theta) {
+				esources.push_back( { other.m, other.x });
+			} else {
+				if (c->is_leaf()) {
+					const auto pos = c->get_positions();
+					for (auto x : pos) {
+						esources.push_back( { m, x });
+					}
+				} else {
+					auto next = c->get_children();
+					next_echecklist.push_back(next[0]);
+					next_echecklist.push_back(next[1]);
+				}
+			}
+		}
+	}
+	echecklist = std::move(next_echecklist);
 #ifdef GLOBAL_DT
 	float min_dt;
 	if (!is_leaf()) {
@@ -178,11 +203,11 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		} else {
 			dt_l_fut = hpx::make_ready_future(children[0]->compute_gravity(dchecklist, dsources, echecklist, esources));
 		}
-		const auto dt_r = children[1]->compute_gravity(std::move(dchecklist), std::move(dsources),std::move(echecklist), std::move(esources));
+		const auto dt_r = children[1]->compute_gravity(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources));
 		min_dt = std::min(dt_l_fut.get(), dt_r);
 	} else {
-		if (!dchecklist.empty()) {
-			min_dt = compute_gravity(std::move(dchecklist), std::move(dsources),std::move(echecklist), std::move(esources));
+		if (!dchecklist.empty() || !echecklist.empty()) {
+			min_dt = compute_gravity(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources));
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
@@ -190,9 +215,9 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 			}
 			std::vector<force> f(x.size());
 			flop += gravity_direct(f, x, dsources);
-//			if (opts.ewald) {
-//				flop += gravity_ewald(f, x, ewald_dsources);
-//			}
+			if (opts.ewald) {
+				flop += gravity_ewald(f, x, esources);
+			}
 			int j = 0;
 			min_dt = std::numeric_limits<float>::max();
 			for (auto i = part_begin; i != part_end; i++) {
@@ -224,7 +249,7 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 		const auto rung_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung);
 		max_rung = std::max(rung_l_fut.get(), rung_r);
 	} else {
-		if (!dchecklist.empty()) {
+		if (!dchecklist.empty() || !echecklist.empty()) {
 			max_rung = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung);
 		} else {
 			std::vector<vect<float>> x;
@@ -235,9 +260,9 @@ rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsour
 			}
 			std::vector<force> f(x.size());
 			flop += gravity_direct(f, x, dsources);
-//			if (opts.ewald) {
-//				flop += gravity_ewald(f, x, ewald_dsources);
-//			}
+			if (opts.ewald) {
+				flop += gravity_ewald(f, x, esources);
+			}
 			int j = 0;
 			max_rung = 0;
 			for (auto i = part_begin; i != part_end; i++) {
