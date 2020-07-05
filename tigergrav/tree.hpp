@@ -37,6 +37,9 @@ class tree {
 	part_iter part_end;
 	bool leaf;
 	float max_span;
+#ifndef GLOBAL_DT
+	bool has_active;
+#endif
 	std::array<tree_ptr, NCHILD> children;
 
 	static std::atomic<std::uint64_t> flop;
@@ -60,6 +63,7 @@ public:
 	void kick(float);
 	float compute_gravity(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources);
 #else
+	bool active_particles(int rung);
 	rung_type kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung);
 #endif
 };

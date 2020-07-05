@@ -53,8 +53,8 @@ int hpx_main(int argc, char *argv[]) {
 #endif
 #ifndef GLOBAL_DT
 		printf("%9s ", "itime");
-		printf("%9s ", "dt rung");
-		printf("%9s ", "active");
+		printf("%9s ", "max rung");
+		printf("%9s ", "min active");
 #endif
 		printf("%13s\n", "GFLOPS");
 	}
@@ -79,7 +79,10 @@ int hpx_main(int argc, char *argv[]) {
 #ifdef GLOBAL_DT
 	dt = root_ptr->compute_gravity(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(),std::vector<tree_ptr>(1, root_ptr), std::vector<source>());
 #else
-	rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), 0);
+	const auto mrung = min_rung(0);
+	root_ptr->active_particles(mrung);
+	rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(),
+			mrung);
 	dt = rung_to_dt(rung);
 #endif
 	while (t < opts.t_max) {
@@ -103,8 +106,10 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		root_ptr->compute_monopoles();
 		itime = inc(itime, rung);
+		const auto mrung = min_rung(itime);
+		root_ptr->active_particles(mrung);
 		rung = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(),
-				min_rung(itime));
+				mrung);
 		t = time_to_float(itime);
 		dt = rung_to_dt(rung);
 #endif

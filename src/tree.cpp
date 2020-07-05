@@ -133,6 +133,12 @@ float tree::compute_gravity(std::vector<tree_ptr> dchecklist, std::vector<source
 rung_type tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
 		rung_type min_rung) {
 #endif
+
+#ifndef GLOBAL_DT
+	if (!has_active) {
+		return 0;
+	}
+#endif
 	std::vector<tree_ptr> next_dchecklist;
 	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
@@ -333,6 +339,27 @@ stats tree::statistics() const {
 #endif
 	return s;
 }
+
+#ifndef GLOBAL_DT
+bool tree::active_particles(int rung) {
+	bool rc;
+	if (is_leaf()) {
+		rc = false;
+		for (auto i = part_begin; i != part_end; i++) {
+			if (i->rung >= rung || i->rung == null_rung) {
+				rc = true;
+				break;
+			}
+		}
+	} else {
+		const auto rc1 = children[0]->active_particles(rung);
+		const auto rc2 = children[1]->active_particles(rung);
+		rc = rc1 || rc2;
+	}
+	has_active = rc;
+	return rc;
+}
+#endif
 
 void tree::output(float t, int num) const {
 	std::string filename = std::string("parts.") + std::to_string(num) + std::string(".silo");
