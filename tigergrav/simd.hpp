@@ -30,7 +30,7 @@
 #define _mmx_mul_epi32(a,b)         _mm512_mullo_epi32((a),(b))
 #define _mmx_cvtepi32_ps(a)         _mm512_cvtepi32_ps((a))
 #define _mmx_cvtps_epi32(a)         _mm512_cvtps_epi32((a))
-#define _mmx_i32gather_ps(a,b,c)    _mm512_i32gather_ps((a),(b),(c))
+#define _mmx_i32gather_ps(a,b,c)    _mm512_i32gather_ps((b),(a),(c))
 #define _mmx_fmadd_ps(a,b,c)        _mm512_fmadd_ps ((a),(b),(c))
 
 #elif defined(__AVX2__)
