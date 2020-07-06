@@ -231,9 +231,10 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 				}
 			}
 			std::vector<force> f(x.size());
-			flop += gravity_direct(f, x, dsources);
+			const bool do_phi = do_stats || do_out;
+			flop += gravity_direct(f, x, dsources, do_phi);
 			if (opts.ewald) {
-				flop += gravity_ewald(f, x, esources);
+				flop += gravity_ewald(f, x, esources, do_phi);
 			}
 			int j = 0;
 			rc.rung = 0;
