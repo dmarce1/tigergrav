@@ -6,7 +6,6 @@
 #include <hpx/include/async.hpp>
 #include <hpx/include/threads.hpp>
 
-#define EWALD_CRIT 0.25
 
 std::atomic<std::uint64_t> tree::flop(0);
 int tree::num_threads = 1;
@@ -41,7 +40,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 	for (int dim = 1; dim < NDIM; dim++) {
 		max_span = std::max(max_span, box.max[dim] - box.min[dim]);
 	}
-	if (e - b > opts.parts_per_node || (opts.ewald && max_span >= opts.theta * EWALD_CRIT)) {
+	if (e - b > opts.parts_per_node) {
 		leaf = false;
 		float max_span = 0.0;
 		int max_dim;
@@ -231,10 +230,9 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 				}
 			}
 			std::vector<force> f(x.size());
-			const bool do_phi = do_stats || do_out;
-			flop += gravity_direct(f, x, dsources, do_phi);
+			flop += gravity_direct(f, x, dsources, do_stats || do_out);
 			if (opts.ewald) {
-				flop += gravity_ewald(f, x, esources, do_phi);
+				flop += gravity_ewald(f, x, esources, do_stats || do_out);
 			}
 			int j = 0;
 			rc.rung = 0;

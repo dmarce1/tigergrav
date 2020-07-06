@@ -16,7 +16,7 @@ static const auto one = simd_vector(1.0);
 static const auto half = simd_vector(0.5);
 static const simd_vector eps = simd_vector(std::numeric_limits<float>::min());
 
-float EW(general_vect<double, NDIM> x) {
+double EW(general_vect<double, NDIM> x) {
 	general_vect<double, NDIM> n, h;
 	constexpr int nmax = 5;
 	constexpr int hmax = 10;
@@ -339,7 +339,6 @@ void init_ewald() {
 		fwrite(&epot, sizeof(float), sz, fp);
 		fwrite(&eforce, sizeof(float), NDIM * sz, fp);
 		fclose(fp);
-
 	}
 
 }
