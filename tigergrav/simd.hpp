@@ -12,10 +12,30 @@
 
 #if defined(__AVX512F__)
 #define SIMD_LEN 16
+#define _simd_float                 __m512
+#define _simd_int                   __m512i
+#define _mmx_add_ps(a,b)            _mm512_add_ps((a),(b))
+#define _mmx_sub_ps(a,b)            _mm512_sub_ps((a),(b))
+#define _mmx_mul_ps(a,b)            _mm512_mul_ps((a),(b))
+#define _mmx_div_ps(a,b)            _mm512_div_ps((a),(b))
+#define _mmx_sqrt_ps(a)             _mm512_sqrt_ps(a)
+#define _mmx_min_ps(a, b)           _mm512_min_ps((a),(b))
+#define _mmx_max_ps(a, b)           _mm512_max_ps((a),(b))
+#define _mmx_broadcast_ss(a)        _mm512_broadcast_ss((a))
+#define _mmx_or_ps(a, b)            _mm512_or_ps((a),(b))
+#define _mmx_and_ps(a, b)           _mm512_and_ps((a),(b))
+#define _mmx_andnot_ps(a, b)        _mm512_andnot_ps((a),(b))
+#define _mmx_rsqrt_ps(a)            _mm512_rsqrt_ps(a)
+#define _mmx_add_epi32(a,b)         _mm512_add_epi32((a),(b))
+#define _mmx_sub_epi32(a,b)         _mm512_sub_epi32((a),(b))
+#define _mmx_mul_epi32(a,b)         _mm512_mullo_epi32((a),(b))
+#define _mmx_cvtepi32_ps(a)         _mm512_cvtepi32_ps((a))
+#define _mmx_cvtps_epi32(a)         _mm512_cvtps_epi32((a))
+#define _mmx_i32gather_ps(a,b,c)    _mm512_i32gather_ps((a),(b),(c))
+#define _mmx_fmadd_ps(a,b,c)        _mm512_fmadd_ps ((a),(b),(c))
+
 #elif defined(__AVX2__)
-
 #define SIMD_LEN 8
-
 #define _simd_float                 __m256
 #define _simd_int                   __m256i
 #define _mmx_add_ps(a,b)            _mm256_add_ps((a),(b))
