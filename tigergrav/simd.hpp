@@ -21,11 +21,10 @@
 #define _mmx_sqrt_ps(a)             _mm512_sqrt_ps(a)
 #define _mmx_min_ps(a, b)           _mm512_min_ps((a),(b))
 #define _mmx_max_ps(a, b)           _mm512_max_ps((a),(b))
-#define _mmx_broadcast_ss(a)        _mm512_broadcast_ss((a))
 #define _mmx_or_ps(a, b)            _mm512_or_ps((a),(b))
 #define _mmx_and_ps(a, b)           _mm512_and_ps((a),(b))
 #define _mmx_andnot_ps(a, b)        _mm512_andnot_ps((a),(b))
-#define _mmx_rsqrt_ps(a)            _mm512_rsqrt_ps(a)
+#define _mmx_rsqrt_ps(a)            _mm512_rsqrt14_ps(a)
 #define _mmx_add_epi32(a,b)         _mm512_add_epi32((a),(b))
 #define _mmx_sub_epi32(a,b)         _mm512_sub_epi32((a),(b))
 #define _mmx_mul_epi32(a,b)         _mm512_mullo_epi32((a),(b))
@@ -45,7 +44,6 @@
 #define _mmx_sqrt_ps(a)             _mm256_sqrt_ps(a)
 #define _mmx_min_ps(a, b)           _mm256_min_ps((a),(b))
 #define _mmx_max_ps(a, b)           _mm256_max_ps((a),(b))
-#define _mmx_broadcast_ss(a)        _mm256_broadcast_ss((a))
 #define _mmx_or_ps(a, b)            _mm256_or_ps((a),(b))
 #define _mmx_and_ps(a, b)           _mm256_and_ps((a),(b))
 #define _mmx_andnot_ps(a, b)        _mm256_andnot_ps((a),(b))
@@ -199,7 +197,7 @@ inline simd_vector fma(const simd_vector &a, const simd_vector &b, const simd_ve
 inline simd_vector copysign(const simd_vector &x, const simd_vector &y) {
 	// From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
 	constexpr float signbit = -0.f;
-	static auto const avx_signbit = _mmx_broadcast_ss(&signbit);
+	static auto const avx_signbit = simd_vector(signbit).v;
 	simd_vector v;
 	v.v = _mmx_or_ps(_mmx_and_ps(avx_signbit, x.v), _mmx_andnot_ps(avx_signbit, y.v)); // (avx_signbit & from) | (~avx_signbit & to)
 	return v;
