@@ -27,7 +27,6 @@ set(tigergrav_source_files
 	src/gravity.cpp
 	src/initialize.cpp
 	src/main.cpp
-	src/multipole.cpp
 	src/options.cpp
 	src/rand.cpp
 	src/range.cpp
@@ -37,6 +36,7 @@ set(tigergrav_source_files
 set(tigergrav_header_files
 	tigergrav/cuda_export.hpp
 	tigergrav/defs.hpp
+	tigergrav/expansion.hpp
 	tigergrav/gravity.hpp
 	tigergrav/initialize.hpp
 	tigergrav/multipole.hpp

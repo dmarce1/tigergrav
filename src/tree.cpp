@@ -125,7 +125,7 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
+kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source> dsources, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources,
 		rung_type min_rung, bool do_stats, bool do_out) {
 
 	kick_return rc;
@@ -230,7 +230,7 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 				}
 			}
 			std::vector<force> f(x.size());
-			flop += gravity_direct(f, x, dsources, do_stats || do_out);
+			flop += gravity_mono_mono(f, x, dsources, do_stats || do_out);
 			if (opts.ewald) {
 				flop += gravity_ewald(f, x, esources, do_stats || do_out);
 			}

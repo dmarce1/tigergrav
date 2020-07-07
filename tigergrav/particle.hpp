@@ -13,22 +13,6 @@
 
 #include <vector>
 
-struct monopole {
-	float m;
-	vect<float> x;
-	float r;
-};
-
-struct source {
-	float m;
-	vect<float> x;
-};
-
-struct force {
-	float phi;
-	vect<float> g;
-};
-
 struct particle {
 	vect<std::uint64_t> x;
 	vect<float> v;

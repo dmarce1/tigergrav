@@ -2,6 +2,8 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
 
+
+#include <tigergrav/expansion.hpp>
 #include <hpx/include/async.hpp>
 
 constexpr int NE = 64;
@@ -15,6 +17,8 @@ static std::array<ewald_table_t, NDIM> eforce;
 static const auto one = simd_vector(1.0);
 static const auto half = simd_vector(0.5);
 static const simd_vector eps = simd_vector(std::numeric_limits<float>::min());
+
+
 
 double EW(general_vect<double, NDIM> x) {
 	general_vect<double, NDIM> n, h;
@@ -76,7 +80,7 @@ float ewald_far_separation(const vect<float> x) {
 	return std::max(std::sqrt(d), float(0.25));
 }
 
-std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y, const bool do_phi) {
+std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -144,7 +148,85 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 	return (do_phi ? 26 : 21 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y, const bool do_phi) {
+std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_source> &y, const bool do_phi) {
+	if (x.size() == 0) {
+		return 0;
+	}
+	std::uint64_t flop = 0;
+	static const auto opts = options::get();
+	static const bool ewald = opts.ewald;
+	static const auto h = opts.soft_len;
+	static const auto h2 = h * h;
+	static const simd_vector H(h);
+	static const simd_vector H2(h2);
+	vect<simd_vector> X, Y;
+	multipole<simd_vector> M;
+	std::vector<vect<simd_vector>> nG(x.size(), vect<float>(0.0));
+	std::vector<simd_vector> nPhi(x.size(), 0.0);
+	const auto cnt1 = y.size();
+	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	y.resize(cnt2);
+	for (int j = cnt1; j < cnt2; j++) {
+		y[j].m() = 0.0;
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m <= n; m++) {
+				y[j].m(n, m) = 0.0;
+			}
+		}
+		y[j].x = vect<float>(1.0);
+	}
+	for (int j = 0; j < cnt1; j += SIMD_LEN) {
+		for (int k = 0; k < SIMD_LEN; k++) {
+			M()[k] = y[j + k].m();
+			for (int n = 0; n < NDIM; n++) {
+				for (int m = 0; m <= n; m++) {
+					M(n, m)[k] = y[j + k].m(n, m);
+				}
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = y[j + k].x[dim];
+			}
+		}
+		for (int i = 0; i < x.size(); i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				X[dim] = simd_vector(x[i][dim]);
+			}
+
+			vect<simd_vector> dX = X - Y;             		// 3 OP
+			if (ewald) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					const auto absdx = abs(dX[dim]);										// 3 OP
+					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+				}
+			}
+			simd_vector r2 = dX[0] * dX[0];					// 1 OP
+			r2 = fma(dX[1], dX[1], r2);						// 2 OP
+			r2 = fma(dX[2], dX[2], r2);                     // 2 OP
+			const simd_vector rinv = rsqrt(r2 + H2);        // 2 OP
+			const simd_vector rinv3 = rinv * rinv * rinv;   // 2 OP
+			for (int dim = 0; dim < NDIM; dim++) {
+				const auto tmp = M() * rinv3;					// 3 OP
+				nG[i][dim] = fma(dX[dim], tmp, nG[i][dim]);  // 6 OP
+			}
+			if (do_phi) {
+				const simd_vector kill_zero = r2 / (r2 + eps);  // 2 OP
+				const auto tmp = M() * kill_zero; 	            // 1 OP
+				nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
+			}
+		}
+	}
+	for (int i = 0; i < x.size(); i++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			f[i].g[dim] = -nG[i][dim].sum();
+		}
+		if (do_phi) {
+			f[i].phi = -nPhi[i].sum();
+		}
+	}
+	return (do_phi ? 26 : 21 + ewald ? 18 : 0) * cnt1 * x.size();
+}
+
+std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
