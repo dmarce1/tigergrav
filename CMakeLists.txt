@@ -27,6 +27,7 @@ set(tigergrav_source_files
 	src/gravity.cpp
 	src/initialize.cpp
 	src/main.cpp
+	src/multipole.cpp
 	src/options.cpp
 	src/rand.cpp
 	src/range.cpp
@@ -38,6 +39,7 @@ set(tigergrav_header_files
 	tigergrav/defs.hpp
 	tigergrav/gravity.hpp
 	tigergrav/initialize.hpp
+	tigergrav/multipole.hpp
 	tigergrav/output.hpp
 	tigergrav/options.hpp
 	tigergrav/particle.hpp
