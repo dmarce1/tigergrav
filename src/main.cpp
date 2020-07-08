@@ -85,8 +85,7 @@ int hpx_main(int argc, char *argv[]) {
 	root_ptr->active_particles(mrung, do_out);
 	expansion<double> Lzero;
 	Lzero.zero();
-	kr = root_ptr->kick(std::vector<check_item>(1, {root_ptr,false}), Lzero, std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), mrung, do_stats,
-			do_out);
+	kr = root_ptr->kick(Lzero, std::vector<check_item>(1, { root_ptr, false }),std::vector<check_item>(1, { root_ptr, false }), mrung, do_stats, do_out);
 	if (do_out) {
 		if (opts.silo_on_fly) {
 			system_cmd("./bin2silo output.bin part.0.silo");
@@ -117,12 +116,11 @@ int hpx_main(int argc, char *argv[]) {
 		itime = inc(itime, kr.rung);
 		const auto mrung = min_rung(itime);
 		root_ptr->active_particles(mrung, do_out);
-		kr = root_ptr->kick(std::vector<check_item>(1, {root_ptr,false}), Lzero, std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), mrung,
-				do_stats, do_out);
+		kr = root_ptr->kick(Lzero, std::vector<check_item>(1, { root_ptr, false }), std::vector<check_item>(1, { root_ptr, false }), mrung, do_stats, do_out);
 		if (do_out) {
 			if (opts.silo_on_fly) {
 				system_cmd(std::string("./bin2silo output.bin part.") + std::to_string(oi - 1) + std::string(".silo"));
-				system_cmd( "rm output.bin");
+				system_cmd("rm output.bin");
 			} else {
 				system_cmd(std::string("mv output.bin out.") + std::to_string(oi - 1) + ".bin");
 			}
