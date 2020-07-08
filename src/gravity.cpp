@@ -113,7 +113,7 @@ float ewald_far_separation(const vect<float> x) {
 	return std::max(std::sqrt(d), float(0.25));
 }
 
-std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> &y, const bool do_phi) {
+std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -126,14 +126,14 @@ std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<po
 	static const simd_vector H(h);
 	static const simd_vector H2(h2);
 	static const simd_vector M(m);
-	vect<simd_int_vector> X, Y;
+	vect<simd_vector> X, Y;
 	std::vector<vect<simd_vector>> nG(x.size(), vect<float>(0.0));
 	std::vector<simd_vector> nPhi(x.size(), 0.0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = 0;
+		y[j] = vect<float>(1.0e+10);
 	}
 	for (int j = 0; j < cnt1; j += SIMD_LEN) {
 		for (int k = 0; k < SIMD_LEN; k++) {
@@ -143,21 +143,10 @@ std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<po
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_int_vector(x[i][dim]);
+				X[dim] = simd_vector(x[i][dim]);
 			}
 
-			vect<simd_vector> dX;
-			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = pos_to_simd_vector(X[dim] - Y[dim]);									// 3 OP
-			}
-			// Nullify the padding
-			if (j + SIMD_LEN > cnt1) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					for (int k = cnt1; k < cnt2; k++) {
-						dX[dim][k - j] = 1.0e+10;
-					}
-				}
-			}
+			vect<simd_vector> dX = X - Y;             		// 3 OP
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
@@ -191,7 +180,7 @@ std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<po
 	return (do_phi ? 26 : 21 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<multi_source> &y, const bool do_phi) {
+std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_source> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -202,8 +191,7 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<p
 	static const auto h2 = h * h;
 	static const simd_vector H(h);
 	static const simd_vector H2(h2);
-	vect<simd_int_vector> X;
-	vect<simd_vector> Y;
+	vect<simd_vector> X, Y;
 	multipole<simd_vector> M;
 	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
 	std::vector<simd_vector> Phi(x.size(), 0.0);
@@ -233,13 +221,10 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<p
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_int_vector(x[i][dim]);
+				X[dim] = simd_vector(x[i][dim]);
 			}
 
-			vect<simd_vector> dX;
-			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = pos_to_simd_vector(X[dim]) - Y[dim];             										// 6 OP
-			}
+			vect<simd_vector> dX = X - Y;             										// 3 OP
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
@@ -276,7 +261,7 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<p
 			f[i].phi += Phi[i].sum();
 		}
 	}
-	return (do_phi ? 219 : 201 + ewald ? 18 : 0) * cnt1 * x.size();
+	return (do_phi ? 216 : 198 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
 std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, std::vector<multi_source> &y) {
@@ -379,7 +364,7 @@ std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, st
 	return (290 + opts.ewald ? 18 : 0) * cnt1;
 }
 
-std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std::vector<vect<pos_type>> &y) {
+std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std::vector<vect<float>> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto m = 1.0 / opts.problem_size;
@@ -388,8 +373,7 @@ std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std
 	static const auto h2 = h * h;
 	static const simd_vector H(h);
 	static const simd_vector H2(h2);
-	vect<simd_vector> X;
-	vect<simd_int_vector> Y;
+	vect<simd_vector> X, Y;
 	static const simd_vector M(m);
 	expansion<simd_vector> Lacc;
 	Lacc.zero();
@@ -398,7 +382,7 @@ std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = 0;
+		y[j] = vect<float>(1.0e+10);
 	}
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = simd_vector(x[dim]);
@@ -410,18 +394,7 @@ std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std
 			}
 		}
 
-		vect<simd_vector> dX;
-		for (int dim = 0; dim < NDIM; dim++) {
-			dX[dim] = X[dim] - pos_to_simd_vector(Y[dim]);             										// 3 OP
-		}
-		// Nullify the padding
-		if (j + SIMD_LEN > cnt1) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				for (int k = cnt1; k < cnt2; k++) {
-					dX[dim][k - j] = 1.0e+10;
-				}
-			}
-		}
+		vect<simd_vector> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP

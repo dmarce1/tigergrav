@@ -65,9 +65,8 @@ public:
 	multipole_attr get_multipole() const;
 	bool is_leaf() const;
 	std::array<tree_ptr, NCHILD> get_children() const;
-	std::vector<vect<pos_type>> get_positions() const;
+	std::vector<vect<float>> get_positions() const;
 	void drift(float);
-	bool parts_separated_from( const vect<float>& x, float r);
 //	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
 	kick_return kick(std::vector<check_item> dchecklist, expansion<double>, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources, rung_type min_rung,

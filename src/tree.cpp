@@ -122,34 +122,19 @@ std::array<tree_ptr, NCHILD> tree::get_children() const {
 	return children;
 }
 
-std::vector<vect<pos_type>> tree::get_positions() const {
-	std::vector<vect<pos_type>> pos;
+std::vector<vect<float>> tree::get_positions() const {
+	std::vector<vect<float>> pos;
 	pos.reserve(part_end - part_begin);
 	for (auto i = part_begin; i != part_end; i++) {
-		pos.push_back(i->x);
+		vect<float> x;
+		x = pos_to_double(i->x);
+		pos.push_back(x);
 	}
 	return pos;
 }
 
-bool tree::parts_separated_from(const vect<float> &x, float r) {
-	static const auto opts = options::get();
-	static const float theta_inv = 1.0 / opts.theta;
-	bool sep = true;
-	for (auto i = part_begin; i != part_end; i++) {
-		const auto dxv = x - pos_to_double(i->x);
-		const auto dx = opts.ewald ? ewald_near_separation(dxv) : abs(dxv);
-		if (dx <= r * theta_inv) {
-			sep = false;
-			break;
-		}
-	}
-	return sep;
-}
-
 kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources,
 		rung_type min_rung, bool do_stats, bool do_out) {
-
-	static thread_local std::size_t checklist_size = 0;
 
 	kick_return rc;
 	if (!has_active && !do_stats) {
@@ -160,50 +145,62 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	static const float eps = 10.0 * std::numeric_limits<float>::min();
-	static const float theta_inv = 1.0 / opts.theta;
 	std::function<float(const vect<float>)> separation;
-	static thread_local std::vector<vect<pos_type>> mono_srcs;
-	static thread_local std::vector<multi_source> multi_srcs;
-	mono_srcs.resize(0);
-	multi_srcs.resize(0);
+	if (opts.ewald) {
+		separation = ewald_near_separation;
+	} else {
+		separation = [](const vect<float> x) {
+			return abs(x);
+		};
+	}
 
-//	if (opts.ewald) {
-//		do {
-//			std::vector<tree_ptr> next_echecklist;
-//			for (auto c : echecklist) {
-//				auto other = c->get_multipole();
-//				const auto dx = ewald_far_separation(multi.x - other.x);
-//				if (dx > (multi.r + other.r) / opts.theta) {
-//					esources.push_back( { (float) other.m(), other.x });
-//				} else {
-//					if (c->is_leaf()) {
-//						const auto pos = c->get_positions();
-//						for (auto x : pos) {
-//							esources.push_back( { m, x });
-//						}
-//					} else {
-//						auto next = c->get_children();
-//						next_echecklist.push_back(next[0]);
-//						next_echecklist.push_back(next[1]);
-//					}
-//				}
-//			}
-//			echecklist = std::move(next_echecklist);
-//		} while (is_leaf() && !echecklist.empty());
-//	}
+	std::vector<vect<float>> mono_srcs;
+	std::vector<multi_source> multi_srcs;
+
+	if (opts.ewald) {
+		do {
+			std::vector<tree_ptr> next_echecklist;
+			for (auto c : echecklist) {
+				auto other = c->get_multipole();
+				const auto dx = ewald_far_separation(multi.x - other.x);
+				if (dx > (multi.r + other.r) / opts.theta) {
+					esources.push_back( { (float) other.m(), other.x });
+				} else {
+					if (c->is_leaf()) {
+						const auto pos = c->get_positions();
+						for (auto x : pos) {
+							esources.push_back( { m, x });
+						}
+					} else {
+						auto next = c->get_children();
+						next_echecklist.push_back(next[0]);
+						next_echecklist.push_back(next[1]);
+					}
+				}
+			}
+			echecklist = std::move(next_echecklist);
+		} while (is_leaf() && !echecklist.empty());
+	}
 
 	std::vector<check_item> next_dchecklist;
-	next_dchecklist.reserve(checklist_size);
 	for (auto c : dchecklist) {
 		auto other = c.ptr->get_multipole();
-		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
-		if (dx > (multi.r + other.r) * theta_inv && !c.use_parts) {
+		const auto dx = separation(multi.x - other.x);
+		if (dx > (multi.r + other.r) / opts.theta && !c.use_parts) {
 			multi_srcs.push_back( { other.m, other.x });
 		} else {
 			if (c.ptr->is_leaf()) {
 				if (c.use_parts) {
-					if (c.ptr->parts_separated_from(multi.x, multi.r)) {
-						const auto pos = c.ptr->get_positions();
+					const auto pos = c.ptr->get_positions();
+					bool separated = true;
+					for (auto x : pos) {
+						const auto dx = separation(multi.x - x);
+						if (dx <= multi.r / opts.theta) {
+							separated = false;
+							break;
+						}
+					}
+					if (separated) {
 						for (auto x : pos) {
 							mono_srcs.push_back(x);
 						}
@@ -221,7 +218,6 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 			}
 		}
 	}
-	checklist_size = std::max(checklist_size, next_dchecklist.size());
 	dchecklist = std::move(next_dchecklist);
 	flop += gravity_multi_multi(L, multi.x, multi_srcs);
 	flop += gravity_multi_mono(L, multi.x, mono_srcs);
@@ -233,9 +229,6 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 
 		const expansion<double> Ll = L.translate(child_com[0] - multi.x);
 		const expansion<double> Lr = L.translate(child_com[1] - multi.x);
-
-		dchecklist.reserve(checklist_size);
-		echecklist.reserve(checklist_size);
 
 		hpx::future<kick_return> rc_l_fut;
 		if (inc_thread()) {
@@ -270,7 +263,15 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 						mono_srcs.push_back(x);
 					}
 				} else {
-					if (parts_separated_from(other.x, other.r)) {
+					bool separated = true;
+					for (auto i = part_begin; i != part_end; i++) {
+						const auto dx = separation(other.x - pos_to_double(i->x));
+						if (dx <= other.r / opts.theta) {
+							separated = false;
+							break;
+						}
+					}
+					if (separated) {
 						multi_srcs.push_back( { other.m, other.x });
 					} else {
 						auto next = c.ptr->get_children();
@@ -279,7 +280,6 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 					}
 				}
 			}
-			checklist_size = std::max(checklist_size, next_dchecklist.size());
 			dchecklist = std::move(next_dchecklist);
 		} while (!dchecklist.empty());
 
@@ -291,18 +291,19 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 			rc.stats.pot = 0.0;
 			rc.stats.kin = 0.0;
 		}
-		std::vector<vect<pos_type>> x;
+		std::vector<vect<float>> x;
 		std::vector<force> f;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
-				x.push_back(i->x);
-				f.push_back(L.to_force(pos_to_double(i->x) - multi.x));
+				const auto pos = pos_to_double(i->x);
+				x.push_back(pos);
+				f.push_back(L.to_force(pos - multi.x));
 			}
 		}
 		flop += gravity_mono_mono(f, x, mono_srcs, do_stats || do_out);
 		flop += gravity_mono_multi(f, x, multi_srcs, do_stats || do_out);
 		if (opts.ewald) {
-//			flop += gravity_ewald(f, x, esources, do_stats || do_out);
+			flop += gravity_ewald(f, x, esources, do_stats || do_out);
 		}
 		int j = 0;
 		rc.rung = 0;
