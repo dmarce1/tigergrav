@@ -84,12 +84,12 @@ multipole_attr tree::compute_multipoles() {
 		}
 		multi.m.zero();
 		for (auto i = part_begin; i != part_end; i++) {
-			multi.m = multi.m + multipole<float>(m, pos_to_double(i->x) - multi.x);
+			multi.m = multi.m + multipole<double>(m, pos_to_double(i->x) - multi.x);
 		}
 
 		multi.r = 0.0;
 		for (auto i = part_begin; i != part_end; i++) {
-			multi.r = std::max(multi.r, (float) abs(pos_to_double(i->x) - multi.x));
+			multi.r = std::max(multi.r, (double) abs(pos_to_double(i->x) - multi.x));
 		}
 	} else {
 		multipole_attr ml, mr;
@@ -186,7 +186,7 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, st
 				auto other = c->get_multipole();
 				const auto dx = ewald_far_separation(multi.x - other.x);
 				if (dx > (multi.r + other.r) / opts.theta) {
-					esources.push_back( { other.m(), other.x });
+					esources.push_back( { (float) other.m(), other.x });
 				} else {
 					if (c->is_leaf()) {
 						const auto pos = c->get_positions();

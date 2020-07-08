@@ -30,9 +30,9 @@ struct kick_return {
 };
 
 struct multipole_attr {
-	multipole<float> m;
-	vect<float> x;
-	float r;
+	multipole<double> m;
+	vect<double> x;
+	double r;
 };
 
 class tree {

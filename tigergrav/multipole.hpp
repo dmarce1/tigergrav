@@ -11,7 +11,6 @@ class multipole {
 public:
 
 	multipole() = default;
-	multipole(const multipole&) = default;
 
 	inline T operator()() const {
 		return data[0];
@@ -28,6 +27,16 @@ public:
 	inline T& operator()(int i, int j) {
 		return data[map2[i][j]];
 	}
+
+	template<class V>
+	multipole(const multipole<V> &other) {
+		for (int i = 0; i < size; i++) {
+			data[i] = T(other.data[i]);
+		}
+	}
+
+	template<class V>
+	friend class multipole;
 
 	multipole(T m, const vect<T> x) {
 		(*this)() = m;
