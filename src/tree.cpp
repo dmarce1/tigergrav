@@ -142,8 +142,6 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, st
 		return rc;
 	}
 
-	std::vector<tree_ptr> next_dchecklist;
-	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	static const float eps = 10.0 * std::numeric_limits<float>::min();
@@ -159,29 +157,9 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, st
 	std::vector<vect<float>> mono_srcs;
 	std::vector<multi_source> multi_srcs;
 
-	do {
-		for (auto c : dchecklist) {
-			auto other = c->get_multipole();
-			const auto dx = separation(multi.x - other.x);
-			if (dx > (multi.r + other.r) / opts.theta) {
-				multi_srcs.push_back( { other.m, other.x });
-			} else {
-				if (c->is_leaf()) {
-					const auto pos = c->get_positions();
-					for (auto x : pos) {
-						mono_srcs.push_back(x);
-					}
-				} else {
-					auto next = c->get_children();
-					next_dchecklist.push_back(next[0]);
-					next_dchecklist.push_back(next[1]);
-				}
-			}
-		}
-		dchecklist = std::move(next_dchecklist);
-	} while (is_leaf() && !dchecklist.empty());
 	if (opts.ewald) {
 		do {
+			std::vector<tree_ptr> next_echecklist;
 			for (auto c : echecklist) {
 				auto other = c->get_multipole();
 				const auto dx = ewald_far_separation(multi.x - other.x);
@@ -206,6 +184,38 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, st
 
 	if (!is_leaf()) {
 
+		std::vector<tree_ptr> next_dchecklist;
+		for (auto c : dchecklist) {
+			auto other = c->get_multipole();
+			const auto dx = separation(multi.x - other.x);
+			if (dx > (multi.r + other.r) / opts.theta) {
+				multi_srcs.push_back( { other.m, other.x });
+			} else {
+				if (c->is_leaf()) {
+					const auto pos = c->get_positions();
+					bool separated = true;
+					for (auto x : pos) {
+						const auto dx = separation(multi.x - x);
+						if (dx < multi.r / opts.theta) {
+							separated = false;
+							break;
+						}
+					}
+					if (separated) {
+						for (auto x : pos) {
+							mono_srcs.push_back(x);
+						}
+					} else {
+						next_dchecklist.push_back(c);
+					}
+				} else {
+					auto next = c->get_children();
+					next_dchecklist.push_back(next[0]);
+					next_dchecklist.push_back(next[1]);
+				}
+			}
+		}
+		dchecklist = std::move(next_dchecklist);
 		flop += gravity_multi_multi(L, multi.x, multi_srcs);
 		flop += gravity_multi_mono(L, multi.x, mono_srcs);
 
@@ -233,7 +243,44 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, st
 			rc.stats.pot = rc_r.stats.pot + rc_l.stats.pot;
 			rc.stats.kin = rc_r.stats.kin + rc_l.stats.kin;
 		}
+
 	} else {
+
+		do {
+			std::vector<tree_ptr> next_dchecklist;
+			for (auto c : dchecklist) {
+				auto other = c->get_multipole();
+				const auto dx = separation(multi.x - other.x);
+				if (dx > (multi.r + other.r) / opts.theta) {
+					multi_srcs.push_back( { other.m, other.x });
+				} else {
+					if (c->is_leaf()) {
+						const auto pos = c->get_positions();
+						for (auto x : pos) {
+							mono_srcs.push_back(x);
+						}
+					} else {
+						bool separated = true;
+						for (auto i = part_begin; i != part_end; i++) {
+							const auto dx = separation(other.x - pos_to_double(i->x));
+							if (dx < other.r / opts.theta) {
+								separated = false;
+								break;
+							}
+						}
+						if (separated) {
+							multi_srcs.push_back( { other.m, other.x });
+						} else {
+							auto next = c->get_children();
+							next_dchecklist.push_back(next[0]);
+							next_dchecklist.push_back(next[1]);
+						}
+					}
+				}
+			}
+			dchecklist = std::move(next_dchecklist);
+		} while (!dchecklist.empty());
+
 		if (do_stats) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				rc.stats.g[dim] = 0.0;
