@@ -2,7 +2,6 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
 
-#include <tigergrav/expansion.hpp>
 #include <hpx/include/async.hpp>
 
 constexpr int NE = 64;
@@ -261,6 +260,177 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<f
 		}
 	}
 	return (do_phi ? 216 : 198 + ewald ? 18 : 0) * cnt1 * x.size();
+}
+
+std::uint64_t gravity_multi_multi(expansion<float> &L, const vect<float> &x, std::vector<multi_source> &y) {
+	std::uint64_t flop = 0;
+	static const auto opts = options::get();
+	static const bool ewald = opts.ewald;
+	static const auto h = opts.soft_len;
+	static const auto h2 = h * h;
+	static const simd_vector H(h);
+	static const simd_vector H2(h2);
+	vect<simd_vector> X, Y;
+	multipole<simd_vector> M;
+	expansion<simd_vector> Lacc;
+	Lacc.zero();
+
+	const auto cnt1 = y.size();
+	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	y.resize(cnt2);
+	for (int j = cnt1; j < cnt2; j++) {
+		y[j].m() = 0.0;
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m <= n; m++) {
+				y[j].m(n, m) = 0.0;
+			}
+		}
+		y[j].x = vect<float>(1.0);
+	}
+	for (int dim = 0; dim < NDIM; dim++) {
+		X[dim] = simd_vector(x[dim]);
+	}
+	for (int j = 0; j < cnt1; j += SIMD_LEN) {
+		for (int k = 0; k < SIMD_LEN; k++) {
+			M()[k] = y[j + k].m();
+			for (int n = 0; n < NDIM; n++) {
+				for (int m = 0; m <= n; m++) {
+					M(n, m)[k] = y[j + k].m(n, m);
+				}
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = y[j + k].x[dim];
+			}
+		}
+
+		vect<simd_vector> dX = X - Y;             										// 3 OP
+		if (ewald) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				const auto absdx = abs(dX[dim]);										// 3 OP
+				dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+			}
+		}
+		expansion<simd_vector> D = Green_direct(dX);									// 135
+
+		Lacc() += D() * M();
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m < NDIM; m++) {
+				Lacc() += simd_vector(0.5) * D(n, m) * M(n, m);
+			}
+		}
+
+		for (int n = 0; n < NDIM; n++) {
+			Lacc(n) -= D(n) * M();
+			for (int m = 0; m < NDIM; m++) {
+				for (int l = 0; l < NDIM; l++) {
+					Lacc(n) -= simd_vector(0.5) * D(n, m, l) * M(m, l);
+				}
+			}
+		}
+
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m < NDIM; m++) {
+				Lacc(n, m) -= simd_vector(0.5) * D(n, m) * M();
+			}
+		}
+
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m < NDIM; m++) {
+				for (int l = 0; l < NDIM; l++) {
+					Lacc(n, m, l) -= simd_vector(1.0 / 6.0) * D(n, m, l) * M();
+				}
+			}
+		}
+
+	}
+
+	L() = Lacc().sum();
+	for (int n = 0; n < NDIM; n++) {
+		L(n) = Lacc().sum();
+		for (int m = 0; m <= n; m++) {
+			L(n, m) = Lacc(n, m).sum();
+			for (int l = 0; l <= m; l++) {
+				L(n, m, l) = Lacc().sum();
+			}
+		}
+	}
+
+	return 0;
+}
+
+std::uint64_t gravity_multi_mono(expansion<float> &L, const vect<float> &x, std::vector<vect<float>> &y) {
+	std::uint64_t flop = 0;
+	static const auto opts = options::get();
+	static const auto m = 1.0 / opts.problem_size;
+	static const bool ewald = opts.ewald;
+	static const auto h = opts.soft_len;
+	static const auto h2 = h * h;
+	static const simd_vector H(h);
+	static const simd_vector H2(h2);
+	vect<simd_vector> X, Y;
+	static const simd_vector M(m);
+	expansion<simd_vector> Lacc;
+	Lacc.zero();
+
+	const auto cnt1 = y.size();
+	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	y.resize(cnt2);
+	for (int j = cnt1; j < cnt2; j++) {
+		y[j] = vect<float>(sqrt(std::numeric_limits<float>::max()) / 10.0);
+	}
+	for (int dim = 0; dim < NDIM; dim++) {
+		X[dim] = simd_vector(x[dim]);
+	}
+	for (int j = 0; j < cnt1; j += SIMD_LEN) {
+		for (int k = 0; k < SIMD_LEN; k++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = y[j + k][dim];
+			}
+		}
+
+		vect<simd_vector> dX = X - Y;             										// 3 OP
+		if (ewald) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				const auto absdx = abs(dX[dim]);										// 3 OP
+				dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+			}
+		}
+		expansion<simd_vector> D = Green_direct(dX);									// 135
+
+		Lacc() += D() * M;
+
+		for (int n = 0; n < NDIM; n++) {
+			Lacc(n) -= D(n) * M;
+		}
+
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m < NDIM; m++) {
+				Lacc(n, m) -= simd_vector(0.5) * D(n, m) * M;
+			}
+		}
+
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m < NDIM; m++) {
+				for (int l = 0; l < NDIM; l++) {
+					Lacc(n, m, l) -= simd_vector(1.0 / 6.0) * D(n, m, l) * M;
+				}
+			}
+		}
+
+	}
+
+	L() = Lacc().sum();
+	for (int n = 0; n < NDIM; n++) {
+		L(n) = Lacc().sum();
+		for (int m = 0; m <= n; m++) {
+			L(n, m) = Lacc(n, m).sum();
+			for (int l = 0; l <= m; l++) {
+				L(n, m, l) = Lacc().sum();
+			}
+		}
+	}
+
+	return 0;
 }
 
 std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
