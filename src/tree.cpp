@@ -183,19 +183,19 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 	}
 
 	std::vector<check_item> next_dchecklist;
-	if (!is_leaf()) {
-		for (auto c : dchecklist) {
-			auto other = c.ptr->get_multipole();
-			const auto dx = separation(multi.x - other.x);
-			if (dx > (multi.r + other.r) / opts.theta && !c.use_parts) {
-				multi_srcs.push_back( { other.m, other.x });
-			} else {
-				if (c.ptr->is_leaf()) {
+	for (auto c : dchecklist) {
+		auto other = c.ptr->get_multipole();
+		const auto dx = separation(multi.x - other.x);
+		if (dx > (multi.r + other.r) / opts.theta && !c.use_parts) {
+			multi_srcs.push_back( { other.m, other.x });
+		} else {
+			if (c.ptr->is_leaf()) {
+				if (c.use_parts) {
 					const auto pos = c.ptr->get_positions();
 					bool separated = true;
 					for (auto x : pos) {
 						const auto dx = separation(multi.x - x);
-						if (dx < multi.r / opts.theta) {
+						if (dx <= multi.r / opts.theta) {
 							separated = false;
 							break;
 						}
@@ -205,18 +205,20 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 							mono_srcs.push_back(x);
 						}
 					} else {
-						c.use_parts = true;
 						next_dchecklist.push_back(c);
 					}
 				} else {
-					auto next = c.ptr->get_children();
-					next_dchecklist.push_back( { next[0], false });
-					next_dchecklist.push_back( { next[1], false });
+					c.use_parts = true;
+					next_dchecklist.push_back(c);
 				}
+			} else {
+				auto next = c.ptr->get_children();
+				next_dchecklist.push_back( { next[0], false });
+				next_dchecklist.push_back( { next[1], false });
 			}
 		}
-		dchecklist = std::move(next_dchecklist);
 	}
+	dchecklist = std::move(next_dchecklist);
 	flop += gravity_multi_multi(L, multi.x, multi_srcs);
 	flop += gravity_multi_mono(L, multi.x, mono_srcs);
 
@@ -255,7 +257,7 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 		do {
 			for (auto c : dchecklist) {
 				auto other = c.ptr->get_multipole();
-				if (c.ptr->is_leaf() || c.use_parts) {
+				if (c.ptr->is_leaf()) {
 					const auto pos = c.ptr->get_positions();
 					for (auto x : pos) {
 						mono_srcs.push_back(x);
@@ -264,7 +266,7 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 					bool separated = true;
 					for (auto i = part_begin; i != part_end; i++) {
 						const auto dx = separation(other.x - pos_to_double(i->x));
-						if (dx < other.r / opts.theta) {
+						if (dx <= other.r / opts.theta) {
 							separated = false;
 							break;
 						}
