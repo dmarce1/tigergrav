@@ -69,6 +69,8 @@ public:
 	void drift(float);
 //	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
+	bool parts_separate_from(const vect<float>& x, const float r);
+	bool parts_separate_from_far_ewald(const vect<float>& x, const float r);
 	kick_return kick( expansion<double>, std::vector<check_item> dchecklist, std::vector<check_item> echecklist, rung_type min_rung,
 			bool do_statistics, bool do_output);
 };

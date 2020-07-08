@@ -133,6 +133,34 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
+bool tree::parts_separate_from(const vect<float> &x, const float r) {
+	static const auto opts = options::get();
+	bool rc = true;
+	for (auto i = part_begin; i != part_end; i++) {
+		const auto dX = pos_to_double(i->x) - x;
+		const auto dx = opts.ewald ? ewald_near_separation(dX) : abs(dX);
+		if (dx <= r / opts.theta) {
+			rc = false;
+			break;
+		}
+	}
+	return rc;
+}
+
+bool tree::parts_separate_from_far_ewald(const vect<float> &x, const float r) {
+	static const auto opts = options::get();
+	bool rc = true;
+	for (auto i = part_begin; i != part_end; i++) {
+		const auto dX = pos_to_double(i->x) - x;
+		const auto dx = ewald_far_separation(dX);
+		if (dx <= r / opts.theta) {
+			rc = false;
+			break;
+		}
+	}
+	return rc;
+}
+
 kick_return tree::kick(expansion<double> L, std::vector<check_item> dchecklist, std::vector<check_item> echecklist, rung_type min_rung, bool do_stats,
 		bool do_out) {
 
@@ -168,16 +196,8 @@ kick_return tree::kick(expansion<double> L, std::vector<check_item> dchecklist, 
 		} else {
 			if (c.ptr->is_leaf()) {
 				if (c.use_parts) {
-					const auto pos = c.ptr->get_positions();
-					bool separated = true;
-					for (auto x : pos) {
-						const auto dx = separation(multi.x - x);
-						if (dx <= multi.r / opts.theta) {
-							separated = false;
-							break;
-						}
-					}
-					if (separated) {
+					if (c.ptr->parts_separate_from(multi.x, multi.r)) {
+						const auto pos = c.ptr->get_positions();
 						for (auto x : pos) {
 							mono_srcs.push_back(x);
 						}
@@ -199,27 +219,18 @@ kick_return tree::kick(expansion<double> L, std::vector<check_item> dchecklist, 
 	flop += gravity_multi_multi(L, multi.x, multi_srcs);
 	flop += gravity_multi_mono(L, multi.x, mono_srcs);
 
-
 	std::vector<check_item> next_echecklist;
 	if (opts.ewald) {
 		for (auto c : echecklist) {
 			auto other = c.ptr->get_multipole();
 			const auto dx = ewald_far_separation(multi.x - other.x);
 			if (dx > (multi.r + other.r) / opts.theta && !c.use_parts) {
-				esources.push_back( { other.m(), other.x });
+				esources.push_back( { (float) other.m(), other.x });
 			} else {
 				if (c.ptr->is_leaf()) {
 					if (c.use_parts) {
-						const auto pos = c.ptr->get_positions();
-						bool separated = true;
-						for (auto x : pos) {
-							const auto dx = ewald_far_separation(multi.x - x);
-							if (dx <= multi.r / opts.theta) {
-								separated = false;
-								break;
-							}
-						}
-						if (separated) {
+						if (c.ptr->parts_separate_from_far_ewald(multi.x, multi.r)) {
+							const auto pos = c.ptr->get_positions();
 							for (auto x : pos) {
 								esources.push_back( { m, x });
 							}
@@ -285,15 +296,7 @@ kick_return tree::kick(expansion<double> L, std::vector<check_item> dchecklist, 
 						mono_srcs.push_back(x);
 					}
 				} else {
-					bool separated = true;
-					for (auto i = part_begin; i != part_end; i++) {
-						const auto dx = separation(other.x - pos_to_double(i->x));
-						if (dx <= other.r / opts.theta) {
-							separated = false;
-							break;
-						}
-					}
-					if (separated) {
+					if (parts_separate_from(other.x, other.r)) {
 						multi_srcs.push_back( { other.m, other.x });
 					} else {
 						auto next = c.ptr->get_children();
@@ -312,19 +315,11 @@ kick_return tree::kick(expansion<double> L, std::vector<check_item> dchecklist, 
 					if (c.ptr->is_leaf()) {
 						const auto pos = c.ptr->get_positions();
 						for (auto x : pos) {
-							esources.push_back({m,x});
+							esources.push_back( { m, x });
 						}
 					} else {
-						bool separated = true;
-						for (auto i = part_begin; i != part_end; i++) {
-							const auto dx = ewald_far_separation(other.x - pos_to_double(i->x));
-							if (dx <= other.r / opts.theta) {
-								separated = false;
-								break;
-							}
-						}
-						if (separated) {
-							esources.push_back( { other.m(), other.x });
+						if (parts_separate_from_far_ewald(other.x, other.r)) {
+							esources.push_back( { (float) other.m(), other.x });
 						} else {
 							auto next = c.ptr->get_children();
 							next_echecklist.push_back( { next[0], false });
