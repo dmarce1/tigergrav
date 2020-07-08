@@ -153,46 +153,53 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>
 			return abs(x);
 		};
 	}
-	for (auto c : dchecklist) {
-		auto other = c->get_multipole();
-		const auto dx = separation(multi.x - other.x);
-		if (dx > (multi.r + other.r) / opts.theta) {
-			multi_srcs.push_back( { other.m, other.x });
-		} else {
-			if (c->is_leaf()) {
-				const auto pos = c->get_positions();
-				for (auto x : pos) {
-					mono_srcs.push_back(x);
-				}
-			} else {
-				auto next = c->get_children();
-				next_dchecklist.push_back(next[0]);
-				next_dchecklist.push_back(next[1]);
-			}
-		}
-	}
-	dchecklist = std::move(next_dchecklist);
-	if (opts.ewald) {
-		for (auto c : echecklist) {
+
+	do {
+		for (auto c : dchecklist) {
 			auto other = c->get_multipole();
-			const auto dx = ewald_far_separation(multi.x - other.x);
+			const auto dx = separation(multi.x - other.x);
 			if (dx > (multi.r + other.r) / opts.theta) {
-				esources.push_back( { other.m(), other.x });
+				multi_srcs.push_back( { other.m, other.x });
 			} else {
 				if (c->is_leaf()) {
 					const auto pos = c->get_positions();
 					for (auto x : pos) {
-						esources.push_back( { m, x });
+						mono_srcs.push_back(x);
 					}
 				} else {
 					auto next = c->get_children();
-					next_echecklist.push_back(next[0]);
-					next_echecklist.push_back(next[1]);
+					next_dchecklist.push_back(next[0]);
+					next_dchecklist.push_back(next[1]);
 				}
 			}
 		}
+		dchecklist = std::move(next_dchecklist);
+	} while (is_leaf() && !dchecklist.empty());
+
+	if (opts.ewald) {
+		do {
+			for (auto c : echecklist) {
+				auto other = c->get_multipole();
+				const auto dx = ewald_far_separation(multi.x - other.x);
+				if (dx > (multi.r + other.r) / opts.theta) {
+					esources.push_back( { other.m(), other.x });
+				} else {
+					if (c->is_leaf()) {
+						const auto pos = c->get_positions();
+						for (auto x : pos) {
+							esources.push_back( { m, x });
+						}
+					} else {
+						auto next = c->get_children();
+						next_echecklist.push_back(next[0]);
+						next_echecklist.push_back(next[1]);
+					}
+				}
+			}
+			echecklist = std::move(next_echecklist);
+		} while (is_leaf() && !echecklist.empty());
 	}
-	echecklist = std::move(next_echecklist);
+
 	if (!is_leaf()) {
 		hpx::future<kick_return> rc_l_fut;
 		if (inc_thread()) {
@@ -227,64 +234,59 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>
 			rc.stats.pot = 0.0;
 			rc.stats.kin = 0.0;
 		}
-		if (!dchecklist.empty() || !echecklist.empty()) {
-			rc = kick(std::move(dchecklist), std::move(mono_srcs), std::move(multi_srcs), std::move(echecklist), std::move(esources), min_rung, do_stats,
-					do_out);
-		} else {
-			std::vector<vect<float>> x;
-			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
-					x.push_back(pos_to_double(i->x));
-				}
+		std::vector<vect<float>> x;
+		for (auto i = part_begin; i != part_end; i++) {
+			if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
+				x.push_back(pos_to_double(i->x));
 			}
-			std::vector<force> f(x.size());
-			for (int i = 0; i < x.size(); i++) {
-				f[i].phi = 0.0;
-				f[i].g = vect<float>(0.0);
-			}
-			flop += gravity_mono_mono(f, x, mono_srcs, do_stats || do_out);
-			flop += gravity_mono_multi(f, x, multi_srcs, do_stats || do_out);
-			if (opts.ewald) {
-				flop += gravity_ewald(f, x, esources, do_stats || do_out);
-			}
-			int j = 0;
-			rc.rung = 0;
-			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
-					if (i->rung >= min_rung || i->rung == null_rung) {
-						if (i->rung != -1) {
-							const float dt = rung_to_dt(i->rung);
-							i->v = i->v + f[j].g * (0.5 * dt);
-						}
-						const float a = abs(f[j].g);
-						float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
-						rung_type rung = dt_to_rung(dt);
-						rung = std::max(rung, min_rung);
-						rc.rung = std::max(rc.rung, rung);
-						dt = rung_to_dt(rung);
-						i->rung = rung;
+		}
+		std::vector<force> f(x.size());
+		for (int i = 0; i < x.size(); i++) {
+			f[i].phi = 0.0;
+			f[i].g = vect<float>(0.0);
+		}
+		flop += gravity_mono_mono(f, x, mono_srcs, do_stats || do_out);
+		flop += gravity_mono_multi(f, x, multi_srcs, do_stats || do_out);
+		if (opts.ewald) {
+			flop += gravity_ewald(f, x, esources, do_stats || do_out);
+		}
+		int j = 0;
+		rc.rung = 0;
+		for (auto i = part_begin; i != part_end; i++) {
+			if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
+				if (i->rung >= min_rung || i->rung == null_rung) {
+					if (i->rung != -1) {
+						const float dt = rung_to_dt(i->rung);
 						i->v = i->v + f[j].g * (0.5 * dt);
 					}
-					if (do_stats) {
-						rc.stats.g = rc.stats.g + f[j].g * m;
-						rc.stats.p = rc.stats.p + i->v * m;
-						rc.stats.pot += 0.5 * m * f[j].phi;
-						rc.stats.kin += 0.5 * m * i->v.dot(i->v);
-					}
-					if (do_out && i->flags.out) {
-						output out;
-						out.x = pos_to_double(i->x);
-						out.v = i->v;
-						out.g = f[j].g;
-						out.phi = f[j].phi;
-						out.rung = i->rung;
-						std::lock_guard<mutex_type> lock(out_mtx);
-						FILE *fp = fopen("output.bin", "ab");
-						fwrite(&out, sizeof(output), 1, fp);
-						fclose(fp);
-					}
-					j++;
+					const float a = abs(f[j].g);
+					float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
+					rung_type rung = dt_to_rung(dt);
+					rung = std::max(rung, min_rung);
+					rc.rung = std::max(rc.rung, rung);
+					dt = rung_to_dt(rung);
+					i->rung = rung;
+					i->v = i->v + f[j].g * (0.5 * dt);
 				}
+				if (do_stats) {
+					rc.stats.g = rc.stats.g + f[j].g * m;
+					rc.stats.p = rc.stats.p + i->v * m;
+					rc.stats.pot += 0.5 * m * f[j].phi;
+					rc.stats.kin += 0.5 * m * i->v.dot(i->v);
+				}
+				if (do_out && i->flags.out) {
+					output out;
+					out.x = pos_to_double(i->x);
+					out.v = i->v;
+					out.g = f[j].g;
+					out.phi = f[j].phi;
+					out.rung = i->rung;
+					std::lock_guard<mutex_type> lock(out_mtx);
+					FILE *fp = fopen("output.bin", "ab");
+					fwrite(&out, sizeof(output), 1, fp);
+					fclose(fp);
+				}
+				j++;
 			}
 		}
 	}
