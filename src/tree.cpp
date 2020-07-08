@@ -167,30 +167,30 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 	mono_srcs.resize(0);
 	multi_srcs.resize(0);
 
-	if (opts.ewald) {
-		do {
-			std::vector<tree_ptr> next_echecklist;
-			for (auto c : echecklist) {
-				auto other = c->get_multipole();
-				const auto dx = ewald_far_separation(multi.x - other.x);
-				if (dx > (multi.r + other.r) / opts.theta) {
-					esources.push_back( { (float) other.m(), other.x });
-				} else {
-					if (c->is_leaf()) {
-						const auto pos = c->get_positions();
-						for (auto x : pos) {
-							esources.push_back( { m, x });
-						}
-					} else {
-						auto next = c->get_children();
-						next_echecklist.push_back(next[0]);
-						next_echecklist.push_back(next[1]);
-					}
-				}
-			}
-			echecklist = std::move(next_echecklist);
-		} while (is_leaf() && !echecklist.empty());
-	}
+//	if (opts.ewald) {
+//		do {
+//			std::vector<tree_ptr> next_echecklist;
+//			for (auto c : echecklist) {
+//				auto other = c->get_multipole();
+//				const auto dx = ewald_far_separation(multi.x - other.x);
+//				if (dx > (multi.r + other.r) / opts.theta) {
+//					esources.push_back( { (float) other.m(), other.x });
+//				} else {
+//					if (c->is_leaf()) {
+//						const auto pos = c->get_positions();
+//						for (auto x : pos) {
+//							esources.push_back( { m, x });
+//						}
+//					} else {
+//						auto next = c->get_children();
+//						next_echecklist.push_back(next[0]);
+//						next_echecklist.push_back(next[1]);
+//					}
+//				}
+//			}
+//			echecklist = std::move(next_echecklist);
+//		} while (is_leaf() && !echecklist.empty());
+//	}
 
 	std::vector<check_item> next_dchecklist;
 	next_dchecklist.reserve(checklist_size);
@@ -302,9 +302,8 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 		flop += gravity_mono_mono(f, x, mono_srcs, do_stats || do_out);
 		flop += gravity_mono_multi(f, x, multi_srcs, do_stats || do_out);
 		if (opts.ewald) {
-			flop += gravity_ewald(f, x, esources, do_stats || do_out);
+//			flop += gravity_ewald(f, x, esources, do_stats || do_out);
 		}
-		printf( "%li\n", esources.size());
 		int j = 0;
 		rc.rung = 0;
 		for (auto i = part_begin; i != part_end; i++) {

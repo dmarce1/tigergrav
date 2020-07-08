@@ -468,7 +468,7 @@ std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std
 	return (200 + opts.ewald ? 18 : 0) * cnt1;
 }
 
-std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<mono_source> &y, const bool do_phi) {
+std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -476,8 +476,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<pos_ty
 	static const auto opts = options::get();
 	static const auto one = simd_vector(1.0);
 	static const auto half = simd_vector(0.5);
-	vect<simd_int_vector> X;
-	vect<simd_vector> Y;
+	vect<simd_vector> X, Y;
 	simd_vector M;
 	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
 	std::vector<simd_vector> Phi(x.size(), 0.0);
@@ -497,13 +496,10 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<pos_ty
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_int_vector(x[i][dim]);
+				X[dim] = simd_vector(x[i][dim]);
 			}
 
-			vect<simd_vector> dX;
-			for( int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = pos_to_simd_vector(X[dim]) - Y[dim];							// 3 OP
-			}
+			vect<simd_vector> dX = X - Y;             										// 3 OP
 			vect<simd_vector> sgn;
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
