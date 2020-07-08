@@ -133,7 +133,7 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources,
+kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources,
 		rung_type min_rung, bool do_stats, bool do_out) {
 
 	kick_return rc;
@@ -182,17 +182,16 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, st
 		} while (is_leaf() && !echecklist.empty());
 	}
 
+	std::vector<check_item> next_dchecklist;
 	if (!is_leaf()) {
-
-		std::vector<tree_ptr> next_dchecklist;
 		for (auto c : dchecklist) {
-			auto other = c->get_multipole();
+			auto other = c.ptr->get_multipole();
 			const auto dx = separation(multi.x - other.x);
-			if (dx > (multi.r + other.r) / opts.theta) {
+			if (dx > (multi.r + other.r) / opts.theta && !c.use_parts) {
 				multi_srcs.push_back( { other.m, other.x });
 			} else {
-				if (c->is_leaf()) {
-					const auto pos = c->get_positions();
+				if (c.ptr->is_leaf()) {
+					const auto pos = c.ptr->get_positions();
 					bool separated = true;
 					for (auto x : pos) {
 						const auto dx = separation(multi.x - x);
@@ -206,18 +205,25 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, st
 							mono_srcs.push_back(x);
 						}
 					} else {
+						c.use_parts = true;
 						next_dchecklist.push_back(c);
 					}
 				} else {
-					auto next = c->get_children();
-					next_dchecklist.push_back(next[0]);
-					next_dchecklist.push_back(next[1]);
+					auto next = c.ptr->get_children();
+					next_dchecklist.push_back( { next[0], false });
+					next_dchecklist.push_back( { next[1], false });
 				}
 			}
 		}
 		dchecklist = std::move(next_dchecklist);
-		flop += gravity_multi_multi(L, multi.x, multi_srcs);
-		flop += gravity_multi_mono(L, multi.x, mono_srcs);
+	}
+	flop += gravity_multi_multi(L, multi.x, multi_srcs);
+	flop += gravity_multi_mono(L, multi.x, mono_srcs);
+
+	mono_srcs.resize(0);
+	multi_srcs.resize(0);
+
+	if (!is_leaf()) {
 
 		const expansion<double> Ll = L.translate(child_com[0] - multi.x);
 		const expansion<double> Lr = L.translate(child_com[1] - multi.x);
@@ -247,34 +253,28 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, st
 	} else {
 
 		do {
-			std::vector<tree_ptr> next_dchecklist;
 			for (auto c : dchecklist) {
-				auto other = c->get_multipole();
-				const auto dx = separation(multi.x - other.x);
-				if (dx > (multi.r + other.r) / opts.theta) {
-					multi_srcs.push_back( { other.m, other.x });
+				auto other = c.ptr->get_multipole();
+				if (c.ptr->is_leaf() || c.use_parts) {
+					const auto pos = c.ptr->get_positions();
+					for (auto x : pos) {
+						mono_srcs.push_back(x);
+					}
 				} else {
-					if (c->is_leaf()) {
-						const auto pos = c->get_positions();
-						for (auto x : pos) {
-							mono_srcs.push_back(x);
+					bool separated = true;
+					for (auto i = part_begin; i != part_end; i++) {
+						const auto dx = separation(other.x - pos_to_double(i->x));
+						if (dx < other.r / opts.theta) {
+							separated = false;
+							break;
 						}
+					}
+					if (separated) {
+						multi_srcs.push_back( { other.m, other.x });
 					} else {
-						bool separated = true;
-						for (auto i = part_begin; i != part_end; i++) {
-							const auto dx = separation(other.x - pos_to_double(i->x));
-							if (dx < other.r / opts.theta) {
-								separated = false;
-								break;
-							}
-						}
-						if (separated) {
-							multi_srcs.push_back( { other.m, other.x });
-						} else {
-							auto next = c->get_children();
-							next_dchecklist.push_back(next[0]);
-							next_dchecklist.push_back(next[1]);
-						}
+						auto next = c.ptr->get_children();
+						next_dchecklist.push_back( { next[0], false });
+						next_dchecklist.push_back( { next[1], false });
 					}
 				}
 			}

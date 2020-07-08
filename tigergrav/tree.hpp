@@ -35,6 +35,11 @@ struct multipole_attr {
 	double r;
 };
 
+struct check_item {
+	tree_ptr ptr;
+	bool use_parts;
+};
+
 class tree {
 	multipole_attr multi;
 	part_iter part_begin;
@@ -64,7 +69,7 @@ public:
 	void drift(float);
 //	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
-	kick_return kick(std::vector<tree_ptr> dchecklist, expansion<double>, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources, rung_type min_rung,
+	kick_return kick(std::vector<check_item> dchecklist, expansion<double>, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources, rung_type min_rung,
 			bool do_statistics, bool do_output);
 };
 
