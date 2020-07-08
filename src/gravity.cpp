@@ -236,16 +236,18 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<f
 			for (int dim = 0; dim < NDIM; dim++) {
 				G[i][dim] -= D(dim) * M();													// 6
 				for (int n = 0; n < NDIM; n++) {
-					for (int m = 0; m < NDIM; m++) {
-						G[i][dim] -= simd_vector(0.5) * D(n, m, dim) * M(n, m);							// 54
+					for (int m = 0; m <= n; m++) {
+						const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
+						G[i][dim] -= c0 * D(n, m, dim) * M(n, m);							// 54
 					}
 				}
 			}
 			if (do_phi) {
 				Phi[i] += D() * M();
 				for (int n = 0; n < NDIM; n++) {
-					for (int m = 0; m < NDIM; m++) {
-						Phi[i] += simd_vector(0.5) * D(n, m) * M(n, m);									// 18
+					for (int m = 0; m <= n; m++) {
+						const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
+						Phi[i] += c0 * D(n, m) * M(n, m);									// 18
 					}
 				}
 			}
@@ -312,32 +314,36 @@ std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, st
 		}
 		expansion<simd_vector> D = Green_direct(dX);									// 135
 
-		Lacc() += D() * M();
+		Lacc() += D() * M();															//  2
 		for (int n = 0; n < NDIM; n++) {
-			for (int m = 0; m < NDIM; m++) {
-				Lacc() += simd_vector(0.5) * D(n, m) * M(n, m);
+			for (int m = 0; m <= n; m++) {
+				const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
+				Lacc() += c0 * D(n, m) * M(n, m);										// 18
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
-			Lacc(n) += D(n) * M();
+			Lacc(n) += D(n) * M();														// 6
 			for (int m = 0; m < NDIM; m++) {
-				for (int l = 0; l < NDIM; l++) {
-					Lacc(n) += simd_vector(0.5) * D(n, m, l) * M(m, l);
+				for (int l = 0; l <= m; l++) {
+					const simd_vector c0 = l == m ? simd_vector(0.5) : simd_vector(1);
+					Lacc(n) += c0 * D(n, m, l) * M(m, l);								// 54
 				}
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
-			for (int m = 0; m < NDIM; m++) {
-				Lacc(n, m) += simd_vector(0.5) * D(n, m) * M();
+			for (int m = 0; m <= n; m++) {
+				const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
+				Lacc(n, m) += c0 * D(n, m) * M();										// 18
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
-				for (int l = 0; l < NDIM; l++) {
-					Lacc(n, m, l) += simd_vector(1.0 / 6.0) * D(n, m, l) * M();
+				for (int l = 0; l <= m; l++) {
+					const simd_vector c0 = l == m ? simd_vector(1.0 / 6.0) : simd_vector(1.0 / 3.0);
+					Lacc(n, m, l) += c0 * D(n, m, l) * M();								// 54
 				}
 			}
 		}
@@ -355,7 +361,7 @@ std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, st
 		}
 	}
 
-	return 0;
+	return (290 + opts.ewald ? 18 : 0) * cnt1;
 }
 
 std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std::vector<vect<float>> &y) {
@@ -397,22 +403,24 @@ std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std
 		}
 		expansion<simd_vector> D = Green_direct(dX);									// 135
 
-		Lacc() += D() * M;
+		Lacc() += D() * M;																// 2
 
 		for (int n = 0; n < NDIM; n++) {
-			Lacc(n) += D(n) * M;
+			Lacc(n) += D(n) * M;														// 6
 		}
 
 		for (int n = 0; n < NDIM; n++) {
-			for (int m = 0; m < NDIM; m++) {
-				Lacc(n, m) += simd_vector(0.5) * D(n, m) * M;
+			for (int m = 0; m <= n; m++) {
+				const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
+				Lacc(n, m) += c0 * D(n, m) * M;											// 18
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
-				for (int l = 0; l < NDIM; l++) {
-					Lacc(n, m, l) += simd_vector(1.0 / 6.0) * D(n, m, l) * M;
+				for (int l = 0; l <= m; l++) {
+					const simd_vector c0 = m == l ? simd_vector(1.0 / 6.0) : simd_vector(1.0 / 3.0);
+					Lacc(n, m, l) += c0 * D(n, m, l) * M;								// 54
 				}
 			}
 		}
@@ -430,8 +438,7 @@ std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std
 		}
 	}
 
-
-	return 0;
+	return (200 + opts.ewald ? 18 : 0) * cnt1;
 }
 
 std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
