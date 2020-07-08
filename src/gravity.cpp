@@ -320,7 +320,7 @@ std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, st
 		}
 
 		for (int n = 0; n < NDIM; n++) {
-			Lacc(n) -= D(n) * M();
+			Lacc(n) += D(n) * M();
 			for (int m = 0; m < NDIM; m++) {
 				for (int l = 0; l < NDIM; l++) {
 					Lacc(n) += simd_vector(0.5) * D(n, m, l) * M(m, l);
