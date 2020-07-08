@@ -43,6 +43,7 @@ class tree {
 	bool leaf;
 	bool has_active;
 	std::array<tree_ptr, NCHILD> children;
+	std::array<vect<float>, NCHILD> child_com;
 
 	static std::atomic<std::uint64_t> flop;
 	static int num_threads;
@@ -63,7 +64,7 @@ public:
 	void drift(float);
 //	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
-	kick_return kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>>,  std::vector<multi_source>, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources,
-			rung_type min_rung, bool do_statistics, bool do_output);
+	kick_return kick(std::vector<tree_ptr> dchecklist, expansion<double>, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources, rung_type min_rung,
+			bool do_statistics, bool do_output);
 };
 

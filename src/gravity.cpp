@@ -133,7 +133,7 @@ std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<fl
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = vect<float>(sqrt(std::numeric_limits<float>::max()) / 10.0);
+		y[j] = vect<float>(1.0e+10);
 	}
 	for (int j = 0; j < cnt1; j += SIMD_LEN) {
 		for (int k = 0; k < SIMD_LEN; k++) {
@@ -205,7 +205,7 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<f
 				y[j].m(n, m) = 0.0;
 			}
 		}
-		y[j].x = vect<float>(1.0);
+		y[j].x = vect<float>(1.0e+10);
 	}
 	for (int j = 0; j < cnt1; j += SIMD_LEN) {
 		for (int k = 0; k < SIMD_LEN; k++) {
@@ -262,7 +262,7 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<f
 	return (do_phi ? 216 : 198 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_multi_multi(expansion<float> &L, const vect<float> &x, std::vector<multi_source> &y) {
+std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, std::vector<multi_source> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
@@ -323,34 +323,34 @@ std::uint64_t gravity_multi_multi(expansion<float> &L, const vect<float> &x, std
 			Lacc(n) -= D(n) * M();
 			for (int m = 0; m < NDIM; m++) {
 				for (int l = 0; l < NDIM; l++) {
-					Lacc(n) -= simd_vector(0.5) * D(n, m, l) * M(m, l);
+					Lacc(n) += simd_vector(0.5) * D(n, m, l) * M(m, l);
 				}
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
-				Lacc(n, m) -= simd_vector(0.5) * D(n, m) * M();
+				Lacc(n, m) += simd_vector(0.5) * D(n, m) * M();
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
 				for (int l = 0; l < NDIM; l++) {
-					Lacc(n, m, l) -= simd_vector(1.0 / 6.0) * D(n, m, l) * M();
+					Lacc(n, m, l) += simd_vector(1.0 / 6.0) * D(n, m, l) * M();
 				}
 			}
 		}
 
 	}
 
-	L() = Lacc().sum();
+	L() += Lacc().sum();
 	for (int n = 0; n < NDIM; n++) {
-		L(n) = Lacc().sum();
+		L(n) += Lacc(n).sum();
 		for (int m = 0; m <= n; m++) {
-			L(n, m) = Lacc(n, m).sum();
+			L(n, m) += Lacc(n, m).sum();
 			for (int l = 0; l <= m; l++) {
-				L(n, m, l) = Lacc().sum();
+				L(n, m, l) += Lacc(n, m, l).sum();
 			}
 		}
 	}
@@ -358,7 +358,7 @@ std::uint64_t gravity_multi_multi(expansion<float> &L, const vect<float> &x, std
 	return 0;
 }
 
-std::uint64_t gravity_multi_mono(expansion<float> &L, const vect<float> &x, std::vector<vect<float>> &y) {
+std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std::vector<vect<float>> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto m = 1.0 / opts.problem_size;
@@ -376,7 +376,7 @@ std::uint64_t gravity_multi_mono(expansion<float> &L, const vect<float> &x, std:
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = vect<float>(sqrt(std::numeric_limits<float>::max()) / 10.0);
+		y[j] = vect<float>(1.0e+10);
 	}
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = simd_vector(x[dim]);
@@ -400,35 +400,36 @@ std::uint64_t gravity_multi_mono(expansion<float> &L, const vect<float> &x, std:
 		Lacc() += D() * M;
 
 		for (int n = 0; n < NDIM; n++) {
-			Lacc(n) -= D(n) * M;
+			Lacc(n) += D(n) * M;
 		}
 
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
-				Lacc(n, m) -= simd_vector(0.5) * D(n, m) * M;
+				Lacc(n, m) += simd_vector(0.5) * D(n, m) * M;
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
 				for (int l = 0; l < NDIM; l++) {
-					Lacc(n, m, l) -= simd_vector(1.0 / 6.0) * D(n, m, l) * M;
+					Lacc(n, m, l) += simd_vector(1.0 / 6.0) * D(n, m, l) * M;
 				}
 			}
 		}
 
 	}
 
-	L() = Lacc().sum();
+	L() += Lacc().sum();
 	for (int n = 0; n < NDIM; n++) {
-		L(n) = Lacc().sum();
+		L(n) += Lacc(n).sum();
 		for (int m = 0; m <= n; m++) {
-			L(n, m) = Lacc(n, m).sum();
+			L(n, m) += Lacc(n, m).sum();
 			for (int l = 0; l <= m; l++) {
-				L(n, m, l) = Lacc().sum();
+				L(n, m, l) += Lacc(n, m, l).sum();
 			}
 		}
 	}
+
 
 	return 0;
 }

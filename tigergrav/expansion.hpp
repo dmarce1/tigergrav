@@ -2,6 +2,11 @@
 
 #include <tigergrav/vect.hpp>
 
+struct force {
+	float phi;
+	vect<float> g;
+};
+
 template<class T>
 class expansion {
 	static constexpr std::size_t size = 20;
@@ -55,12 +60,59 @@ public:
 		return C;
 	}
 
-
 	inline expansion& zero() {
 		for (int i = 0; i < size; i++) {
 			data[i] = 0.0;
 		}
 		return *this;
+	}
+
+	expansion translate(const vect<T> x) const {
+		const expansion &A = *this;
+		expansion B = *this;
+
+		for (int i = 0; i < NDIM; i++) {
+			B() += A(i) * x[i];
+			for (int j = 0; j < NDIM; j++) {
+				B() += A(i, j) * x[i] * x[j] * 0.5;
+				B(i) += A(i, j) * x[j];
+				for (int k = 0; k < NDIM; k++) {
+					B() += A(i, j, k) * x[i] * x[j] * x[k] * (1.0 / 6.0);
+					B(i) += A(i, j, k) * x[j] * x[k] * 0.5;
+				}
+			}
+			for (int j = 0; j <= i; j++) {
+				for (int k = 0; k < NDIM; k++) {
+					B(i, j) += A(i, j, k) * x[k];
+				}
+			}
+		}
+
+		return B;
+	}
+
+	force to_force(const vect<T> x) const {
+
+		const expansion &A = *this;
+		force B;
+
+		B.phi = A();
+		for (int i = 0; i < NDIM; i++) {
+			B.g[i] = -A(i);
+		}
+		for (int i = 0; i < NDIM; i++) {
+			B.phi += A(i) * x[i];
+			for (int j = 0; j < NDIM; j++) {
+				B.phi += A(i, j) * x[i] * x[j] * 0.5;
+				B.g[i] -= A(i, j) * x[j];
+				for (int k = 0; k < NDIM; k++) {
+					B.phi += A(i, j, k) * x[i] * x[j] * x[k] * (1.0 / 6.0);
+					B.g[i] -= A(i, j, k) * x[j] * x[k] * 0.5;
+				}
+			}
+		}
+		return B;
+
 	}
 
 };

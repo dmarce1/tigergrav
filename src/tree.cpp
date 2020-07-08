@@ -95,6 +95,8 @@ multipole_attr tree::compute_multipoles() {
 		multipole_attr ml, mr;
 		ml = children[0]->compute_multipoles();
 		mr = children[1]->compute_multipoles();
+		child_com[0] = ml.x;
+		child_com[1] = mr.x;
 
 		const float mtot = ml.m() + mr.m();
 		if (mtot != 0.0) {
@@ -131,8 +133,8 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> mono_srcs, std::vector<multi_source> multi_srcs,
-		std::vector<tree_ptr> echecklist, std::vector<mono_source> esources, rung_type min_rung, bool do_stats, bool do_out) {
+kick_return tree::kick(std::vector<tree_ptr> dchecklist, expansion<double> L, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources,
+		rung_type min_rung, bool do_stats, bool do_out) {
 
 	kick_return rc;
 	if (!has_active && !do_stats) {
@@ -153,6 +155,9 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>
 			return abs(x);
 		};
 	}
+
+	std::vector<vect<float>> mono_srcs;
+	std::vector<multi_source> multi_srcs;
 
 	do {
 		for (auto c : dchecklist) {
@@ -175,7 +180,6 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>
 		}
 		dchecklist = std::move(next_dchecklist);
 	} while (is_leaf() && !dchecklist.empty());
-
 	if (opts.ewald) {
 		do {
 			for (auto c : echecklist) {
@@ -201,20 +205,24 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>
 	}
 
 	if (!is_leaf()) {
+
+		flop += gravity_multi_multi(L, multi.x, multi_srcs);
+		flop += gravity_multi_mono(L, multi.x, mono_srcs);
+
+		const expansion<double> Ll = L.translate(child_com[0] - multi.x);
+		const expansion<double> Lr = L.translate(child_com[1] - multi.x);
+
 		hpx::future<kick_return> rc_l_fut;
 		if (inc_thread()) {
-			rc_l_fut = hpx::async(
-					[=]() {
-						const auto rc = children[0]->kick(std::move(dchecklist), std::move(mono_srcs), std::move(multi_srcs), std::move(echecklist),
-								std::move(esources), min_rung, do_stats, do_out);
-						dec_thread();
-						return rc;
-					});
+			rc_l_fut = hpx::async([=]() {
+				const auto rc = children[0]->kick(std::move(dchecklist), Ll, std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
+				dec_thread();
+				return rc;
+			});
 		} else {
-			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, mono_srcs, multi_srcs, echecklist, esources, min_rung, do_stats, do_out));
+			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, Ll, echecklist, esources, min_rung, do_stats, do_out));
 		}
-		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(mono_srcs), std::move(multi_srcs), std::move(echecklist), std::move(esources),
-				min_rung, do_stats, do_out);
+		const auto rc_r = children[1]->kick(std::move(dchecklist), Lr, std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_stats) {
@@ -235,15 +243,13 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>
 			rc.stats.kin = 0.0;
 		}
 		std::vector<vect<float>> x;
+		std::vector<force> f;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
-				x.push_back(pos_to_double(i->x));
+				const auto pos = pos_to_double(i->x);
+				x.push_back(pos);
+				f.push_back(L.to_force(pos - multi.x));
 			}
-		}
-		std::vector<force> f(x.size());
-		for (int i = 0; i < x.size(); i++) {
-			f[i].phi = 0.0;
-			f[i].g = vect<float>(0.0);
 		}
 		flop += gravity_mono_mono(f, x, mono_srcs, do_stats || do_out);
 		flop += gravity_mono_multi(f, x, multi_srcs, do_stats || do_out);
