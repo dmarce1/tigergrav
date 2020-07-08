@@ -114,33 +114,32 @@ float ewald_far_separation(const vect<float> x) {
 	return std::max(std::sqrt(d), float(0.25));
 }
 
-std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
+std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
+	static const auto m = 1.0 / opts.problem_size;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
 	static const simd_vector H(h);
 	static const simd_vector H2(h2);
+	static const simd_vector M(m);
 	vect<simd_vector> X, Y;
-	simd_vector M;
 	std::vector<vect<simd_vector>> nG(x.size(), vect<float>(0.0));
 	std::vector<simd_vector> nPhi(x.size(), 0.0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = vect<float>(1.0);
+		y[j] = vect<float>(sqrt(std::numeric_limits<float>::max()) / 10.0);
 	}
 	for (int j = 0; j < cnt1; j += SIMD_LEN) {
 		for (int k = 0; k < SIMD_LEN; k++) {
-			M[k] = y[j + k].m;
 			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k].x[dim];
+				Y[dim][k] = y[j + k][dim];
 			}
 		}
 		for (int i = 0; i < x.size(); i++) {

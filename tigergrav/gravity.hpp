@@ -26,7 +26,7 @@ struct force {
 };
 
 
-std::uint64_t gravity_mono_mono(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi);
+std::uint64_t gravity_mono_mono(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi);
 std::uint64_t gravity_mono_multi(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_source> &y, const bool do_phi);
 std::uint64_t gravity_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi);
 float ewald_near_separation(const vect<float> x);

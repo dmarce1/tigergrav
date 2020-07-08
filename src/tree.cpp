@@ -131,7 +131,7 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source> mono_srcs, std::vector<multi_source> multi_srcs,
+kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> mono_srcs, std::vector<multi_source> multi_srcs,
 		std::vector<tree_ptr> echecklist, std::vector<mono_source> esources, rung_type min_rung, bool do_stats, bool do_out) {
 
 	kick_return rc;
@@ -162,7 +162,7 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source
 			if (c->is_leaf()) {
 				const auto pos = c->get_positions();
 				for (auto x : pos) {
-					mono_srcs.push_back( { m, x });
+					mono_srcs.push_back(x);
 				}
 			} else {
 				auto next = c->get_children();
@@ -238,7 +238,7 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source
 				}
 			}
 			std::vector<force> f(x.size());
-			for( int i = 0; i < x.size(); i++) {
+			for (int i = 0; i < x.size(); i++) {
 				f[i].phi = 0.0;
 				f[i].g = vect<float>(0.0);
 			}
