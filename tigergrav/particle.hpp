@@ -14,7 +14,7 @@
 #include <vector>
 
 struct particle {
-	vect<std::uint64_t> x;
+	vect<std::uint32_t> x;
 	vect<float> v;
 	rung_type rung;
 	struct {
@@ -22,15 +22,15 @@ struct particle {
 	} flags;
 };
 
-inline double pos_to_double(std::uint64_t x) {
-	return ((double) x + (double) 0.5) / ((double) std::numeric_limits<std::uint64_t>::max() + (double) 1.0);
+inline double pos_to_double(std::uint32_t x) {
+	return ((double) x + (double) 0.5) / ((double) std::numeric_limits<std::uint32_t>::max() + (double) 1.0);
 }
 
-inline std::uint64_t double_to_pos(double x) {
-	return x * ((double) std::numeric_limits<std::uint64_t>::max() + (double) 1.0);
+inline std::uint32_t double_to_pos(double x) {
+	return x * ((double) std::numeric_limits<std::uint32_t>::max() + (double) 1.0);
 }
 
-inline vect<double> pos_to_double(vect<std::uint64_t> x) {
+inline vect<double> pos_to_double(vect<std::uint32_t> x) {
 	vect<double> f;
 	for (int dim = 0; dim < NDIM; dim++) {
 		f[dim] = pos_to_double(x[dim]);
@@ -38,8 +38,8 @@ inline vect<double> pos_to_double(vect<std::uint64_t> x) {
 	return f;
 }
 
-inline vect<std::uint64_t> double_to_pos(vect<double> d) {
-	vect<std::uint64_t> x;
+inline vect<std::uint32_t> double_to_pos(vect<double> d) {
+	vect<std::uint32_t> x;
 	for (int dim = 0; dim < NDIM; dim++) {
 		x[dim] = double_to_pos(d[dim]);
 	}

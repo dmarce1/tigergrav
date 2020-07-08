@@ -11,6 +11,7 @@ constexpr int NEP12 = NEP1 * NEP1;
 using ewald_table_t = std::array<float,NEP1*NEP1*NEP1>;
 static ewald_table_t epot;
 static std::array<ewald_table_t, NDIM> eforce;
+static std::array<std::array<ewald_table_t, NDIM>, NDIM> eforce2;
 
 static const auto one = simd_vector(1.0);
 static const auto half = simd_vector(0.5);
@@ -441,7 +442,7 @@ std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std
 	return (200 + opts.ewald ? 18 : 0) * cnt1;
 }
 
-std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
+std::uint64_t gravity_mono_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -472,7 +473,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 				X[dim] = simd_vector(x[i][dim]);
 			}
 
-			vect<simd_vector> dX = X - Y;             										// 3 OP
+			vect<simd_vector> dX = Y - X;             										// 3 OP
 			vect<simd_vector> sgn;
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
@@ -575,6 +576,131 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 	return (do_phi ? 133 : 108) * cnt1 * x.size();
 }
 
+std::uint64_t gravity_multi_ewald(expansion<double> &L, const vect<float> &x, std::vector<mono_source> &y) {
+	std::uint64_t flop = 0;
+	static const auto opts = options::get();
+	static const auto one = simd_vector(1.0);
+	static const auto half = simd_vector(0.5);
+	vect<simd_vector> X, Y;
+	simd_vector M;
+	expansion<simd_vector> Lacc;
+	Lacc.zero();
+	const auto cnt1 = y.size();
+	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	y.resize(cnt2);
+	for (int j = cnt1; j < cnt2; j++) {
+		y[j].m = 0.0;
+		y[j].x = vect<float>(1.0);
+	}
+	for (int j = 0; j < cnt1; j += SIMD_LEN) {
+		for (int k = 0; k < SIMD_LEN; k++) {
+			M[k] = y[j + k].m;
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = y[j + k].x[dim];
+			}
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			X[dim] = simd_vector(x[dim]);
+		}
+
+		vect<simd_vector> dX = Y - X;             										// 3 OP
+		vect<simd_vector> sgn;
+		for (int dim = 0; dim < NDIM; dim++) {
+			const auto absdx = abs(dX[dim]);										// 3 OP
+			sgn[dim] = copysign(dX[dim] * (half - absdx), 1.0);						// 9 OP
+			dX[dim] = min(absdx, one - absdx);                                      // 6 OP
+		}
+
+		vect<simd_int_vector> I;
+		vect<simd_vector> wm;
+		vect<simd_vector> w;
+		static const simd_vector dx0(0.5 / NE);
+		static const simd_vector max_i(NE - 1);
+		for (int dim = 0; dim < NDIM; dim++) {
+			I[dim] = min(dX[dim] / dx0, max_i).to_int();								// 9 OP
+			wm[dim] = (dX[dim] / dx0 - simd_vector(I[dim]));							// 9 OP
+			w[dim] = simd_vector(1.0) - wm[dim];										// 3 OP
+		}
+		const simd_vector w00 = w[0] * w[1];											// 1 OP
+		const simd_vector w01 = w[0] * wm[1];											// 1 OP
+		const simd_vector w10 = wm[0] * w[1];											// 1 OP
+		const simd_vector w11 = wm[0] * wm[1];											// 1 OP
+		const simd_vector w000 = w00 * w[2];											// 1 OP
+		const simd_vector w001 = w00 * wm[2];											// 1 OP
+		const simd_vector w010 = w01 * w[2];											// 1 OP
+		const simd_vector w011 = w01 * wm[2];											// 1 OP
+		const simd_vector w100 = w10 * w[2];											// 1 OP
+		const simd_vector w101 = w10 * wm[2];											// 1 OP
+		const simd_vector w110 = w11 * w[2];											// 1 OP
+		const simd_vector w111 = w11 * wm[2];											// 1 OP
+		vect<simd_vector> F;
+		simd_vector Pot;
+		const simd_int_vector J = I[0] * simd_int_vector(NEP12) + I[1] * simd_int_vector(NEP1) + I[2];
+		const simd_int_vector J000 = J;
+		const simd_int_vector J001 = J + simd_int_vector(1);
+		const simd_int_vector J010 = J + simd_int_vector(NEP1);
+		const simd_int_vector J011 = J + simd_int_vector(1 + NEP1);
+		const simd_int_vector J100 = J + simd_int_vector(NEP12);
+		const simd_int_vector J101 = J + simd_int_vector(1 + NEP12);
+		const simd_int_vector J110 = J + simd_int_vector(NEP1 + NEP12);
+		const simd_int_vector J111 = J + simd_int_vector(1 + NEP1 + NEP12);
+		simd_vector y000, y001, y010, y011, y100, y101, y110, y111;
+		for (int dim = 0; dim < NDIM; dim++) {
+			y000.gather(eforce[dim].data(), J000);
+			y001.gather(eforce[dim].data(), J001);
+			y010.gather(eforce[dim].data(), J010);
+			y011.gather(eforce[dim].data(), J011);
+			y100.gather(eforce[dim].data(), J100);
+			y101.gather(eforce[dim].data(), J101);
+			y110.gather(eforce[dim].data(), J110);
+			y111.gather(eforce[dim].data(), J111);
+			F[dim] = w000 * y000;															// 3 OP
+			F[dim] = fma(w001, y001, F[dim]);												// 6 OP
+			F[dim] = fma(w010, y010, F[dim]);												// 6 OP
+			F[dim] = fma(w011, y011, F[dim]);												// 6 OP
+			F[dim] = fma(w100, y100, F[dim]);												// 6 OP
+			F[dim] = fma(w101, y101, F[dim]);												// 6 OP
+			F[dim] = fma(w110, y110, F[dim]);												// 6 OP
+			F[dim] = fma(w111, y111, F[dim]);												// 6 OP
+		}
+		y000.gather(epot.data(), J000);
+		y001.gather(epot.data(), J001);
+		y010.gather(epot.data(), J010);
+		y011.gather(epot.data(), J011);
+		y100.gather(epot.data(), J100);
+		y101.gather(epot.data(), J101);
+		y110.gather(epot.data(), J110);
+		y111.gather(epot.data(), J111);
+		Pot = w000 * y000;																// 1 OP
+		Pot = fma(w001, y001, Pot);												// 2 OP
+		Pot = fma(w010, y010, Pot);												// 2 OP
+		Pot = fma(w011, y011, Pot);												// 2 OP
+		Pot = fma(w100, y100, Pot);												// 2 OP
+		Pot = fma(w101, y101, Pot);												// 2 OP
+		Pot = fma(w110, y110, Pot);												// 2 OP
+		Pot = fma(w111, y111, Pot);												// 2 OP
+		Lacc() = fma(Pot, M, Lacc());											 // 2 OP
+		for (int dim = 0; dim < NDIM; dim++) {
+			const auto tmp = M * sgn[dim];                                      // 3 OP
+			Lacc(dim) -= F[dim] * tmp;                            // 6 OP
+		}
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m <= n; m++) {
+				y000.gather(eforce2[n][m].data(), J);
+				Lacc(n, m) -= y000 * M * sgn[n] * sgn[m];
+			}
+		}
+	}
+	L() += Lacc().sum();
+	for (int n = 0; n < NDIM; n++) {
+		L(n) += Lacc(n).sum();
+		for (int m = 0; m <= n; m++) {
+			L(n, m) += Lacc(n, m).sum();
+		}
+	}
+	return 133 * cnt1;
+}
+
 void init_ewald() {
 	FILE *fp = fopen("ewald.dat", "rb");
 	if (fp) {
@@ -637,6 +763,18 @@ void init_ewald() {
 		fwrite(&eforce, sizeof(float), NDIM * sz, fp);
 		fclose(fp);
 	}
-
+	for (int dim = 0; dim < NDIM; dim++) {
+		for (int i = 0; i < NE; i++) {
+			for (int j = 0; j < NE; j++) {
+				for (int k = 0; k < NE; k++) {
+					const double dx0 = 0.5 / NE;
+					const auto iii = i * NEP12 + j * NEP1 + k;
+					eforce2[0][dim][iii] = (eforce[dim][iii + NEP12] - eforce[dim][iii]) / dx0;
+					eforce2[1][dim][iii] = (eforce[dim][iii + NEP1] - eforce[dim][iii]) / dx0;
+					eforce2[2][dim][iii] = (eforce[dim][iii + 1] - eforce[dim][iii]) / dx0;
+				}
+			}
+		}
+	}
 }
 

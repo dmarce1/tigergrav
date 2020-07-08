@@ -185,7 +185,7 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 	std::vector<check_item> next_dchecklist;
 	for (auto c : dchecklist) {
 		auto other = c.ptr->get_multipole();
-		const auto dx = separation(multi.x - other.x);
+		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);;
 		if (dx > (multi.r + other.r) / opts.theta && !c.use_parts) {
 			multi_srcs.push_back( { other.m, other.x });
 		} else {
@@ -303,7 +303,7 @@ kick_return tree::kick(std::vector<check_item> dchecklist, expansion<double> L, 
 		flop += gravity_mono_mono(f, x, mono_srcs, do_stats || do_out);
 		flop += gravity_mono_multi(f, x, multi_srcs, do_stats || do_out);
 		if (opts.ewald) {
-			flop += gravity_ewald(f, x, esources, do_stats || do_out);
+			flop += gravity_mono_ewald(f, x, esources, do_stats || do_out);
 		}
 		int j = 0;
 		rc.rung = 0;
