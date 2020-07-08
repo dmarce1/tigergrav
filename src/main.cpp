@@ -80,10 +80,10 @@ int hpx_main(int argc, char *argv[]) {
 	};
 	int oi = 1;
 	int si = 1;
-	root_ptr->compute_monopoles();
+	root_ptr->compute_multipoles();
 	const auto mrung = min_rung(0);
 	root_ptr->active_particles(mrung, do_out);
-	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), mrung, do_stats,
+	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), std::vector<multi_source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), mrung, do_stats,
 			do_out);
 	if (do_out) {
 		if (opts.silo_on_fly) {
@@ -111,11 +111,11 @@ int hpx_main(int argc, char *argv[]) {
 		}
 		root_ptr->drift(dt);
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
-		root_ptr->compute_monopoles();
+		root_ptr->compute_multipoles();
 		itime = inc(itime, kr.rung);
 		const auto mrung = min_rung(itime);
 		root_ptr->active_particles(mrung, do_out);
-		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), mrung,
+		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), std::vector<multi_source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<mono_source>(), mrung,
 				do_stats, do_out);
 		if (do_out) {
 			if (opts.silo_on_fly) {

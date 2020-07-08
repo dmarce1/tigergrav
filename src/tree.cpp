@@ -6,7 +6,6 @@
 #include <hpx/include/async.hpp>
 #include <hpx/include/threads.hpp>
 
-
 std::atomic<std::uint64_t> tree::flop(0);
 int tree::num_threads = 1;
 mutex_type tree::thread_mtx;
@@ -36,9 +35,8 @@ tree::tree(range box, part_iter b, part_iter e) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
-	max_span = box.max[0] - box.min[0];
-	for (int dim = 1; dim < NDIM; dim++) {
-		max_span = std::max(max_span, box.max[dim] - box.min[dim]);
+	for (int dim = 0; dim < NDIM; dim++) {
+		xc[dim] = (box.min[dim] + box.max[dim]) * float(0.5);
 	}
 	if (e - b > opts.parts_per_node) {
 		leaf = false;
@@ -70,40 +68,48 @@ tree::tree(range box, part_iter b, part_iter e) {
 	}
 }
 
-monopole tree::compute_monopoles() {
+multipole_attr tree::compute_multipoles() {
 	const auto &opts = options::get();
 	const auto m = 1.0 / opts.problem_size;
 	if (leaf) {
-		mono.m = 0.0;
-		mono.x = vect<float>(0.0);
+		multi.x = vect<float>(0.0);
+		const float mtot = m * (part_end - part_begin);
 		for (auto i = part_begin; i != part_end; i++) {
-			mono.m += m;
-			mono.x += pos_to_double(i->x) * m;
+			multi.x += pos_to_double(i->x) * m;
 		}
-		if (mono.m != 0.0) {
-			mono.x = mono.x / mono.m;
+		if (mtot != 0.0) {
+			multi.x = multi.x / mtot;
+		} else {
+			multi.x = xc;
 		}
-		mono.r = 0.0;
+		multi.m.zero();
 		for (auto i = part_begin; i != part_end; i++) {
-			mono.r = std::max(mono.r, (float) abs(pos_to_double(i->x) - mono.x));
+			multi.m = multi.m + multipole<float>(m, pos_to_double(i->x) - multi.x);
+		}
+
+		multi.r = 0.0;
+		for (auto i = part_begin; i != part_end; i++) {
+			multi.r = std::max(multi.r, (float) abs(pos_to_double(i->x) - multi.x));
 		}
 	} else {
-		monopole ml, mr;
-		ml = children[0]->compute_monopoles();
-		mr = children[1]->compute_monopoles();
-		mono.m = ml.m + mr.m;
-		if (mono.m != 0.0) {
-			mono.x = (ml.x * ml.m + mr.x * mr.m) / mono.m;
+		multipole_attr ml, mr;
+		ml = children[0]->compute_multipoles();
+		mr = children[1]->compute_multipoles();
+
+		const float mtot = ml.m() + mr.m();
+		if (mtot != 0.0) {
+			multi.x = (ml.x * ml.m() + mr.x * mr.m()) / mtot;
 		} else {
-			mono.x = vect<float>(0.0);
+			multi.x = xc;
 		}
-		mono.r = std::max(abs(ml.x - mono.x) + ml.r, abs(mr.x - mono.x) + mr.r);
+		multi.m = ml.m.translate(ml.x - multi.x) + mr.m.translate(mr.x - multi.x);
+		multi.r = std::max(abs(ml.x - multi.x) + ml.r, abs(mr.x - multi.x) + mr.r);
 	}
-	return mono;
+	return multi;
 }
 
-monopole tree::get_monopole() const {
-	return mono;
+multipole_attr tree::get_multipole() const {
+	return multi;
 }
 
 bool tree::is_leaf() const {
@@ -125,8 +131,8 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source> dsources, std::vector<tree_ptr> echecklist, std::vector<mono_source> esources,
-		rung_type min_rung, bool do_stats, bool do_out) {
+kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source> mono_srcs, std::vector<multi_source> multi_srcs,
+		std::vector<tree_ptr> echecklist, std::vector<mono_source> esources, rung_type min_rung, bool do_stats, bool do_out) {
 
 	kick_return rc;
 	if (!has_active && !do_stats) {
@@ -148,15 +154,15 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source
 		};
 	}
 	for (auto c : dchecklist) {
-		auto other = c->get_monopole();
-		const auto dx = separation(mono.x - other.x);
-		if (dx > (mono.r + other.r) / opts.theta) {
-			dsources.push_back( { other.m, other.x });
+		auto other = c->get_multipole();
+		const auto dx = separation(multi.x - other.x);
+		if (dx > (multi.r + other.r) / opts.theta) {
+			multi_srcs.push_back( { other.m, other.x });
 		} else {
 			if (c->is_leaf()) {
 				const auto pos = c->get_positions();
 				for (auto x : pos) {
-					dsources.push_back( { m, x });
+					mono_srcs.push_back( { m, x });
 				}
 			} else {
 				auto next = c->get_children();
@@ -168,10 +174,10 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source
 	dchecklist = std::move(next_dchecklist);
 	if (opts.ewald) {
 		for (auto c : echecklist) {
-			auto other = c->get_monopole();
-			const auto dx = ewald_far_separation(mono.x - other.x);
-			if (dx > (mono.r + other.r) / opts.theta) {
-				esources.push_back( { other.m, other.x });
+			auto other = c->get_multipole();
+			const auto dx = ewald_far_separation(multi.x - other.x);
+			if (dx > (multi.r + other.r) / opts.theta) {
+				esources.push_back( { other.m(), other.x });
 			} else {
 				if (c->is_leaf()) {
 					const auto pos = c->get_positions();
@@ -192,15 +198,16 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source
 		if (inc_thread()) {
 			rc_l_fut = hpx::async(
 					[=]() {
-						const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung,
-								do_stats, do_out);
+						const auto rc = children[0]->kick(std::move(dchecklist), std::move(mono_srcs), std::move(multi_srcs), std::move(echecklist),
+								std::move(esources), min_rung, do_stats, do_out);
 						dec_thread();
 						return rc;
 					});
 		} else {
-			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung, do_stats, do_out));
+			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, mono_srcs, multi_srcs, echecklist, esources, min_rung, do_stats, do_out));
 		}
-		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
+		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(mono_srcs), std::move(multi_srcs), std::move(echecklist), std::move(esources),
+				min_rung, do_stats, do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_stats) {
@@ -221,7 +228,8 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source
 			rc.stats.kin = 0.0;
 		}
 		if (!dchecklist.empty() || !echecklist.empty()) {
-			rc = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
+			rc = kick(std::move(dchecklist), std::move(mono_srcs), std::move(multi_srcs), std::move(echecklist), std::move(esources), min_rung, do_stats,
+					do_out);
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
@@ -230,7 +238,12 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<mono_source
 				}
 			}
 			std::vector<force> f(x.size());
-			flop += gravity_mono_mono(f, x, dsources, do_stats || do_out);
+			for( int i = 0; i < x.size(); i++) {
+				f[i].phi = 0.0;
+				f[i].g = vect<float>(0.0);
+			}
+			flop += gravity_mono_mono(f, x, mono_srcs, do_stats || do_out);
+			flop += gravity_mono_multi(f, x, multi_srcs, do_stats || do_out);
 			if (opts.ewald) {
 				flop += gravity_ewald(f, x, esources, do_stats || do_out);
 			}
@@ -308,84 +321,3 @@ bool tree::active_particles(int rung, bool do_out) {
 	has_active = rc;
 	return rc;
 }
-
-//void tree::output(float t, int num) const {
-//	std::string filename = std::string("parts.") + std::to_string(num) + std::string(".silo");
-//	DBfile *db = DBCreateReal(filename.c_str(), DB_CLOBBER, DB_LOCAL, "Meshless", DB_HDF5);
-//	auto optlist = DBMakeOptlist(1);
-//	DBAddOption(optlist, DBOPT_TIME, &t);
-//
-//	const int nnodes = std::distance(part_begin, part_end);
-//
-//	{
-//		double *coords[NDIM];
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			coords[dim] = new double[nnodes];
-//			int j = 0;
-//			for (auto i = part_begin; i != part_end; i++, j++) {
-//				coords[dim][j] = pos_to_double(i->x[dim]);
-//			}
-//		}
-//		DBPutPointmesh(db, "points", NDIM, coords, nnodes, DB_DOUBLE, optlist);
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			delete[] coords[dim];
-//		}
-//	}
-//
-//	{
-//		std::array<std::vector<float>, NDIM> v;
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			v[dim].reserve(nnodes);
-//		}
-//		for (auto i = part_begin; i != part_end; i++) {
-//			for (int dim = 0; dim < NDIM; dim++) {
-//				v[dim].push_back(i->v[dim]);
-//			}
-//		}
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			std::string nm = std::string() + "v_" + char('x' + char(dim));
-//			DBPutPointvar1(db, nm.c_str(), "points", v[dim].data(), nnodes, DB_FLOAT, optlist);
-//		}
-//	}
-//#ifdef STORE_G
-//	{
-//		std::vector<float> phi;
-//		phi.reserve(nnodes);
-//		for (auto i = part_begin; i != part_end; i++) {
-//			phi.push_back(i->phi);
-//		}
-//		DBPutPointvar1(db, "phi", "points", phi.data(), nnodes, DB_FLOAT, optlist);
-//	}
-//#endif
-//
-//#ifdef STORE_G
-//	{
-//		std::array<std::vector<float>, NDIM> g;
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			g[dim].reserve(nnodes);
-//		}
-//		for (auto i = part_begin; i != part_end; i++) {
-//			for (int dim = 0; dim < NDIM; dim++) {
-//				g[dim].push_back(i->g[dim]);
-//			}
-//		}
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			std::string nm = std::string() + "g_" + char('x' + char(dim));
-//			DBPutPointvar1(db, nm.c_str(), "points", g[dim].data(), nnodes, DB_FLOAT, optlist);
-//		}
-//	}
-//#endif
-//
-//	{
-//		std::vector<int> rung;
-//		rung.reserve(nnodes);
-//		for (auto i = part_begin; i != part_end; i++) {
-//			rung.push_back(i->rung);
-//		}
-//		DBPutPointvar1(db, "rung", "points", rung.data(), nnodes, DB_INT, optlist);
-//	}
-//
-//	DBClose(db);
-//	DBFreeOptlist(optlist);
-//
-//}

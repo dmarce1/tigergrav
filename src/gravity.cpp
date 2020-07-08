@@ -2,7 +2,6 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
 
-
 #include <tigergrav/expansion.hpp>
 #include <hpx/include/async.hpp>
 
@@ -18,7 +17,42 @@ static const auto one = simd_vector(1.0);
 static const auto half = simd_vector(0.5);
 static const simd_vector eps = simd_vector(std::numeric_limits<float>::min());
 
+expansion<simd_vector> Green_direct(const vect<simd_vector> &r) {			 // 136 FLOP
+	static const auto h = options::get().soft_len;
+	static const simd_vector H2(h * h);
+	expansion<simd_vector> D;
+	const simd_vector r2 = r.dot(r);											// 5
+	const simd_vector rinv = rsqrt(r2 + H2);								    // 2
+	const simd_vector r2inv = rinv * rinv;										// 1
+	const simd_vector r3inv = rinv * r2inv;										// 1
+	const simd_vector r5inv = r3inv * r2inv;									// 1
+	const simd_vector r7inv = r5inv * r2inv;									// 1
 
+	D.zero();
+	D() = -rinv;																// 1
+	for (int i = 0; i < NDIM; i++) {
+		D(i) = r[i] * r3inv;													// 3
+		for (int j = 0; j <= i; j++) {
+			D(i, j) = -simd_vector(3) * r[i] * r[j] * r5inv;					// 24
+			if (i == j) {
+				D(i, j) += D(i);												// 3
+			}
+			for (int k = 0; k <= j; k++) {
+				D(i, j, k) = simd_vector(15) * r[i] * r[j] * r[k] * r7inv;       // 40
+				if (i == j) {
+					D(i, j, k) -= simd_vector(3) * r[k] * r5inv;				// 18
+				}
+				if (i == k) {
+					D(i, j, k) -= simd_vector(3) * r[j] * r5inv;				// 18
+				}
+				if (j == k) {
+					D(i, j, k) -= simd_vector(3) * r[i] * r5inv;				// 18
+				}
+			}
+		}
+	}
+	return D;
+}
 
 double EW(general_vect<double, NDIM> x) {
 	general_vect<double, NDIM> n, h;
@@ -139,10 +173,10 @@ std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<fl
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] = -nG[i][dim].sum();
+			f[i].g[dim] -= nG[i][dim].sum();
 		}
 		if (do_phi) {
-			f[i].phi = -nPhi[i].sum();
+			f[i].phi -= nPhi[i].sum();
 		}
 	}
 	return (do_phi ? 26 : 21 + ewald ? 18 : 0) * cnt1 * x.size();
@@ -161,8 +195,8 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<f
 	static const simd_vector H2(h2);
 	vect<simd_vector> X, Y;
 	multipole<simd_vector> M;
-	std::vector<vect<simd_vector>> nG(x.size(), vect<float>(0.0));
-	std::vector<simd_vector> nPhi(x.size(), 0.0);
+	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_vector> Phi(x.size(), 0.0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
 	y.resize(cnt2);
@@ -192,38 +226,42 @@ std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<f
 				X[dim] = simd_vector(x[i][dim]);
 			}
 
-			vect<simd_vector> dX = X - Y;             		// 3 OP
+			vect<simd_vector> dX = X - Y;             										// 3 OP
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
 					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
 				}
 			}
-			simd_vector r2 = dX[0] * dX[0];					// 1 OP
-			r2 = fma(dX[1], dX[1], r2);						// 2 OP
-			r2 = fma(dX[2], dX[2], r2);                     // 2 OP
-			const simd_vector rinv = rsqrt(r2 + H2);        // 2 OP
-			const simd_vector rinv3 = rinv * rinv * rinv;   // 2 OP
+			expansion<simd_vector> D = Green_direct(dX);									// 135
+
 			for (int dim = 0; dim < NDIM; dim++) {
-				const auto tmp = M() * rinv3;					// 3 OP
-				nG[i][dim] = fma(dX[dim], tmp, nG[i][dim]);  // 6 OP
+				G[i][dim] -= D(dim) * M();													// 6
+				for (int n = 0; n < NDIM; n++) {
+					for (int m = 0; m < NDIM; m++) {
+						G[i][dim] -= simd_vector(0.5) * D(n, m, dim) * M(n, m);							// 54
+					}
+				}
 			}
 			if (do_phi) {
-				const simd_vector kill_zero = r2 / (r2 + eps);  // 2 OP
-				const auto tmp = M() * kill_zero; 	            // 1 OP
-				nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
+				Phi[i] += D() * M();
+				for (int n = 0; n < NDIM; n++) {
+					for (int m = 0; m < NDIM; m++) {
+						Phi[i] += simd_vector(0.5) * D(n, m) * M(n, m);									// 18
+					}
+				}
 			}
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] = -nG[i][dim].sum();
+			f[i].g[dim] += G[i][dim].sum();
 		}
 		if (do_phi) {
-			f[i].phi = -nPhi[i].sum();
+			f[i].phi += Phi[i].sum();
 		}
 	}
-	return (do_phi ? 26 : 21 + ewald ? 18 : 0) * cnt1 * x.size();
+	return (do_phi ? 216 : 198 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
 std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {

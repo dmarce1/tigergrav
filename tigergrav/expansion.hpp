@@ -5,10 +5,10 @@
 template<class T>
 class expansion {
 	static constexpr std::size_t size = 20;
-	static constexpr std::size_t map2[NDIM][NDIM] = { { 1, 2, 3 }, { 2, 4, 5 }, { 3, 5, 6 } };
-	static constexpr std::size_t map3[NDIM][NDIM][NDIM] = { { { 10 + 0, 10 + 1, 10 + 2 }, { 10 + 1, 10 + 3, 10 + 4 }, { 10 + 2, 10 + 4, 10 + 5 } }, { {
-			10 + 1, 7 + 3, 10 + 4 }, { 10 + 3, 10 + 6, 10 + 7 }, { 10 + 4, 10 + 7, 10 + 8 } }, { { 10 + 2, 10 + 4, 10 + 5 }, { 10 + 4, 10 + 7, 10 + 8 }, { 10
-			+ 5, 10 + 8, 10 + 9 } } };
+	static constexpr std::size_t map2[NDIM][NDIM] = { { 3 + 1, 3 + 2, 3 + 3 }, { 3 + 2, 3 + 4, 3 + 5 }, { 3 + 3, 3 + 5, 3 + 6 } };
+	static constexpr std::size_t map3[NDIM][NDIM][NDIM] = { { { 10 + 0, 10 + 1, 10 + 2 }, { 10 + 1, 10 + 3, 10 + 4 }, { 10 + 2, 10 + 4, 10 + 5 } }, { { 10 + 1,
+			7 + 3, 10 + 4 }, { 10 + 3, 10 + 6, 10 + 7 }, { 10 + 4, 10 + 7, 10 + 8 } }, { { 10 + 2, 10 + 4, 10 + 5 }, { 10 + 4, 10 + 7, 10 + 8 }, { 10 + 5, 10
+			+ 8, 10 + 9 } } };
 	std::array<T, size> data;
 public:
 
@@ -53,6 +53,14 @@ public:
 			C.data[i] = data[i] + other.data[i];
 		}
 		return C;
+	}
+
+
+	inline expansion& zero() {
+		for (int i = 0; i < size; i++) {
+			data[i] = 0.0;
+		}
+		return *this;
 	}
 
 };
