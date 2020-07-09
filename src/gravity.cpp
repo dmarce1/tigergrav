@@ -114,7 +114,7 @@ float ewald_far_separation(const vect<float> x) {
 	return std::max(std::sqrt(d), float(0.25));
 }
 
-std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi) {
+std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -181,7 +181,7 @@ std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<fl
 	return (do_phi ? 26 : 21 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, std::vector<multi_source> &y) {
+std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::vector<multi_source> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
@@ -281,7 +281,7 @@ std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, st
 	return (290 + opts.ewald ? 18 : 0) * cnt1;
 }
 
-std::uint64_t gravity_mono_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi) {
+std::uint64_t gravity_direct_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -415,7 +415,7 @@ std::uint64_t gravity_mono_ewald(std::vector<force> &f, const std::vector<vect<f
 	return (do_phi ? 133 : 108) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_multi_ewald(expansion<double> &L, const vect<float> &x, std::vector<mono_source> &y) {
+std::uint64_t gravity_indirect_ewald(expansion<double> &L, const vect<float> &x, std::vector<mono_source> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto one = simd_vector(1.0);

@@ -184,9 +184,9 @@ kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, st
 		echecklist = std::move(next_echecklist);
 	}
 
-	flop += gravity_multi_multi(L, multi.x, dmulti_srcs);
+	flop += gravity_indirect(L, multi.x, dmulti_srcs);
 	if (opts.ewald) {
-		flop += gravity_multi_ewald(L, multi.x, emulti_srcs);
+		flop += gravity_indirect_ewald(L, multi.x, emulti_srcs);
 	}
 
 	if (!is_leaf()) {
@@ -276,9 +276,9 @@ kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, st
 				f.push_back(L.to_force(pos - multi.x));
 			}
 		}
-		flop += gravity_mono_mono(f, x, dmono_srcs, do_stats || do_out);
+		flop += gravity_direct(f, x, dmono_srcs, do_stats || do_out);
 		if (opts.ewald) {
-			flop += gravity_mono_ewald(f, x, emono_srcs, do_stats || do_out);
+			flop += gravity_direct_ewald(f, x, emono_srcs, do_stats || do_out);
 		}
 		int j = 0;
 		rc.rung = 0;

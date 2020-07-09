@@ -22,10 +22,10 @@ struct monopole {
 	float r;
 };
 
-std::uint64_t gravity_mono_mono(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi);
-std::uint64_t gravity_multi_multi(expansion<double> &, const vect<float> &x, std::vector<multi_source> &y);
-std::uint64_t gravity_mono_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi);
-std::uint64_t gravity_multi_ewald(expansion<double>& L, const vect<float> &x, std::vector<mono_source> &y);
+std::uint64_t gravity_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi);
+std::uint64_t gravity_indirect(expansion<double> &, const vect<float> &x, std::vector<multi_source> &y);
+std::uint64_t gravity_direct_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi);
+std::uint64_t gravity_indirect_ewald(expansion<double>& L, const vect<float> &x, std::vector<mono_source> &y);
 float ewald_near_separation(const vect<float> x);
 float ewald_far_separation(const vect<float> x);
 void init_ewald();
