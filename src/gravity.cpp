@@ -27,6 +27,7 @@ expansion<simd_vector> Green_direct(const vect<simd_vector> &r) {			 // 136 FLOP
 	const simd_vector r3inv = rinv * r2inv;										// 1
 	const simd_vector r5inv = r3inv * r2inv;									// 1
 	const simd_vector r7inv = r5inv * r2inv;									// 1
+	const simd_vector r9inv = r7inv * r2inv;									// 1
 
 	D.zero();
 	D() = -rinv;																// 1
@@ -47,6 +48,36 @@ expansion<simd_vector> Green_direct(const vect<simd_vector> &r) {			 // 136 FLOP
 				}
 				if (j == k) {
 					D(i, j, k) -= simd_vector(3) * r[i] * r5inv;				// 18
+				}
+				for (int l = 0; l <= k; l++) {
+					if (i == j && k == l) {
+						D(i, j, k, l) -= simd_vector(3) * r5inv;
+					}
+					if (i == k && j == l) {
+						D(i, j, k, l) -= simd_vector(3) * r5inv;
+					}
+					if (i == l && j == k) {
+						D(i, j, k, l) -= simd_vector(3) * r5inv;
+					}
+					if (i == j) {
+						D(i, j, k, l) += simd_vector(15) * r[k] * r[l] * r7inv;
+					}
+					if (i == k) {
+						D(i, j, k, l) += simd_vector(15) * r[j] * r[l] * r7inv;
+					}
+					if (i == l) {
+						D(i, j, k, l) += simd_vector(15) * r[j] * r[k] * r7inv;
+					}
+					if (j == k) {
+						D(i, j, k, l) += simd_vector(15) * r[i] * r[l] * r7inv;
+					}
+					if (j == l) {
+						D(i, j, k, l) += simd_vector(15) * r[i] * r[k] * r7inv;
+					}
+					if (k == l) {
+						D(i, j, k, l) += simd_vector(15) * r[i] * r[j] * r7inv;
+					}
+					D(i, j, k, l) -= simd_vector(105) * r[i] * r[j] * r[k] * r[l] * r9inv;
 				}
 			}
 		}
@@ -202,6 +233,9 @@ std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m <= n; m++) {
 				y[j].m(n, m) = 0.0;
+				for (int l = 0; l <= m; l++) {
+					y[j].m(n, m, l) = 0.0;
+				}
 			}
 		}
 		y[j].x = vect<float>(1.0);
@@ -215,6 +249,9 @@ std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::
 			for (int n = 0; n < NDIM; n++) {
 				for (int m = 0; m <= n; m++) {
 					M(n, m)[k] = y[j + k].m(n, m);
+					for (int l = 0; l <= m; l++) {
+						M(n, m, l)[k] = y[j + k].m(n, m, l);
+					}
 				}
 			}
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -233,34 +270,51 @@ std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::
 
 		Lacc() += D() * M();															//  2
 		for (int n = 0; n < NDIM; n++) {
-			for (int m = 0; m <= n; m++) {
-				const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
-				Lacc() += c0 * D(n, m) * M(n, m);										// 18
+			for (int m = 0; m < NDIM; m++) {
+				Lacc() += simd_vector(0.5) * D(n, m) * M(n, m);										// 18
+				for (int l = 0; l < NDIM; l++) {
+					Lacc() += simd_vector(1.0 / 6.0) * D(m, m, l) * M(n, m, l);
+				}
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
 			Lacc(n) += D(n) * M();														// 6
 			for (int m = 0; m < NDIM; m++) {
-				for (int l = 0; l <= m; l++) {
-					const simd_vector c0 = l == m ? simd_vector(0.5) : simd_vector(1);
-					Lacc(n) += c0 * D(n, m, l) * M(m, l);								// 54
+				for (int l = 0; l < NDIM; l++) {
+					Lacc(n) += simd_vector(0.5) * D(n, m, l) * M(m, l);								// 54
+					for (int p = 0; p < NDIM; p++) {
+						Lacc(n) += simd_vector(1.0 / 6.0) * D(n, m, l, p) * M(m, l, p);
+					}
 				}
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
-			for (int m = 0; m <= n; m++) {
-				const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
-				Lacc(n, m) += c0 * D(n, m) * M();										// 18
+			for (int m = 0; m < NDIM; m++) {
+				Lacc(n, m) += simd_vector(0.5) * D(n, m) * M();										// 18
+				for (int l = 0; l < NDIM; l++) {
+					for (int p = 0; p < NDIM; p++) {
+						Lacc(n, m) += simd_vector(1.0 / 4.0) * D(n, m, l, p) * M(l, p);
+					}
+				}
 			}
 		}
 
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
-				for (int l = 0; l <= m; l++) {
-					const simd_vector c0 = l == m ? simd_vector(1.0 / 6.0) : simd_vector(1.0 / 3.0);
-					Lacc(n, m, l) += c0 * D(n, m, l) * M();								// 54
+				for (int l = 0; l < NDIM; l++) {
+					Lacc(n, m, l) += simd_vector(1.0 / 6.0) * D(n, m, l) * M();								// 54
+				}
+			}
+		}
+
+		for (int n = 0; n < NDIM; n++) {
+			for (int m = 0; m < NDIM; m++) {
+				for (int l = 0; l < NDIM; l++) {
+					for (int p = 0; p < NDIM; p++) {
+						//					Lacc(n, m, l, p) += simd_vector(1.0 / 24.0) * D(n, m, l, p) * M();
+					}
 				}
 			}
 		}
@@ -274,6 +328,9 @@ std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::
 			L(n, m) += Lacc(n, m).sum();
 			for (int l = 0; l <= m; l++) {
 				L(n, m, l) += Lacc(n, m, l).sum();
+				for (int p = 0; p <= l; p++) {
+					L(n, m, l, p) += Lacc(n, m, l, p).sum();
+				}
 			}
 		}
 	}
@@ -292,7 +349,7 @@ std::uint64_t gravity_direct_ewald(std::vector<force> &f, const std::vector<vect
 	static const auto m = 1.0 / opts.problem_size;
 	vect<simd_vector> X, Y;
 	simd_vector M;
-	std::vector < vect < simd_vector >> G(x.size(), vect<float>(0.0));
+	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
 	std::vector<simd_vector> Phi(x.size(), 0.0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
