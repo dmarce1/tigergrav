@@ -181,90 +181,6 @@ std::uint64_t gravity_mono_mono(std::vector<force> &f, const std::vector<vect<fl
 	return (do_phi ? 26 : 21 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_mono_multi(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_source> &y, const bool do_phi) {
-	if (x.size() == 0) {
-		return 0;
-	}
-	std::uint64_t flop = 0;
-	static const auto opts = options::get();
-	static const bool ewald = opts.ewald;
-	static const auto h = opts.soft_len;
-	static const auto h2 = h * h;
-	static const simd_vector H(h);
-	static const simd_vector H2(h2);
-	vect<simd_vector> X, Y;
-	multipole<simd_vector> M;
-	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_vector> Phi(x.size(), 0.0);
-	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
-	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m() = 0.0;
-		for (int n = 0; n < NDIM; n++) {
-			for (int m = 0; m <= n; m++) {
-				y[j].m(n, m) = 0.0;
-			}
-		}
-		y[j].x = vect<float>(1.0e+10);
-	}
-	for (int j = 0; j < cnt1; j += SIMD_LEN) {
-		for (int k = 0; k < SIMD_LEN; k++) {
-			M()[k] = y[j + k].m();
-			for (int n = 0; n < NDIM; n++) {
-				for (int m = 0; m <= n; m++) {
-					M(n, m)[k] = y[j + k].m(n, m);
-				}
-			}
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k].x[dim];
-			}
-		}
-		for (int i = 0; i < x.size(); i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_vector(x[i][dim]);
-			}
-
-			vect<simd_vector> dX = X - Y;             										// 3 OP
-			if (ewald) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					const auto absdx = abs(dX[dim]);										// 3 OP
-					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
-				}
-			}
-			expansion<simd_vector> D = Green_direct(dX);									// 135
-
-			for (int dim = 0; dim < NDIM; dim++) {
-				G[i][dim] -= D(dim) * M();													// 6
-				for (int n = 0; n < NDIM; n++) {
-					for (int m = 0; m <= n; m++) {
-						const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
-						G[i][dim] -= c0 * D(n, m, dim) * M(n, m);							// 54
-					}
-				}
-			}
-			if (do_phi) {
-				Phi[i] += D() * M();
-				for (int n = 0; n < NDIM; n++) {
-					for (int m = 0; m <= n; m++) {
-						const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
-						Phi[i] += c0 * D(n, m) * M(n, m);									// 18
-					}
-				}
-			}
-		}
-	}
-	for (int i = 0; i < x.size(); i++) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] += G[i][dim].sum();
-		}
-		if (do_phi) {
-			f[i].phi += Phi[i].sum();
-		}
-	}
-	return (do_phi ? 216 : 198 + ewald ? 18 : 0) * cnt1 * x.size();
-}
-
 std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, std::vector<multi_source> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
@@ -365,84 +281,7 @@ std::uint64_t gravity_multi_multi(expansion<double> &L, const vect<float> &x, st
 	return (290 + opts.ewald ? 18 : 0) * cnt1;
 }
 
-std::uint64_t gravity_multi_mono(expansion<double> &L, const vect<float> &x, std::vector<vect<float>> &y) {
-	std::uint64_t flop = 0;
-	static const auto opts = options::get();
-	static const auto m = 1.0 / opts.problem_size;
-	static const bool ewald = opts.ewald;
-	static const auto h = opts.soft_len;
-	static const auto h2 = h * h;
-	static const simd_vector H(h);
-	static const simd_vector H2(h2);
-	vect<simd_vector> X, Y;
-	static const simd_vector M(m);
-	expansion<simd_vector> Lacc;
-	Lacc.zero();
-
-	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
-	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = vect<float>(1.0e+10);
-	}
-	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_vector(x[dim]);
-	}
-	for (int j = 0; j < cnt1; j += SIMD_LEN) {
-		for (int k = 0; k < SIMD_LEN; k++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k][dim];
-			}
-		}
-
-		vect<simd_vector> dX = X - Y;             										// 3 OP
-		if (ewald) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto absdx = abs(dX[dim]);										// 3 OP
-				dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
-			}
-		}
-		expansion<simd_vector> D = Green_direct(dX);									// 135
-
-		Lacc() += D() * M;																// 2
-
-		for (int n = 0; n < NDIM; n++) {
-			Lacc(n) += D(n) * M;														// 6
-		}
-
-		for (int n = 0; n < NDIM; n++) {
-			for (int m = 0; m <= n; m++) {
-				const simd_vector c0 = n == m ? simd_vector(0.5) : simd_vector(1);
-				Lacc(n, m) += c0 * D(n, m) * M;											// 18
-			}
-		}
-
-		for (int n = 0; n < NDIM; n++) {
-			for (int m = 0; m < NDIM; m++) {
-				for (int l = 0; l <= m; l++) {
-					const simd_vector c0 = m == l ? simd_vector(1.0 / 6.0) : simd_vector(1.0 / 3.0);
-					Lacc(n, m, l) += c0 * D(n, m, l) * M;								// 54
-				}
-			}
-		}
-
-	}
-
-	L() += Lacc().sum();
-	for (int n = 0; n < NDIM; n++) {
-		L(n) += Lacc(n).sum();
-		for (int m = 0; m <= n; m++) {
-			L(n, m) += Lacc(n, m).sum();
-			for (int l = 0; l <= m; l++) {
-				L(n, m, l) += Lacc(n, m, l).sum();
-			}
-		}
-	}
-
-	return (200 + opts.ewald ? 18 : 0) * cnt1;
-}
-
-std::uint64_t gravity_mono_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<mono_source> &y, const bool do_phi) {
+std::uint64_t gravity_mono_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y, const bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -450,23 +289,23 @@ std::uint64_t gravity_mono_ewald(std::vector<force> &f, const std::vector<vect<f
 	static const auto opts = options::get();
 	static const auto one = simd_vector(1.0);
 	static const auto half = simd_vector(0.5);
+	static const auto m = 1.0 / opts.problem_size;
 	vect<simd_vector> X, Y;
 	simd_vector M;
-	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
+	std::vector < vect < simd_vector >> G(x.size(), vect<float>(0.0));
 	std::vector<simd_vector> Phi(x.size(), 0.0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = vect<float>(1.0);
+		y[j] = vect<float>(0.0);
 	}
 	for (int j = 0; j < cnt1; j += SIMD_LEN) {
 		for (int k = 0; k < SIMD_LEN; k++) {
-			M[k] = y[j + k].m;
 			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k].x[dim];
+				Y[dim][k] = y[j + k][dim];
 			}
+			M[k] = j + k >= cnt1 ? 0.0 : m;
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {

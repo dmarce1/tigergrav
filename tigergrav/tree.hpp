@@ -64,7 +64,7 @@ public:
 	void drift(float);
 //	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
-	kick_return kick( expansion<double>, std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dparts, std::vector<tree_ptr> echecklist, rung_type min_rung,
+	kick_return kick( expansion<double>, std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dparts, std::vector<tree_ptr> echecklist, std::vector<vect<float>> eparts, rung_type min_rung,
 			bool do_statistics, bool do_output);
 };
 

@@ -133,8 +133,8 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, std::vector<vect<float>> mono_srcs, std::vector<tree_ptr> echecklist,
-		rung_type min_rung, bool do_stats, bool do_out) {
+kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dmono_srcs, std::vector<tree_ptr> echecklist,
+		std::vector<vect<float>> emono_srcs, rung_type min_rung, bool do_stats, bool do_out) {
 
 	kick_return rc;
 	if (!has_active && !do_stats) {
@@ -145,27 +145,19 @@ kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, st
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	static const float eps = 10.0 * std::numeric_limits<float>::min();
-	std::function<float(const vect<float>)> separation;
-	if (opts.ewald) {
-		separation = ewald_near_separation;
-	} else {
-		separation = [](const vect<float> x) {
-			return abs(x);
-		};
-	}
 
-	std::vector<multi_source> multi_srcs;
-	std::vector<mono_source> esources;
-
+	std::vector<multi_source> dmulti_srcs;
+	std::vector<mono_source> emulti_srcs;
 	std::vector<tree_ptr> next_dchecklist;
+	std::vector<tree_ptr> next_echecklist;
 	for (auto c : dchecklist) {
 		auto other = c->get_multipole();
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
 		if (dx > (multi.r + other.r) / opts.theta) {
-			multi_srcs.push_back( { other.m, other.x });
+			dmulti_srcs.push_back( { other.m, other.x });
 		} else if (c->is_leaf()) {
 			const auto pos = c->get_positions();
-			mono_srcs.insert(mono_srcs.end(), pos.begin(), pos.end());
+			dmono_srcs.insert(dmono_srcs.end(), pos.begin(), pos.end());
 		} else {
 			auto next = c->get_children();
 			next_dchecklist.push_back(next[0]);
@@ -174,9 +166,28 @@ kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, st
 	}
 	dchecklist = std::move(next_dchecklist);
 
-	flop += gravity_multi_multi(L, multi.x, multi_srcs);
-//	flop += gravity_multi_mono(L, multi.x, mono_srcs);
-//	printf("%li\n", mono_srcs.size());
+	if (opts.ewald) {
+		for (auto c : echecklist) {
+			auto other = c->get_multipole();
+			const auto dx = ewald_far_separation(multi.x - other.x);
+			if (dx > (multi.r + other.r) / opts.theta) {
+				emulti_srcs.push_back( { other.m(), other.x });
+			} else if (c->is_leaf()) {
+				const auto pos = c->get_positions();
+				emono_srcs.insert(emono_srcs.end(), pos.begin(), pos.end());
+			} else {
+				auto next = c->get_children();
+				next_echecklist.push_back(next[0]);
+				next_echecklist.push_back(next[1]);
+			}
+		}
+		echecklist = std::move(next_echecklist);
+	}
+
+	flop += gravity_multi_multi(L, multi.x, dmulti_srcs);
+	if (opts.ewald) {
+		flop += gravity_multi_ewald(L, multi.x, emulti_srcs);
+	}
 
 	if (!is_leaf()) {
 
@@ -185,15 +196,18 @@ kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, st
 
 		hpx::future<kick_return> rc_l_fut;
 		if (inc_thread()) {
-			rc_l_fut = hpx::async([=]() {
-				const auto rc = children[0]->kick(Ll, std::move(dchecklist), std::move(mono_srcs), std::move(echecklist), min_rung, do_stats, do_out);
-				dec_thread();
-				return rc;
-			});
+			rc_l_fut = hpx::async(
+					[=]() {
+						const auto rc = children[0]->kick(Ll, std::move(dchecklist), std::move(dmono_srcs), std::move(echecklist), std::move(emono_srcs),
+								min_rung, do_stats, do_out);
+						dec_thread();
+						return rc;
+					});
 		} else {
-			rc_l_fut = hpx::make_ready_future(children[0]->kick(Ll, dchecklist, mono_srcs, echecklist, min_rung, do_stats, do_out));
+			rc_l_fut = hpx::make_ready_future(children[0]->kick(Ll, dchecklist, dmono_srcs, echecklist, emono_srcs, min_rung, do_stats, do_out));
 		}
-		const auto rc_r = children[1]->kick(Lr, std::move(dchecklist), std::move(mono_srcs), std::move(echecklist), min_rung, do_stats, do_out);
+		const auto rc_r = children[1]->kick(Lr, std::move(dchecklist), std::move(dmono_srcs), std::move(echecklist), std::move(emono_srcs), min_rung, do_stats,
+				do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_stats) {
@@ -213,7 +227,7 @@ kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, st
 				if (c->is_leaf()) {
 					const auto pos = c->get_positions();
 					for (auto x : pos) {
-						mono_srcs.push_back(x);
+						dmono_srcs.push_back(x);
 					}
 
 				} else {
@@ -224,6 +238,26 @@ kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, st
 			}
 			dchecklist = std::move(next_dchecklist);
 		} while (!dchecklist.empty());
+
+		if (opts.ewald) {
+			do {
+				for (auto c : echecklist) {
+					auto other = c->get_multipole();
+					if (c->is_leaf()) {
+						const auto pos = c->get_positions();
+						for (auto x : pos) {
+							emono_srcs.push_back(x);
+						}
+
+					} else {
+						auto next = c->get_children();
+						next_echecklist.push_back(next[0]);
+						next_echecklist.push_back(next[1]);
+					}
+				}
+				echecklist = std::move(next_echecklist);
+			} while (!echecklist.empty());
+		}
 
 		if (do_stats) {
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -242,12 +276,9 @@ kick_return tree::kick(expansion<double> L, std::vector<tree_ptr> dchecklist, st
 				f.push_back(L.to_force(pos - multi.x));
 			}
 		}
-//		printf( "%i %i %i\n", mono_srcs.size(), multi_srcs.size(), esources.size());
-		flop += gravity_mono_mono(f, x, mono_srcs, do_stats || do_out);
-//		flop += gravity_mono_multi(f, x, multi_srcs, do_stats || do_out);
-//		printf("-- %li\n", multi_srcs.size());
+		flop += gravity_mono_mono(f, x, dmono_srcs, do_stats || do_out);
 		if (opts.ewald) {
-//			flop += gravity_mono_ewald(f, x, esources, do_stats || do_out);
+			flop += gravity_mono_ewald(f, x, emono_srcs, do_stats || do_out);
 		}
 		int j = 0;
 		rc.rung = 0;
