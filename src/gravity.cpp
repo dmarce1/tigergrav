@@ -36,7 +36,7 @@ expansion<simd_vector> Green_direct(const vect<simd_vector> &r) {			 // 136 FLOP
 		for (int j = 0; j <= i; j++) {
 			D(i, j) = -simd_vector(3) * r[i] * r[j] * r5inv;					// 24
 			if (i == j) {
-				D(i, j) += D(i);												// 3
+				D(i, j) += r3inv;												// 3
 			}
 			for (int k = 0; k <= j; k++) {
 				D(i, j, k) = simd_vector(15) * r[i] * r[j] * r[k] * r7inv;       // 40
@@ -271,10 +271,14 @@ std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::
 		Lacc() += D() * M();															//  2
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
+#ifdef USE_QUADPOLE
 				Lacc() += simd_vector(0.5) * D(n, m) * M(n, m);										// 18
+#endif
+#ifdef USE_OCTUPOLE
 				for (int l = 0; l < NDIM; l++) {
 					Lacc() += simd_vector(1.0 / 6.0) * D(m, m, l) * M(n, m, l);
 				}
+#endif
 			}
 		}
 
@@ -282,10 +286,14 @@ std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::
 			Lacc(n) += D(n) * M();														// 6
 			for (int m = 0; m < NDIM; m++) {
 				for (int l = 0; l < NDIM; l++) {
+#ifdef USE_QUADPOLE
 					Lacc(n) += simd_vector(0.5) * D(n, m, l) * M(m, l);								// 54
+#endif
+#ifdef USE_OCTUPOLE
 					for (int p = 0; p < NDIM; p++) {
 						Lacc(n) += simd_vector(1.0 / 6.0) * D(n, m, l, p) * M(m, l, p);
 					}
+#endif
 				}
 			}
 		}
@@ -293,14 +301,17 @@ std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
 				Lacc(n, m) += simd_vector(0.5) * D(n, m) * M();										// 18
+#ifdef USE_OCTUPOLE
 				for (int l = 0; l < NDIM; l++) {
 					for (int p = 0; p < NDIM; p++) {
 						Lacc(n, m) += simd_vector(1.0 / 4.0) * D(n, m, l, p) * M(l, p);
 					}
 				}
+#endif
 			}
 		}
 
+#ifdef USE_QUADPOLE
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
 				for (int l = 0; l < NDIM; l++) {
@@ -308,17 +319,19 @@ std::uint64_t gravity_indirect(expansion<double> &L, const vect<float> &x, std::
 				}
 			}
 		}
+#endif
 
+#ifdef USE_OCTUPOLE
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m < NDIM; m++) {
 				for (int l = 0; l < NDIM; l++) {
 					for (int p = 0; p < NDIM; p++) {
-						//					Lacc(n, m, l, p) += simd_vector(1.0 / 24.0) * D(n, m, l, p) * M();
+						Lacc(n, m, l, p) += simd_vector(1.0 / 24.0) * D(n, m, l, p) * M();
 					}
 				}
 			}
 		}
-
+#endif
 	}
 
 	L() += Lacc().sum();

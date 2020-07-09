@@ -23,7 +23,8 @@ struct particle {
 };
 
 inline double pos_to_double(std::uint32_t x) {
-	return ((double) x + (double) 0.5) / ((double) std::numeric_limits<std::uint32_t>::max() + (double) 1.0);
+	const auto inv = 1.0 / ((double) std::numeric_limits<std::uint32_t>::max() + (double) 1.0);;
+	return ((double) x + (double) 0.5) * inv;
 }
 
 inline std::uint32_t double_to_pos(double x) {
