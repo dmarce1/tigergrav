@@ -6,11 +6,9 @@
 #include <hpx/include/async.hpp>
 #include <hpx/include/threads.hpp>
 
-
 std::atomic<std::uint64_t> tree::flop(0);
 int tree::num_threads = 1;
 mutex_type tree::thread_mtx;
-mutex_type tree::out_mtx;
 
 bool tree::inc_thread() {
 	std::lock_guard<mutex_type> lock(thread_mtx);
@@ -138,7 +136,6 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
-	static const float eps = 10.0 * std::numeric_limits<float>::min();
 	std::function<float(const vect<float>)> separation;
 	if (opts.ewald) {
 		separation = ewald_near_separation;
@@ -203,6 +200,10 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
+		if (do_out) {
+			rc.out = std::move(rc_l.out);
+			rc.out.insert(rc.out.end(), rc_r.out.begin(), rc_r.out.end());
+		}
 		if (do_stats) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				rc.stats.g[dim] = rc_r.stats.g[dim] + rc_l.stats.g[dim];
@@ -212,14 +213,6 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 			rc.stats.kin = rc_r.stats.kin + rc_l.stats.kin;
 		}
 	} else {
-		if (do_stats) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				rc.stats.g[dim] = 0.0;
-				rc.stats.p[dim] = 0.0;
-			}
-			rc.stats.pot = 0.0;
-			rc.stats.kin = 0.0;
-		}
 		if (!dchecklist.empty() || !echecklist.empty()) {
 			rc = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
 		} else {
@@ -234,45 +227,59 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 			if (opts.ewald) {
 				flop += gravity_ewald(f, x, esources, do_stats || do_out);
 			}
-			int j = 0;
-			rc.rung = 0;
-			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
-					if (i->rung >= min_rung || i->rung == null_rung) {
-						if (i->rung != -1) {
-							const float dt = rung_to_dt(i->rung);
-							i->v = i->v + f[j].g * (0.5 * dt);
-						}
-						const float a = abs(f[j].g);
-						float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
-						rung_type rung = dt_to_rung(dt);
-						rung = std::max(rung, min_rung);
-						rc.rung = std::max(rc.rung, rung);
-						dt = rung_to_dt(rung);
-						i->rung = rung;
-						i->v = i->v + f[j].g * (0.5 * dt);
-					}
-					if (do_stats) {
-						rc.stats.g = rc.stats.g + f[j].g * m;
-						rc.stats.p = rc.stats.p + i->v * m;
-						rc.stats.pot += 0.5 * m * f[j].phi;
-						rc.stats.kin += 0.5 * m * i->v.dot(i->v);
-					}
-					if (do_out && i->flags.out) {
-						output out;
-						out.x = pos_to_double(i->x);
-						out.v = i->v;
-						out.g = f[j].g;
-						out.phi = f[j].phi;
-						out.rung = i->rung;
-						std::lock_guard<mutex_type> lock(out_mtx);
-						FILE *fp = fopen("output.bin", "ab");
-						fwrite(&out, sizeof(output), 1, fp);
-						fclose(fp);
-					}
-					j++;
+			rc = do_kick(f, min_rung, do_stats, do_out);
+		}
+	}
+	return rc;
+}
+
+kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool do_stats, bool do_out) {
+	static const auto opts = options::get();
+	static const float eps = 10.0 * std::numeric_limits<float>::min();
+	static const float m = 1.0 / opts.problem_size;
+	kick_return rc;
+	rc.rung = 0;
+	int j = 0;
+	if (do_stats) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			rc.stats.g[dim] = 0.0;
+			rc.stats.p[dim] = 0.0;
+		}
+		rc.stats.pot = 0.0;
+		rc.stats.kin = 0.0;
+	}
+	for (auto i = part_begin; i != part_end; i++) {
+		if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
+			if (i->rung >= min_rung || i->rung == null_rung) {
+				if (i->rung != -1) {
+					const float dt = rung_to_dt(i->rung);
+					i->v = i->v + f[j].g * (0.5 * dt);
 				}
+				const float a = abs(f[j].g);
+				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
+				rung_type rung = dt_to_rung(dt);
+				rung = std::max(rung, min_rung);
+				rc.rung = std::max(rc.rung, rung);
+				dt = rung_to_dt(rung);
+				i->rung = rung;
+				i->v = i->v + f[j].g * (0.5 * dt);
 			}
+			if (do_stats) {
+				rc.stats.g = rc.stats.g + f[j].g * m;
+				rc.stats.p = rc.stats.p + i->v * m;
+				rc.stats.pot += 0.5 * m * f[j].phi;
+				rc.stats.kin += 0.5 * m * i->v.dot(i->v);
+			}
+			if (do_out && i->flags.out) {
+				output out;
+				out.x = pos_to_double(i->x);
+				out.v = i->v;
+				out.g = f[j].g;
+				out.phi = f[j].phi;
+				out.rung = i->rung;
+				rc.out.push_back(out);
+			}
+			j++;
 		}
 	}
 	return rc;
@@ -308,84 +315,3 @@ bool tree::active_particles(int rung, bool do_out) {
 	has_active = rc;
 	return rc;
 }
-
-//void tree::output(float t, int num) const {
-//	std::string filename = std::string("parts.") + std::to_string(num) + std::string(".silo");
-//	DBfile *db = DBCreateReal(filename.c_str(), DB_CLOBBER, DB_LOCAL, "Meshless", DB_HDF5);
-//	auto optlist = DBMakeOptlist(1);
-//	DBAddOption(optlist, DBOPT_TIME, &t);
-//
-//	const int nnodes = std::distance(part_begin, part_end);
-//
-//	{
-//		double *coords[NDIM];
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			coords[dim] = new double[nnodes];
-//			int j = 0;
-//			for (auto i = part_begin; i != part_end; i++, j++) {
-//				coords[dim][j] = pos_to_double(i->x[dim]);
-//			}
-//		}
-//		DBPutPointmesh(db, "points", NDIM, coords, nnodes, DB_DOUBLE, optlist);
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			delete[] coords[dim];
-//		}
-//	}
-//
-//	{
-//		std::array<std::vector<float>, NDIM> v;
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			v[dim].reserve(nnodes);
-//		}
-//		for (auto i = part_begin; i != part_end; i++) {
-//			for (int dim = 0; dim < NDIM; dim++) {
-//				v[dim].push_back(i->v[dim]);
-//			}
-//		}
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			std::string nm = std::string() + "v_" + char('x' + char(dim));
-//			DBPutPointvar1(db, nm.c_str(), "points", v[dim].data(), nnodes, DB_FLOAT, optlist);
-//		}
-//	}
-//#ifdef STORE_G
-//	{
-//		std::vector<float> phi;
-//		phi.reserve(nnodes);
-//		for (auto i = part_begin; i != part_end; i++) {
-//			phi.push_back(i->phi);
-//		}
-//		DBPutPointvar1(db, "phi", "points", phi.data(), nnodes, DB_FLOAT, optlist);
-//	}
-//#endif
-//
-//#ifdef STORE_G
-//	{
-//		std::array<std::vector<float>, NDIM> g;
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			g[dim].reserve(nnodes);
-//		}
-//		for (auto i = part_begin; i != part_end; i++) {
-//			for (int dim = 0; dim < NDIM; dim++) {
-//				g[dim].push_back(i->g[dim]);
-//			}
-//		}
-//		for (int dim = 0; dim < NDIM; dim++) {
-//			std::string nm = std::string() + "g_" + char('x' + char(dim));
-//			DBPutPointvar1(db, nm.c_str(), "points", g[dim].data(), nnodes, DB_FLOAT, optlist);
-//		}
-//	}
-//#endif
-//
-//	{
-//		std::vector<int> rung;
-//		rung.reserve(nnodes);
-//		for (auto i = part_begin; i != part_end; i++) {
-//			rung.push_back(i->rung);
-//		}
-//		DBPutPointvar1(db, "rung", "points", rung.data(), nnodes, DB_INT, optlist);
-//	}
-//
-//	DBClose(db);
-//	DBFreeOptlist(optlist);
-//
-//}

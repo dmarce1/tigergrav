@@ -27,6 +27,7 @@ struct statistics {
 struct kick_return {
 	statistics stats;
 	rung_type rung;
+	std::vector<output> out;
 };
 
 class tree {
@@ -59,5 +60,7 @@ public:
 	bool active_particles(int rung, bool do_out);
 	kick_return kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
 			rung_type min_rung, bool do_statistics, bool do_output);
+	kick_return do_kick(const std::vector<force>& forces, rung_type min_rung, bool do_stats, bool do_out);
+
 };
 

@@ -49,12 +49,6 @@ int hpx_main(int argc, char *argv[]) {
 			abort();
 		}
 	};
-	FILE *fp;
-	fp = fopen("output.bin", "rb");
-	if (fp) {
-		fclose(fp);
-		system_cmd("rm output.bin\n");
-	}
 	bool do_stats = true;
 	bool do_out = true;
 	const auto show = [&]() {
@@ -86,12 +80,6 @@ int hpx_main(int argc, char *argv[]) {
 	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats,
 			do_out);
 	if (do_out) {
-		if (opts.silo_on_fly) {
-			system_cmd("./bin2silo output.bin part.0.silo");
-			system_cmd("rm output.bin");
-		} else {
-			system_cmd("mv output.bin out.0.bin");
-		}
 	}
 	dt = rung_to_dt(kr.rung);
 	while (t < opts.t_max) {
@@ -118,12 +106,6 @@ int hpx_main(int argc, char *argv[]) {
 		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
 				do_stats, do_out);
 		if (do_out) {
-			if (opts.silo_on_fly) {
-				system_cmd(std::string("./bin2silo output.bin part.") + std::to_string(oi - 1) + std::string(".silo"));
-				system_cmd( "rm output.bin");
-			} else {
-				system_cmd(std::string("mv output.bin out.") + std::to_string(oi - 1) + ".bin");
-			}
 		}
 		t = time_to_float(itime);
 		dt = rung_to_dt(kr.rung);
