@@ -299,6 +299,7 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 		if (opts.ewald) {
 			flop += gravity_ewald(f, x, esources);
 		}
+//		printf( "%i %i\n", dsources.size(), esources.size());
 		rc = do_kick(f, min_rung, do_out);
 	}
 	return rc;
@@ -501,7 +502,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 void tree::drift(float dt) {
 	for (auto i = part_begin; i != part_end; i++) {
 		const vect<double> dx = i->v * dt;
-		const vect<std::uint64_t> dxi = double_to_pos(dx);
+		const vect<pos_type> dxi = double_to_pos(dx);
 		i->x = i->x + dxi;
 	}
 }
