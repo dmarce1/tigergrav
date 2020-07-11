@@ -162,7 +162,7 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
+kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
 		expansion<double> L, rung_type min_rung, bool do_out) {
 
 	kick_return rc;
@@ -194,7 +194,7 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 			if (c->is_leaf()) {
 				const auto pos = c->get_positions();
 				for (auto x : pos) {
-					dsources.push_back( { m, x });
+					dsources.push_back(x);
 				}
 			} else {
 				auto next = c->get_children();
@@ -252,7 +252,7 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 				if (c->is_leaf()) {
 					const auto pos = c->get_positions();
 					for (auto x : pos) {
-						dsources.push_back( { m, x });
+						dsources.push_back(x);
 					}
 				} else {
 					auto next = c->get_children();
@@ -305,8 +305,8 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 	return rc;
 }
 
-kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<multi_src> multi_srcs, std::vector<tree_ptr> echecklist,
-		std::vector<source> esources, rung_type min_rung, bool do_out) {
+kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs,
+		std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung, bool do_out) {
 
 	kick_return rc;
 	if (!has_active && !do_out) {
@@ -335,7 +335,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 			if (c->is_leaf()) {
 				const auto pos = c->get_positions();
 				for (auto x : pos) {
-					dsources.push_back( { m, x });
+					dsources.push_back(x);
 				}
 			} else {
 				auto next = c->get_children();
@@ -405,13 +405,13 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 	return rc;
 }
 
-kick_return tree::kick_direct(std::vector<source> &sources, rung_type min_rung, bool do_out) {
+kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_rung, bool do_out) {
 
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	if (sources.size() == 0) {
 		for (auto i = part_begin; i != part_end; i++) {
-			sources.push_back( { m, pos_to_double(i->x) });
+			sources.push_back(pos_to_double(i->x));
 		}
 	}
 
@@ -445,7 +445,11 @@ kick_return tree::kick_direct(std::vector<source> &sources, rung_type min_rung, 
 		std::vector<force> f(x.size(), { 0, vect<double>(0) });
 		flop += gravity_direct(f, x, sources);
 		if (opts.ewald) {
-			flop += gravity_ewald(f, x, sources);
+			std::vector<source> esources;
+			for (auto s : sources) {
+				esources.push_back( { m, s });
+			}
+			flop += gravity_ewald(f, x, esources);
 		}
 		rc = do_kick(f, min_rung, do_out);
 	}

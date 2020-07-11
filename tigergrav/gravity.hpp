@@ -17,7 +17,7 @@ struct multi_src {
 };
 
 
-std::uint64_t gravity_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<source> &y);
+std::uint64_t gravity_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_direct_multipole(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
 std::uint64_t gravity_indirect_multipole(expansion<double>&, const vect<double> &x, std::vector<multi_src> &y);
 std::uint64_t gravity_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<source> &y);

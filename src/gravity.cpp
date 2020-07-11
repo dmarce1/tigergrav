@@ -78,33 +78,31 @@ double ewald_far_separation(const vect<double> x) {
 	return std::max(std::sqrt(d), double(0.25));
 }
 
-std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
+std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
+	static const simd_svector M(1.0 / opts.problem_size);
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
 	static const simd_svector H(h);
 	static const simd_svector H2(h2);
 	vect<simd_svector> X, Y;
-	simd_svector M;
 	std::vector<vect<simd_svector>> nG(x.size(), vect<float>(0.0));
 	std::vector<simd_svector> nPhi(x.size(), 0.0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = vect<float>(1.0);
+		y[j] = vect<float>(1.0e+10);
 	}
 	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
 		for (int k = 0; k < SIMD_SLEN; k++) {
-			M[k] = y[j + k].m;
 			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k].x[dim];
+				Y[dim][k] = y[j + k][dim];
 			}
 		}
 		for (int i = 0; i < x.size(); i++) {
