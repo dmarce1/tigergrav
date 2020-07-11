@@ -22,6 +22,12 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 		root_ptr->active_particles(mrung, do_out);
 		return root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<multi_src>(), std::vector<tree_ptr>(1, root_ptr),
 				std::vector<source>(), mrung, do_out);
+	} else if (type == 2) {
+		root_ptr->compute_multipoles();
+		root_ptr->active_particles(mrung, do_out);
+		expansion<float> L;
+		L = 0.0;
+		return root_ptr->kick_fmm(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), L, mrung, do_out);
 	} else {
 		printf("Unknown gravity solver type\n");
 		return kick_return();
@@ -61,7 +67,7 @@ int hpx_main(int argc, char *argv[]) {
 			tree::set_theta(theta);
 			tree::reset_flop();
 			auto start = timer();
-			kr = solve_gravity(root_ptr, 1, min_rung(0), true);
+			kr = solve_gravity(root_ptr, opts.solver_type, min_rung(0), true);
 			auto stop = timer();
 			auto flops = tree::get_flop() / (stop - start + 1.0e-10) / std::pow(1024, 3);
 			std::sort(kr.out.begin(), kr.out.end());
