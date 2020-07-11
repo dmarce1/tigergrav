@@ -1,5 +1,6 @@
 #pragma once
 
+#include <tigergrav/multipole.hpp>
 #include <tigergrav/output.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/particle.hpp>
@@ -42,8 +43,15 @@ struct kick_return {
 	std::vector<output> out;
 };
 
+
+struct multi_src {
+	multipole<float> m;
+	vect<float> x;
+	float r;
+};
+
 class tree {
-	monopole mono;
+	multi_src multi;
 	part_iter part_begin;
 	part_iter part_end;
 	bool leaf;
@@ -60,7 +68,7 @@ public:
 	static void reset_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
 	tree(range, part_iter, part_iter);
-	monopole compute_monopoles();
+	multi_src compute_multipoles();
 	monopole get_monopole() const;
 	bool is_leaf() const;
 	std::array<tree_ptr, NCHILD> get_children() const;

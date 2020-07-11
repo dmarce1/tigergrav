@@ -18,7 +18,7 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 		std::vector<source> sources;
 		return root_ptr->kick_direct(sources, mrung, do_out);
 	} else if (type == 1) {
-		root_ptr->compute_monopoles();
+		root_ptr->compute_multipoles();
 		root_ptr->active_particles(mrung, do_out);
 		return root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
 				do_out);
@@ -130,7 +130,6 @@ int hpx_main(int argc, char *argv[]) {
 			}
 			root_ptr->drift(dt);
 			root_ptr = tree::new_(root_box, parts.begin(), parts.end());
-			root_ptr->compute_monopoles();
 			itime = inc(itime, kr.rung);
 			kr = solve_gravity(root_ptr, opts.solver_type, min_rung(itime), do_out);
 			if (do_out) {

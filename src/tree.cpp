@@ -9,7 +9,6 @@
 std::atomic<std::uint64_t> tree::flop(0);
 float tree::theta_inv;
 
-
 static int num_threads = 1;
 static mutex_type thread_mtx;
 static bool inc_thread();
@@ -41,7 +40,6 @@ auto thread_if_avail(F &&f) {
 		return hpx::make_ready_future(f());
 	}
 }
-
 
 void tree::set_theta(float t) {
 	theta_inv = 1.0 / t;
@@ -89,40 +87,48 @@ tree::tree(range box, part_iter b, part_iter e) {
 	}
 }
 
-monopole tree::compute_monopoles() {
+multi_src tree::compute_multipoles() {
 	const auto &opts = options::get();
 	const auto m = 1.0 / opts.problem_size;
+	multi.m = 0.0;
 	if (leaf) {
-		mono.m = 0.0;
-		mono.x = vect<float>(0.0);
+		multi.x = vect<float>(0.0);
 		for (auto i = part_begin; i != part_end; i++) {
-			mono.m += m;
-			mono.x += pos_to_double(i->x) * m;
+			multi.m() += m;
+			multi.x += pos_to_double(i->x) * m;
 		}
-		if (mono.m != 0.0) {
-			mono.x = mono.x / mono.m;
+		if (multi.m() != 0.0) {
+			multi.x = multi.x / multi.m();
 		}
-		mono.r = 0.0;
 		for (auto i = part_begin; i != part_end; i++) {
-			mono.r = std::max(mono.r, (float) abs(pos_to_double(i->x) - mono.x));
+			for (int j = 0; j < NDIM; j++) {
+				for (int k = 0; k <= j; k++) {
+					multi.m(j, k) += m * (i->x[j] - multi.x[j]) * (i->x[k] - multi.x[k]);
+				}
+			}
+		}
+		multi.r = 0.0;
+		for (auto i = part_begin; i != part_end; i++) {
+			multi.r = std::max(multi.r, (float) abs(pos_to_double(i->x) - multi.x));
 		}
 	} else {
-		monopole ml, mr;
-		ml = children[0]->compute_monopoles();
-		mr = children[1]->compute_monopoles();
-		mono.m = ml.m + mr.m;
-		if (mono.m != 0.0) {
-			mono.x = (ml.x * ml.m + mr.x * mr.m) / mono.m;
+		multi_src ml, mr;
+		ml = children[0]->compute_multipoles();
+		mr = children[1]->compute_multipoles();
+		multi.m() = ml.m() + mr.m();
+		if (multi.m() != 0.0) {
+			multi.x = (ml.x * ml.m() + mr.x * mr.m()) / multi.m();
 		} else {
-			mono.x = vect<float>(0.0);
+			multi.x = vect<float>(0.0);
 		}
-		mono.r = std::max(abs(ml.x - mono.x) + ml.r, abs(mr.x - mono.x) + mr.r);
+		multi.m = (ml.m >> (multi.x - ml.x)) + (mr.m >> (multi.x - mr.x));
+		multi.r = std::max(abs(ml.x - multi.x) + ml.r, abs(mr.x - multi.x) + mr.r);
 	}
-	return mono;
+	return multi;
 }
 
 monopole tree::get_monopole() const {
-	return mono;
+	return {multi.m(),multi.x,multi.r};
 }
 
 bool tree::is_leaf() const {
@@ -167,8 +173,8 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 	}
 	for (auto c : dchecklist) {
 		auto other = c->get_monopole();
-		const auto dx = separation(mono.x - other.x);
-		if (dx > (mono.r + other.r) * theta_inv) {
+		const auto dx = separation(multi.x - other.x);
+		if (dx > (multi.r + other.r) * theta_inv) {
 			dsources.push_back( { other.m, other.x });
 		} else {
 			if (c->is_leaf()) {
@@ -187,8 +193,8 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 	if (opts.ewald) {
 		for (auto c : echecklist) {
 			auto other = c->get_monopole();
-			const auto dx = ewald_far_separation(mono.x - other.x);
-			if (dx > (mono.r + other.r) * theta_inv) {
+			const auto dx = ewald_far_separation(multi.x - other.x);
+			if (dx > (multi.r + other.r) * theta_inv) {
 				esources.push_back( { other.m, other.x });
 			} else {
 				if (c->is_leaf()) {
