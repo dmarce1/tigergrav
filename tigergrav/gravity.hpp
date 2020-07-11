@@ -21,6 +21,7 @@ std::uint64_t gravity_direct(std::vector<force> &g, const std::vector<vect<float
 std::uint64_t gravity_direct_multipole(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
 std::uint64_t gravity_indirect_multipole(expansion<float>&, const vect<float> &x, std::vector<multi_src> &y);
 std::uint64_t gravity_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<source> &y);
+std::uint64_t gravity_indirect_ewald(expansion<float> &L, const vect<float> &x, std::vector<source> &y);
 float ewald_near_separation(const vect<float> x);
 float ewald_far_separation(const vect<float> x);
 void init_ewald();
