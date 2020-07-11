@@ -175,18 +175,11 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	std::function<double(const vect<double>)> separation;
-	if (opts.ewald) {
-		separation = ewald_near_separation;
-	} else {
-		separation = [](const vect<double> x) {
-			return abs(x);
-		};
-	}
 	std::vector<multi_src> dmulti_srcs;
 	std::vector<source> emulti_srcs;
 	for (auto c : dchecklist) {
 		auto other = c->get_multipole();
-		const auto dx = separation(multi.x - other.x);
+		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
 		if (dx > (multi.r + other.r) * theta_inv) {
 			dmulti_srcs.push_back( { other.m, other.x });
 		} else {
@@ -286,11 +279,9 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 		int j = 0;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-				expansion<double> this_L = L << (pos_to_double(i->x) - multi.x);
-				f[j].phi += this_L();
-				for (int dim = 0; dim < NDIM; dim++) {
-					f[j].g[dim] += -this_L(dim);
-				}
+				force this_f = L.translate_L2((pos_to_double(i->x) - multi.x));
+				f[j].phi += this_f.phi;
+				f[j].g = f[j].g + this_f.g;
 				j++;
 			}
 		}
@@ -317,17 +308,9 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
-	std::function<double(const vect<double>)> separation;
-	if (opts.ewald) {
-		separation = ewald_near_separation;
-	} else {
-		separation = [](const vect<double> x) {
-			return abs(x);
-		};
-	}
 	for (auto c : dchecklist) {
 		auto other = c->get_multipole();
-		const auto dx = separation(multi.x - other.x);
+		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
 		if (dx > (multi.r + other.r) * theta_inv) {
 			multi_srcs.push_back( { other.m, other.x });
 		} else {

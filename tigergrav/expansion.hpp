@@ -22,7 +22,6 @@
 
 constexpr int LP = 20;
 
-
 struct force {
 	float phi;
 	vect<float> g;
@@ -49,9 +48,8 @@ public:
 	T& operator ()(int i, int j, int k);
 	expansion<T>& operator =(const expansion<T> &expansion);
 	expansion<T>& operator =(T expansion);
+	force translate_L2(const vect<T> &dX) const;
 	expansion<T> operator<<(const vect<T> &dX) const;
-	void translate_to_particle(const vect<T> &dX, T &phi, vect<T> &g) const;
-	T translate_to_particle(const vect<T> &dX) const;
 	expansion<T>& operator<<=(const vect<T> &dX);
 	std::array<T, LP>& operator +=(const std::array<T, LP> &vec);
 	std::array<T, LP>& operator -=(const std::array<T, LP> &vec);
@@ -172,25 +170,39 @@ inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
 }
 
 template<class T>
-inline T expansion<T>::translate_to_particle(const vect<T> &dX) const {
-	const auto &L = *this;
-	T this_phi = L();
+inline force expansion<T>::translate_L2(const vect<T> &dX) const {
+	const auto& me = *this;
+	force f;
+	f.phi = (*this)();
 	for (int a = 0; a < 3; a++) {
-		this_phi += L(a) * dX[a];
+		f.phi += me(a) * dX[a];
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
-			this_phi += L(a, b) * dX[a] * dX[b] * float(0.5);
+			f.phi += me(a, b) * dX[a] * dX[b] * float(0.5);
+		}
+	}
+	for (int a = 0; a < 3; a++) {
+		f.g[a] = -(*this)(a);
+		for (int b = 0; b < 3; b++) {
+			f.g[a] -= me(a, b) * dX[b];
 		}
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
-				this_phi += L(a, b, c) * dX[a] * dX[b] * dX[c] * (1.0 / 6.0);
+				f.phi += me(a, b, c) * dX[a] * dX[b] * dX[c] * (1.0 / 6.0);
 			}
 		}
 	}
-	return this_phi;
+	for (int a = 0; a < 3; a++) {
+		for (int b = 0; b < 3; b++) {
+			for (int c = 0; c < 3; c++) {
+				f.g[a] -= me(a, b, c) * dX[b] * dX[c] * float(0.5);
+			}
+		}
+	}
+	return f;
 }
 
 template<class T>
@@ -301,9 +313,8 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 	}
 }
 
-
 template<class T>
-inline std::pair<T,vect<T>> multipole_interaction(const multipole<T> &M, vect<T> dX) {
+inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T> dX) {
 
 	T y0 = 0.0;
 	for (int d = 0; d != NDIM; ++d) {
@@ -343,7 +354,7 @@ inline std::pair<T,vect<T>> multipole_interaction(const multipole<T> &M, vect<T>
 
 	extern expansion<float> expansion_factor;
 
-	std::pair<T,vect<T>> f;
+	std::pair<T, vect<T>> f;
 	f.first = 0.0;
 	f.first += M() * D();
 	for (int a = 0; a < 3; a++) {
