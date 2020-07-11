@@ -1,5 +1,6 @@
 #pragma once
 
+#include <tigergrav/gravity.hpp>
 #include <tigergrav/multipole.hpp>
 #include <tigergrav/output.hpp>
 #include <tigergrav/options.hpp>
@@ -27,7 +28,7 @@ struct statistics {
 		pot = kin = 0.0;
 		g = p = vect<float>(0);
 	}
-	statistics operator+( const statistics& other) const {
+	statistics operator+(const statistics &other) const {
 		statistics C;
 		C.g = g + other.g;
 		C.p = p + other.p;
@@ -44,14 +45,8 @@ struct kick_return {
 };
 
 
-struct multi_src {
-	multipole<float> m;
-	vect<float> x;
-	float r;
-};
-
 class tree {
-	multi_src multi;
+	multipole_info multi;
 	part_iter part_begin;
 	part_iter part_end;
 	bool leaf;
@@ -68,7 +63,8 @@ public:
 	static void reset_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
 	tree(range, part_iter, part_iter);
-	multi_src compute_multipoles();
+	multipole_info compute_multipoles();
+	multipole_info get_multipole() const;
 	monopole get_monopole() const;
 	bool is_leaf() const;
 	std::array<tree_ptr, NCHILD> get_children() const;
@@ -76,8 +72,8 @@ public:
 	void drift(float);
 //	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
-	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
-			rung_type min_rung, bool do_output);
+	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<multi_src> multi_srcs, std::vector<tree_ptr> echecklist,
+			std::vector<source> esources, rung_type min_rung, bool do_output);
 	kick_return kick_direct(std::vector<source>&, rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
 

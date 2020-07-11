@@ -22,6 +22,12 @@
 
 constexpr int LP = 20;
 
+
+struct force {
+	float phi;
+	vect<float> g;
+};
+
 template<class T>
 class expansion: public std::array<T, LP> {
 
@@ -294,5 +300,71 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		}
 	}
 }
+
+
+template<class T>
+inline std::pair<T,vect<T>> multipole_interaction(const multipole<T> &M, vect<T> dX) {
+
+	T y0 = 0.0;
+	for (int d = 0; d != NDIM; ++d) {
+		y0 += dX[d] * dX[d];
+	}
+	expansion<T> D;
+	const T r2inv = 1.0 / y0;
+	const T d0 = -sqrt(r2inv);
+	const T d1 = -d0 * r2inv;
+	const T d2 = -3.0 * d1 * r2inv;
+	const T d3 = -5.0 * d2 * r2inv;
+	D() = 0.0;
+	for (int a = 0; a < 3; a++) {
+		D(a) = 0.0;
+		for (int b = a; b < 3; b++) {
+			D(a, b) = 0.0;
+			for (int c = b; c < 3; c++) {
+				D(a, b, c) = 0.0;
+			}
+		}
+	}
+
+	D() += d0;
+	for (int a = 0; a < 3; a++) {
+		D(a) += dX[a] * d1;
+		D(a, a) += d1;
+		D(a, a, a) += dX[a] * d2;
+		for (int b = a; b < 3; b++) {
+			D(a, b) += dX[a] * dX[b] * d2;
+			D(a, a, b) += dX[b] * d2;
+			D(a, b, b) += dX[a] * d2;
+			for (int c = b; c < 3; c++) {
+				D(a, b, c) += dX[a] * dX[b] * dX[c] * d3;
+			}
+		}
+	}
+
+	extern expansion<float> expansion_factor;
+
+	std::pair<T,vect<T>> f;
+	f.first = 0.0;
+	f.first += M() * D();
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			f.first += M(a, b) * D(a, b) * float(0.5) * expansion_factor(a, b);
+		}
+	}
+	f.second = vect<float>(0);
+	for (int a = 0; a < 3; a++) {
+		f.second[a] -= M() * D(a);
+	}
+	for (int a = 0; a < 3; a++) {
+		for (int b = 0; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				f.second[a] -= M(c, b) * D(a, b, c) * float(0.5) * expansion_factor(c, b);
+			}
+		}
+	}
+	return f;
+
+}
+
 /* namespace fmmx */
 #endif /* expansion_H_ */

@@ -1,7 +1,7 @@
 #include <tigergrav/expansion.hpp>
 
 
-static expansion<float> expansion_factor;
+expansion<float> expansion_factor;
 
 __attribute((constructor))
 static void init_factors() {

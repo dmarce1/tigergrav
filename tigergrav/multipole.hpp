@@ -23,6 +23,7 @@
 
 constexpr int MP = 7;
 
+
 template<class T>
 class multipole: public std::array<T, MP> {
 private:
@@ -107,5 +108,6 @@ inline multipole<T>& multipole<T>::operator>>=(const vect<T> &Y) {
 	}
 	return me;
 }
+
 
 #endif /* multipole_H_ */

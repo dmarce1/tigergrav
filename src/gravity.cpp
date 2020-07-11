@@ -1,3 +1,4 @@
+#include <tigergrav/expansion.hpp>
 #include <tigergrav/gravity.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
@@ -133,9 +134,72 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] = -nG[i][dim].sum();
+			f[i].g[dim] += -nG[i][dim].sum();
 		}
-		f[i].phi = -nPhi[i].sum();
+		f[i].phi += -nPhi[i].sum();
+	}
+	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
+}
+
+std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
+	if (x.size() == 0) {
+		return 0;
+	}
+	std::uint64_t flop = 0;
+	static const auto opts = options::get();
+	static const bool ewald = opts.ewald;
+	static const auto h = opts.soft_len;
+	static const auto h2 = h * h;
+	static const simd_vector H(h);
+	static const simd_vector H2(h2);
+	vect<simd_vector> X, Y;
+	multipole<simd_vector> M;
+	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_vector> Phi(x.size(), 0.0);
+	const auto cnt1 = y.size();
+	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	y.resize(cnt2);
+	for (int j = cnt1; j < cnt2; j++) {
+		y[j].m = 0.0;
+		y[j].x = vect<float>(1.0);
+	}
+	for (int j = 0; j < cnt1; j += SIMD_LEN) {
+		for (int k = 0; k < SIMD_LEN; k++) {
+			M()[k] = y[j + k].m();
+			for (int n = 0; n < NDIM; n++) {
+				for (int l = 0; l <= n; l++) {
+					M(n, l)[k] = y[j + k].m(n, l);
+				}
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = y[j + k].x[dim];
+			}
+		}
+		for (int i = 0; i < x.size(); i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				X[dim] = simd_vector(x[i][dim]);
+			}
+
+			vect<simd_vector> dX = X - Y;             		// 3 OP
+			if (ewald) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					const auto absdx = abs(dX[dim]);										// 3 OP
+					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+				}
+			}
+			auto this_f = multipole_interaction(M, dX);
+
+			for (int dim = 0; dim < NDIM; dim++) {
+				G[i][dim] += this_f.second[dim];  // 6 OP
+			}
+			Phi[i] += this_f.first;		        // 2 OP
+		}
+	}
+	for (int i = 0; i < x.size(); i++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			f[i].g[dim] += G[i][dim].sum();
+		}
+		f[i].phi += Phi[i].sum();
 	}
 	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
