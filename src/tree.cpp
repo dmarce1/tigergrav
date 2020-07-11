@@ -5,27 +5,26 @@
 #include <hpx/include/async.hpp>
 #include <hpx/include/threads.hpp>
 
+#include <atomic>
+
 std::atomic<std::uint64_t> tree::flop(0);
 double tree::theta_inv;
 
-static int num_threads = 1;
-static mutex_type thread_mtx;
+static std::atomic<int> num_threads(1);
 static bool inc_thread();
 static void dec_thread();
 
 bool inc_thread() {
-	std::lock_guard<mutex_type> lock(thread_mtx);
 	static const int nmax = 2 * hpx::threads::hardware_concurrency();
-	if (num_threads < nmax) {
-		num_threads++;
+	if (num_threads++ < nmax) {
 		return true;
 	} else {
+		num_threads--;
 		return false;
 	}
 }
 
 void dec_thread() {
-	std::lock_guard<mutex_type> lock(thread_mtx);
 	num_threads--;
 }
 
