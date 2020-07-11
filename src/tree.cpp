@@ -276,6 +276,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 					out.g = f[j].g;
 					out.phi = f[j].phi;
 					out.rung = i->rung;
+					rc.out.push_back(out);
 				}
 			}
 			j++;

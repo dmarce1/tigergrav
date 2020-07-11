@@ -78,6 +78,7 @@ int hpx_main(int argc, char *argv[]) {
 	root_ptr->active_particles(mrung, do_out);
 	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_out);
 	if (do_out) {
+		output_particles(kr.out, "parts.0.silo");
 	}
 	dt = rung_to_dt(kr.rung);
 	while (t < opts.t_max) {
@@ -98,6 +99,7 @@ int hpx_main(int argc, char *argv[]) {
 		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
 				do_out);
 		if (do_out) {
+			output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
 		}
 		t = time_to_float(itime);
 		dt = rung_to_dt(kr.rung);
