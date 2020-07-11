@@ -44,6 +44,7 @@ set(tigergrav_header_files
 	tigergrav/output.hpp
 	tigergrav/options.hpp
 	tigergrav/particle.hpp
+	tigergrav/position.hpp
 	tigergrav/rand.hpp
 	tigergrav/range.hpp
 	tigergrav/taylor.hpp

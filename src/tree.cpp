@@ -6,7 +6,7 @@
 #include <hpx/include/threads.hpp>
 
 std::atomic<std::uint64_t> tree::flop(0);
-float tree::theta_inv;
+double tree::theta_inv;
 
 static int num_threads = 1;
 static mutex_type thread_mtx;
@@ -40,7 +40,7 @@ auto thread_if_avail(F &&f) {
 	}
 }
 
-void tree::set_theta(float t) {
+void tree::set_theta(double t) {
 	theta_inv = 1.0 / t;
 }
 
@@ -61,7 +61,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 	}
 	if (e - b > opts.parts_per_node) {
 		leaf = false;
-		float max_span = 0.0;
+		double max_span = 0.0;
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto this_span = box.max[dim] - box.min[dim];
@@ -72,7 +72,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 		}
 		range boxl = box;
 		range boxr = box;
-		float mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
+		double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		decltype(b) mid_iter;
 		if (e - b == 0) {
@@ -94,7 +94,7 @@ multipole_info tree::compute_multipoles() {
 	const auto m = 1.0 / opts.problem_size;
 	multi.m = 0.0;
 	if (leaf) {
-		multi.x = vect<float>(0.0);
+		multi.x = vect<double>(0.0);
 		for (auto i = part_begin; i != part_end; i++) {
 			multi.m() += m;
 			multi.x += pos_to_double(i->x) * m;
@@ -115,7 +115,7 @@ multipole_info tree::compute_multipoles() {
 		}
 		multi.r = 0.0;
 		for (auto i = part_begin; i != part_end; i++) {
-			multi.r = std::max(multi.r, (float) abs(pos_to_double(i->x) - multi.x));
+			multi.r = std::max(multi.r, abs(pos_to_double(i->x) - multi.x));
 		}
 	} else {
 		multipole_info ml, mr;
@@ -140,7 +140,7 @@ multipole_info tree::get_multipole() const {
 }
 
 monopole tree::get_monopole() const {
-	return {multi.m(),multi.x,multi.r};
+	return {(float) multi.m(),multi.x,multi.r};
 }
 
 bool tree::is_leaf() const {
@@ -156,7 +156,7 @@ std::vector<vect<float>> tree::get_positions() const {
 	pos.reserve(part_end - part_begin);
 	for (auto i = part_begin; i != part_end; i++) {
 		vect<float> x;
-		x = pos_to_double(i->x);
+		x = pos_to_float(i->x);
 		pos.push_back(x);
 	}
 	return pos;
@@ -175,11 +175,11 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
-	std::function<float(const vect<float>)> separation;
+	std::function<double(const vect<double>)> separation;
 	if (opts.ewald) {
 		separation = ewald_near_separation;
 	} else {
-		separation = [](const vect<float> x) {
+		separation = [](const vect<double> x) {
 			return abs(x);
 		};
 	}
@@ -283,7 +283,7 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 				x.push_back(pos_to_double(i->x));
 			}
 		}
-		std::vector<force> f(x.size(), { 0, vect<float>(0) });
+		std::vector<force> f(x.size(), { 0, vect<double>(0) });
 		int j = 0;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
@@ -318,11 +318,11 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
-	std::function<float(const vect<float>)> separation;
+	std::function<double(const vect<double>)> separation;
 	if (opts.ewald) {
 		separation = ewald_near_separation;
 	} else {
-		separation = [](const vect<float> x) {
+		separation = [](const vect<double> x) {
 			return abs(x);
 		};
 	}
@@ -393,7 +393,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 					x.push_back(pos_to_double(i->x));
 				}
 			}
-			std::vector<force> f(x.size(), { 0, vect<float>(0) });
+			std::vector<force> f(x.size(), { 0, vect<double>(0) });
 			flop += gravity_direct_multipole(f, x, multi_srcs);
 			flop += gravity_direct(f, x, dsources);
 			if (opts.ewald) {
@@ -442,7 +442,7 @@ kick_return tree::kick_direct(std::vector<source> &sources, rung_type min_rung, 
 				x.push_back(pos_to_double(i->x));
 			}
 		}
-		std::vector<force> f(x.size(), { 0, vect<float>(0) });
+		std::vector<force> f(x.size(), { 0, vect<double>(0) });
 		flop += gravity_direct(f, x, sources);
 		if (opts.ewald) {
 			flop += gravity_ewald(f, x, sources);
@@ -454,8 +454,8 @@ kick_return tree::kick_direct(std::vector<source> &sources, rung_type min_rung, 
 
 kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool do_out) {
 	static const auto opts = options::get();
-	static const float eps = 10.0 * std::numeric_limits<float>::min();
-	static const float m = 1.0 / opts.problem_size;
+	static const double eps = 10.0 * std::numeric_limits<double>::min();
+	static const double m = 1.0 / opts.problem_size;
 	kick_return rc;
 	rc.rung = 0;
 	int j = 0;
@@ -466,11 +466,11 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 		if (i->rung >= min_rung || i->rung == null_rung || do_out) {
 			if (i->rung >= min_rung || i->rung == null_rung) {
 				if (i->rung != -1) {
-					const float dt = rung_to_dt(i->rung);
+					const double dt = rung_to_dt(i->rung);
 					i->v = i->v + f[j].g * (0.5 * dt);
 				}
-				const float a = abs(f[j].g);
-				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
+				const double a = abs(f[j].g);
+				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
 				rung_type rung = dt_to_rung(dt);
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
@@ -499,7 +499,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 	return rc;
 }
 
-void tree::drift(float dt) {
+void tree::drift(double dt) {
 	for (auto i = part_begin; i != part_end; i++) {
 		const vect<double> dx = i->v * dt;
 		const vect<pos_type> dxi = double_to_pos(dx);

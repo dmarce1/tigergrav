@@ -33,12 +33,12 @@ bool options::process_options(int argc, char *argv[]) {
 	("solver_type", po::value<int>(&solver_type)->default_value(2), "0 = direct, 1 = Barnes-Hut, 2 = Fast Multipole Method") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
 	("problem_size", po::value<int>(&problem_size)->default_value(4096), "number of particles") //
-	("theta", po::value<float>(&theta)->default_value(0.7), "separation parameter") //
-	("eta", po::value<float>(&eta)->default_value(0.2), "accuracy parameter") //
-	("soft_len", po::value<float>(&soft_len)->default_value(-1), "softening parameter") //
-	("dt_max", po::value<float>(&dt_max)->default_value(-1), "maximum timestep size") //
-	("dt_out", po::value<float>(&dt_out)->default_value(-1), "output frequency") //
-	("t_max", po::value<float>(&t_max)->default_value(1.0), "end time") //
+	("theta", po::value<double>(&theta)->default_value(0.7), "separation parameter") //
+	("eta", po::value<double>(&eta)->default_value(0.2), "accuracy parameter") //
+	("soft_len", po::value<double>(&soft_len)->default_value(-1), "softening parameter") //
+	("dt_max", po::value<double>(&dt_max)->default_value(-1), "maximum timestep size") //
+	("dt_out", po::value<double>(&dt_out)->default_value(-1), "output frequency") //
+	("t_max", po::value<double>(&t_max)->default_value(1.0), "end time") //
 			;
 
 	boost::program_options::variables_map vm;

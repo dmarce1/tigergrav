@@ -11,12 +11,12 @@ public:
 	int parts_per_node;
 	int problem_size;
 	int solver_type;
-	float theta;
-	float eta;
-	float soft_len;
-	float dt_out;
-	float dt_max;
-	float t_max;
+	double theta;
+	double eta;
+	double soft_len;
+	double dt_out;
+	double dt_max;
+	double t_max;
 
 
 

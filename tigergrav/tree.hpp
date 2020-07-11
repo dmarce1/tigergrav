@@ -26,7 +26,7 @@ struct statistics {
 	double kin;
 	void zero() {
 		pot = kin = 0.0;
-		g = p = vect<float>(0);
+		g = p = vect<double>(0);
 	}
 	statistics operator+(const statistics &other) const {
 		statistics C;
@@ -49,17 +49,17 @@ class tree {
 	part_iter part_begin;
 	part_iter part_end;
 	bool leaf;
-	float max_span;
+	double max_span;
 	bool has_active;
 	std::array<tree_ptr, NCHILD> children;
-	std::array<vect<float>, NCHILD> child_com;
-	vect<float> coord_cent;
+	std::array<vect<double>, NCHILD> child_com;
+	vect<double> coord_cent;
 
-	static float theta_inv;
+	static double theta_inv;
 	static std::atomic<std::uint64_t> flop;
 
 public:
-	static void set_theta(float);
+	static void set_theta(double);
 	static std::uint64_t get_flop();
 	static void reset_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
@@ -70,8 +70,8 @@ public:
 	bool is_leaf() const;
 	std::array<tree_ptr, NCHILD> get_children() const;
 	std::vector<vect<float>> get_positions() const;
-	void drift(float);
-//	void output(float,int) const;
+	void drift(double);
+//	void output(double,int) const;
 	bool active_particles(int rung, bool do_out);
 	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<multi_src> multi_srcs, std::vector<tree_ptr> echecklist,
 			std::vector<source> esources, rung_type min_rung, bool do_output);

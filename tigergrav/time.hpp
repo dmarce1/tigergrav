@@ -15,6 +15,12 @@ inline float time_to_float(time_type t) {
 	return ((float) t / (float) imax) * t_max;
 }
 
+inline float time_to_double(time_type t) {
+	static const auto t_max = options::get().t_max;
+	static const auto imax = time_type(1) << time_type(31);
+	return ((double) t / (double) imax) * t_max;
+}
+
 inline time_type inc(time_type t, rung_type max_rung) {
 	t += (time_type(1) << time_type(31 - max_rung));
 	return t;
@@ -29,7 +35,7 @@ inline rung_type min_rung(time_type t) {
 	return min_rung;
 }
 
-inline float rung_to_dt(std::int8_t rung) {
+inline double rung_to_dt(std::int8_t rung) {
 	static const auto t_max = options::get().t_max;
 	return t_max / (1 << rung);
 }

@@ -58,24 +58,24 @@ double EW(general_vect<double, NDIM> x) {
 	return M_PI / 4.0 + sum1 + sum2 + 1 / abs(x);
 }
 
-float ewald_near_separation(const vect<float> x) {
-	float d = 0.0;
+double ewald_near_separation(const vect<double> x) {
+	double d = 0.0;
 	for (int dim = 0; dim < NDIM; dim++) {
-		const float absx = std::abs(x[dim]);
-		float this_d = std::min(absx, (float) 1.0 - absx);
+		const double absx = std::abs(x[dim]);
+		double this_d = std::min(absx, (double) 1.0 - absx);
 		d += this_d * this_d;
 	}
 	return std::sqrt(d);
 }
 
-float ewald_far_separation(const vect<float> x) {
-	float d = 0.0;
+double ewald_far_separation(const vect<double> x) {
+	double d = 0.0;
 	for (int dim = 0; dim < NDIM; dim++) {
-		const float absx = std::abs(x[dim]);
-		const float this_d = std::min(absx, (float) 1.0 - absx);
+		const double absx = std::abs(x[dim]);
+		const double this_d = std::min(absx, (double) 1.0 - absx);
 		d += this_d * this_d;
 	}
-	return std::max(std::sqrt(d), float(0.25));
+	return std::max(std::sqrt(d), double(0.25));
 }
 
 std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
@@ -205,7 +205,7 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<float> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<double> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -227,7 +227,7 @@ std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<float>
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = vect<float>(1.0);
+		y[j].x = vect<double>(1.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {

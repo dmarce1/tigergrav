@@ -13,8 +13,8 @@
 #include <limits>
 
 struct range {
-	vect<float> min;
-	vect<float> max;
+	vect<double> min;
+	vect<double> max;
 	template<class Arc>
 	void serialize(Arc& arc,unsigned) {
 		arc & min;
@@ -22,17 +22,17 @@ struct range {
 	}
 };
 
-range reflect_range(const range&, int dim, float axis);
-vect<float> range_center(const range &r);
-range shift_range(const range& r, const vect<float>&);
-range scale_range(const range& , float);
-vect<float> range_span(const range&);
-bool in_range(const vect<float>&, const range&);
+range reflect_range(const range&, int dim, double axis);
+vect<double> range_center(const range &r);
+range shift_range(const range& r, const vect<double>&);
+range scale_range(const range& , double);
+vect<double> range_span(const range&);
+bool in_range(const vect<double>&, const range&);
 bool in_range(const range&, const range&);
 bool ranges_intersect(const range&, const range&);
-range range_around(const vect<float>&, float);
-range expand_range(const range&, float);
-float range_volume(const range&);
+range range_around(const vect<double>&, double);
+range expand_range(const range&, double);
+double range_volume(const range&);
 range null_range();
 bool operator==(const range&, const range&);
 bool operator!=(const range&, const range&);

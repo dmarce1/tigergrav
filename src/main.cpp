@@ -82,9 +82,9 @@ int hpx_main(int argc, char *argv[]) {
 		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		printf("Done forming tree\n");
 
-		float t = 0.0;
+		double t = 0.0;
 		int iter = 0;
-		float dt;
+		double dt;
 		kick_return kr;
 		time_type itime = 0;
 
@@ -141,7 +141,7 @@ int hpx_main(int argc, char *argv[]) {
 			if (do_out) {
 				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
 			}
-			t = time_to_float(itime);
+			t = time_to_double(itime);
 			dt = rung_to_dt(kr.rung);
 			iter++;
 		}
