@@ -210,12 +210,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 			rc.out.insert(rc.out.end(), rc_r.out.begin(), rc_r.out.end());
 		}
 		if (do_out) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				rc.stats.g[dim] = rc_r.stats.g[dim] + rc_l.stats.g[dim];
-				rc.stats.p[dim] = rc_r.stats.p[dim] + rc_l.stats.p[dim];
-			}
-			rc.stats.pot = rc_r.stats.pot + rc_l.stats.pot;
-			rc.stats.kin = rc_r.stats.kin + rc_l.stats.kin;
+			rc.stats = rc_r.stats + rc_l.stats;
 		}
 	} else {
 		if (!dchecklist.empty() || !echecklist.empty()) {
@@ -266,12 +261,7 @@ kick_return tree::kick_direct(std::vector<source> &sources, rung_type min_rung, 
 			rc.out.insert(rc.out.end(), rc_r.out.begin(), rc_r.out.end());
 		}
 		if (do_out) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				rc.stats.g[dim] = rc_r.stats.g[dim] + rc_l.stats.g[dim];
-				rc.stats.p[dim] = rc_r.stats.p[dim] + rc_l.stats.p[dim];
-			}
-			rc.stats.pot = rc_r.stats.pot + rc_l.stats.pot;
-			rc.stats.kin = rc_r.stats.kin + rc_l.stats.kin;
+			rc.stats = rc_r.stats + rc_l.stats;
 		}
 	} else {
 		std::vector<vect<float>> x;
@@ -298,12 +288,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 	rc.rung = 0;
 	int j = 0;
 	if (do_out) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			rc.stats.g[dim] = 0.0;
-			rc.stats.p[dim] = 0.0;
-		}
-		rc.stats.pot = 0.0;
-		rc.stats.kin = 0.0;
+		rc.stats.zero();
 	}
 	for (auto i = part_begin; i != part_end; i++) {
 		if (i->rung >= min_rung || i->rung == null_rung || do_out) {

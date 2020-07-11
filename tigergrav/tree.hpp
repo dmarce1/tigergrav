@@ -22,6 +22,18 @@ struct statistics {
 	vect<double> p;
 	double pot;
 	double kin;
+	void zero() {
+		pot = kin = 0.0;
+		g = p = vect<float>(0);
+	}
+	statistics operator+( const statistics& other) const {
+		statistics C;
+		C.g = g + other.g;
+		C.p = p + other.p;
+		C.pot = pot + other.pot;
+		C.kin = kin + other.kin;
+		return C;
+	}
 };
 
 struct kick_return {
