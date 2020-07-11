@@ -10,10 +10,10 @@ public:
 	int out_parts;
 	int parts_per_node;
 	int problem_size;
+	int solver_type;
 	float theta;
 	float eta;
 	float soft_len;
-	float dt_stat;
 	float dt_out;
 	float dt_max;
 	float t_max;
@@ -22,6 +22,7 @@ public:
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc & solver_type;
 		arc & silo_on_fly;
 		arc & out_parts;
 		arc & ewald;
@@ -34,7 +35,6 @@ public:
 		arc & soft_len;
 		arc & dt_max;
 		arc & t_max;
-		arc & dt_stat;
 		arc & dt_out;
 	}
 	static options global;

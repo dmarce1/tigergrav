@@ -8,6 +8,22 @@
 
 #include <fenv.h>
 
+kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_out) {
+	if (type == 0) {
+		root_ptr->active_particles(mrung, do_out);
+		std::vector<source> sources;
+		return root_ptr->kick_direct(sources, mrung, do_out);
+	} else if (type == 1) {
+		root_ptr->compute_monopoles();
+		root_ptr->active_particles(mrung, do_out);
+		return root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
+				do_out);
+	} else {
+		printf("Unknown gravity solver type\n");
+		return kick_return();
+	}
+}
+
 int hpx_main(int argc, char *argv[]) {
 
 	feenableexcept(FE_DIVBYZERO);
@@ -73,10 +89,7 @@ int hpx_main(int argc, char *argv[]) {
 	};
 	int oi = 1;
 	int si = 1;
-	root_ptr->compute_monopoles();
-	const auto mrung = min_rung(0);
-	root_ptr->active_particles(mrung, do_out);
-	kr = root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_out);
+	kr = solve_gravity(root_ptr, opts.solver_type, min_rung(0), do_out);
 	if (do_out) {
 		output_particles(kr.out, "parts.0.silo");
 	}
@@ -94,10 +107,7 @@ int hpx_main(int argc, char *argv[]) {
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		root_ptr->compute_monopoles();
 		itime = inc(itime, kr.rung);
-		const auto mrung = min_rung(itime);
-		root_ptr->active_particles(mrung, do_out);
-		kr = root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
-				do_out);
+		kr = solve_gravity(root_ptr, opts.solver_type, min_rung(itime), do_out);
 		if (do_out) {
 			output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
 		}

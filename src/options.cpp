@@ -30,13 +30,13 @@ bool options::process_options(int argc, char *argv[]) {
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("silo_on_fly", po::value<bool>(&silo_on_fly)->default_value(true), "convert to SILO on the fly") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
+	("solver_type", po::value<int>(&solver_type)->default_value(1), "0 = direct, 1 = Barnes-Hut") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
 	("problem_size", po::value<int>(&problem_size)->default_value(4096), "number of particles") //
 	("theta", po::value<float>(&theta)->default_value(0.7), "separation parameter") //
 	("eta", po::value<float>(&eta)->default_value(0.2), "accuracy parameter") //
 	("soft_len", po::value<float>(&soft_len)->default_value(-1), "softening parameter") //
 	("dt_max", po::value<float>(&dt_max)->default_value(-1), "maximum timestep size") //
-	("dt_stat", po::value<float>(&dt_stat)->default_value(-1), "statistics frequency") //
 	("dt_out", po::value<float>(&dt_out)->default_value(-1), "output frequency") //
 	("t_max", po::value<float>(&t_max)->default_value(1.0), "end time") //
 			;
@@ -71,9 +71,6 @@ bool options::process_options(int argc, char *argv[]) {
 	if( dt_max < 0.0) {
 		dt_max = t_max / 64.0;
 	}
-	if( dt_stat < 0.0) {
-		dt_stat = dt_max;
-	}
 	if( dt_out < 0.0) {
 		dt_out = dt_max;
 	}
@@ -89,7 +86,6 @@ bool options::process_options(int argc, char *argv[]) {
 #define SHOW_STR( opt ) std::cout << std::string( #opt ) << " = " << opt << '\n';
 	SHOW(dt_max);
 	SHOW(dt_out);
-	SHOW(dt_stat);
 	SHOW(ewald);
 	SHOW(eta);
 	SHOW(out_parts);
@@ -98,6 +94,7 @@ bool options::process_options(int argc, char *argv[]) {
 	SHOW(problem_size);
 	SHOW(silo_on_fly);
 	SHOW(soft_len);
+	SHOW(solver_type);
 	SHOW(t_max);
 	SHOW(theta);
 	return true;
