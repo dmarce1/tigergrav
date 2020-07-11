@@ -204,8 +204,8 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_indirect_multipole(expansion<float> &L, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
-	if (x.size() == 0) {
+std::uint64_t gravity_indirect_multipole(expansion<float> &L, const vect<float> &x, std::vector<multi_src> &y) {
+	if( y.size() == 0) {
 		return 0;
 	}
 	std::uint64_t flop = 0;
@@ -226,6 +226,10 @@ std::uint64_t gravity_indirect_multipole(expansion<float> &L, const std::vector<
 		y[j].m = 0.0;
 		y[j].x = vect<float>(1.0);
 	}
+
+	for (int dim = 0; dim < NDIM; dim++) {
+		X[dim] = simd_vector(x[dim]);
+	}
 	for (int j = 0; j < cnt1; j += SIMD_LEN) {
 		for (int k = 0; k < SIMD_LEN; k++) {
 			M()[k] = y[j + k].m();
@@ -238,33 +242,26 @@ std::uint64_t gravity_indirect_multipole(expansion<float> &L, const std::vector<
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		for (int i = 0; i < x.size(); i++) {
+		vect<simd_vector> dX = X - Y;             		// 3 OP
+		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_vector(x[i][dim]);
+				const auto absdx = abs(dX[dim]);										// 3 OP
+				dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
 			}
+		}
+		multipole_interaction(Lacc, M, dX);
+	}
 
-			vect<simd_vector> dX = X - Y;             		// 3 OP
-			if (ewald) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					const auto absdx = abs(dX[dim]);										// 3 OP
-					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
-				}
-			}
-			multipole_interaction(Lacc, M, dX);
-		}
-	}
-	for (int i = 0; i < x.size(); i++) {
-		L() += Lacc().sum();
-		for (int j = 0; j < NDIM; j++) {
-			for (int k = 0; k <= j; j++) {
-				L(j, k) += Lacc(j, k).sum();
-				for (int l = 0; l <= k; l++) {
-					L(j, k, l) += Lacc(j, k, l).sum();
-				}
+	L() += Lacc().sum();
+	for (int j = 0; j < NDIM; j++) {
+		for (int k = 0; k <= j; j++) {
+			L(j, k) += Lacc(j, k).sum();
+			for (int l = 0; l <= k; l++) {
+				L(j, k, l) += Lacc(j, k, l).sum();
 			}
 		}
 	}
-	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
+	return (26 + ewald ? 18 : 0) * cnt1;
 }
 
 std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
