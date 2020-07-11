@@ -76,7 +76,7 @@ int hpx_main(int argc, char *argv[]) {
 	root_ptr->compute_monopoles();
 	const auto mrung = min_rung(0);
 	root_ptr->active_particles(mrung, do_out);
-	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_out);
+	kr = root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_out);
 	if (do_out) {
 		output_particles(kr.out, "parts.0.silo");
 	}
@@ -96,7 +96,7 @@ int hpx_main(int argc, char *argv[]) {
 		itime = inc(itime, kr.rung);
 		const auto mrung = min_rung(itime);
 		root_ptr->active_particles(mrung, do_out);
-		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
+		kr = root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
 				do_out);
 		if (do_out) {
 			output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
