@@ -14,9 +14,9 @@ static ewald_table_t epot;
 static std::array<ewald_table_t, NDIM> eforce;
 static std::array<std::array<ewald_table_t, NDIM>, NDIM> eforce2;
 
-static const auto one = simd_vector(1.0);
-static const auto half = simd_vector(0.5);
-static const simd_vector eps = simd_vector(std::numeric_limits<float>::min());
+static const auto one = simd_svector(1.0);
+static const auto half = simd_svector(0.5);
+static const simd_svector eps = simd_svector(std::numeric_limits<float>::min());
 
 double EW(general_vect<double, NDIM> x) {
 	general_vect<double, NDIM> n, h;
@@ -87,21 +87,21 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_vector H(h);
-	static const simd_vector H2(h2);
-	vect<simd_vector> X, Y;
-	simd_vector M;
-	std::vector<vect<simd_vector>> nG(x.size(), vect<float>(0.0));
-	std::vector<simd_vector> nPhi(x.size(), 0.0);
+	static const simd_svector H(h);
+	static const simd_svector H2(h2);
+	vect<simd_svector> X, Y;
+	simd_svector M;
+	std::vector<vect<simd_svector>> nG(x.size(), vect<float>(0.0));
+	std::vector<simd_svector> nPhi(x.size(), 0.0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
 		y[j].x = vect<float>(1.0);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_LEN) {
-		for (int k = 0; k < SIMD_LEN; k++) {
+	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
+		for (int k = 0; k < SIMD_SLEN; k++) {
 			M[k] = y[j + k].m;
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k].x[dim];
@@ -109,26 +109,26 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_vector(x[i][dim]);
+				X[dim] = simd_svector(x[i][dim]);
 			}
 
-			vect<simd_vector> dX = X - Y;             		// 3 OP
+			vect<simd_svector> dX = X - Y;             		// 3 OP
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
 					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
 				}
 			}
-			simd_vector r2 = dX[0] * dX[0];					// 1 OP
+			simd_svector r2 = dX[0] * dX[0];					// 1 OP
 			r2 = fma(dX[1], dX[1], r2);						// 2 OP
 			r2 = fma(dX[2], dX[2], r2);                     // 2 OP
-			const simd_vector rinv = rsqrt(r2 + H2);        // 2 OP
-			const simd_vector rinv3 = rinv * rinv * rinv;   // 2 OP
+			const simd_svector rinv = rsqrt(r2 + H2);        // 2 OP
+			const simd_svector rinv3 = rinv * rinv * rinv;   // 2 OP
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto tmp = M * rinv3;					// 3 OP
 				nG[i][dim] = fma(dX[dim], tmp, nG[i][dim]);  // 6 OP
 			}
-			const simd_vector kill_zero = r2 / (r2 + eps);  // 2 OP
+			const simd_svector kill_zero = r2 / (r2 + eps);  // 2 OP
 			const auto tmp = M * kill_zero; 	            // 1 OP
 			nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
 		}
@@ -151,21 +151,21 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_vector H(h);
-	static const simd_vector H2(h2);
-	vect<simd_vector> X, Y;
-	multipole<simd_vector> M;
-	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_vector> Phi(x.size(), 0.0);
+	static const simd_svector H(h);
+	static const simd_svector H2(h2);
+	vect<simd_svector> X, Y;
+	multipole<simd_svector> M;
+	std::vector<vect<simd_svector>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_svector> Phi(x.size(), 0.0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
 		y[j].x = vect<float>(1.0);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_LEN) {
-		for (int k = 0; k < SIMD_LEN; k++) {
+	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
+		for (int k = 0; k < SIMD_SLEN; k++) {
 			M()[k] = y[j + k].m();
 			for (int n = 0; n < NDIM; n++) {
 				for (int l = 0; l <= n; l++) {
@@ -178,10 +178,10 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_vector(x[i][dim]);
+				X[dim] = simd_svector(x[i][dim]);
 			}
 
-			vect<simd_vector> dX = X - Y;             		// 3 OP
+			vect<simd_svector> dX = X - Y;             		// 3 OP
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
@@ -205,7 +205,7 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_indirect_multipole(expansion<float> &L, const vect<float> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<float> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -214,14 +214,14 @@ std::uint64_t gravity_indirect_multipole(expansion<float> &L, const vect<float> 
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_vector H(h);
-	static const simd_vector H2(h2);
-	vect<simd_vector> X, Y;
-	multipole<simd_vector> M;
-	expansion<simd_vector> Lacc;
-	Lacc = simd_vector(0);
+	static const simd_svector H(h);
+	static const simd_svector H2(h2);
+	vect<simd_svector> X, Y;
+	multipole<simd_svector> M;
+	expansion<simd_svector> Lacc;
+	Lacc = simd_svector(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
@@ -229,10 +229,10 @@ std::uint64_t gravity_indirect_multipole(expansion<float> &L, const vect<float> 
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_vector(x[dim]);
+		X[dim] = simd_svector(x[dim]);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_LEN) {
-		for (int k = 0; k < SIMD_LEN; k++) {
+	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
+		for (int k = 0; k < SIMD_SLEN; k++) {
 			M()[k] = y[j + k].m();
 			for (int n = 0; n < NDIM; n++) {
 				for (int l = 0; l <= n; l++) {
@@ -243,7 +243,7 @@ std::uint64_t gravity_indirect_multipole(expansion<float> &L, const vect<float> 
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		vect<simd_vector> dX = X - Y;             		// 3 OP
+		vect<simd_svector> dX = X - Y;             		// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
@@ -272,21 +272,21 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 	}
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
-	static const auto one = simd_vector(1.0);
-	static const auto half = simd_vector(0.5);
-	vect<simd_vector> X, Y;
-	simd_vector M;
-	std::vector<vect<simd_vector>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_vector> Phi(x.size(), 0.0);
+	static const auto one = simd_svector(1.0);
+	static const auto half = simd_svector(0.5);
+	vect<simd_svector> X, Y;
+	simd_svector M;
+	std::vector<vect<simd_svector>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_svector> Phi(x.size(), 0.0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
 		y[j].x = vect<float>(1.0);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_LEN) {
-		for (int k = 0; k < SIMD_LEN; k++) {
+	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
+		for (int k = 0; k < SIMD_SLEN; k++) {
 			M[k] = y[j + k].m;
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k].x[dim];
@@ -294,11 +294,11 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_vector(x[i][dim]);
+				X[dim] = simd_svector(x[i][dim]);
 			}
 
-			vect<simd_vector> dX = X - Y;             										// 3 OP
-			vect<simd_vector> sgn;
+			vect<simd_svector> dX = X - Y;             										// 3 OP
+			vect<simd_svector> sgn;
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
 				sgn[dim] = copysign(dX[dim] * (half - absdx), 1.0);						// 9 OP
@@ -306,29 +306,29 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 			}
 
 			vect<simd_int_vector> I;
-			vect<simd_vector> wm;
-			vect<simd_vector> w;
-			static const simd_vector dx0(0.5 / NE);
-			static const simd_vector max_i(NE - 1);
+			vect<simd_svector> wm;
+			vect<simd_svector> w;
+			static const simd_svector dx0(0.5 / NE);
+			static const simd_svector max_i(NE - 1);
 			for (int dim = 0; dim < NDIM; dim++) {
 				I[dim] = min(dX[dim] / dx0, max_i).to_int();								// 9 OP
-				wm[dim] = (dX[dim] / dx0 - simd_vector(I[dim]));							// 9 OP
-				w[dim] = simd_vector(1.0) - wm[dim];										// 3 OP
+				wm[dim] = (dX[dim] / dx0 - simd_svector(I[dim]));							// 9 OP
+				w[dim] = simd_svector(1.0) - wm[dim];										// 3 OP
 			}
-			const simd_vector w00 = w[0] * w[1];											// 1 OP
-			const simd_vector w01 = w[0] * wm[1];											// 1 OP
-			const simd_vector w10 = wm[0] * w[1];											// 1 OP
-			const simd_vector w11 = wm[0] * wm[1];											// 1 OP
-			const simd_vector w000 = w00 * w[2];											// 1 OP
-			const simd_vector w001 = w00 * wm[2];											// 1 OP
-			const simd_vector w010 = w01 * w[2];											// 1 OP
-			const simd_vector w011 = w01 * wm[2];											// 1 OP
-			const simd_vector w100 = w10 * w[2];											// 1 OP
-			const simd_vector w101 = w10 * wm[2];											// 1 OP
-			const simd_vector w110 = w11 * w[2];											// 1 OP
-			const simd_vector w111 = w11 * wm[2];											// 1 OP
-			vect<simd_vector> F;
-			simd_vector Pot;
+			const simd_svector w00 = w[0] * w[1];											// 1 OP
+			const simd_svector w01 = w[0] * wm[1];											// 1 OP
+			const simd_svector w10 = wm[0] * w[1];											// 1 OP
+			const simd_svector w11 = wm[0] * wm[1];											// 1 OP
+			const simd_svector w000 = w00 * w[2];											// 1 OP
+			const simd_svector w001 = w00 * wm[2];											// 1 OP
+			const simd_svector w010 = w01 * w[2];											// 1 OP
+			const simd_svector w011 = w01 * wm[2];											// 1 OP
+			const simd_svector w100 = w10 * w[2];											// 1 OP
+			const simd_svector w101 = w10 * wm[2];											// 1 OP
+			const simd_svector w110 = w11 * w[2];											// 1 OP
+			const simd_svector w111 = w11 * wm[2];											// 1 OP
+			vect<simd_svector> F;
+			simd_svector Pot;
 			const simd_int_vector J = I[0] * simd_int_vector(NEP12) + I[1] * simd_int_vector(NEP1) + I[2];
 			const simd_int_vector J000 = J;
 			const simd_int_vector J001 = J + simd_int_vector(1);
@@ -338,7 +338,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 			const simd_int_vector J101 = J + simd_int_vector(1 + NEP12);
 			const simd_int_vector J110 = J + simd_int_vector(NEP1 + NEP12);
 			const simd_int_vector J111 = J + simd_int_vector(1 + NEP1 + NEP12);
-			simd_vector y000, y001, y010, y011, y100, y101, y110, y111;
+			simd_svector y000, y001, y010, y011, y100, y101, y110, y111;
 			for (int dim = 0; dim < NDIM; dim++) {
 				y000.gather(eforce[dim].data(), J000);
 				y001.gather(eforce[dim].data(), J001);
@@ -377,10 +377,10 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 				const auto tmp = M * sgn[dim];                                      // 3 OP
 				G[i][dim] = fma(F[dim], tmp, G[i][dim]);                            // 6 OP
 			}
-			simd_vector r2 = dX[0] * dX[0];										     // 1 OP
+			simd_svector r2 = dX[0] * dX[0];										     // 1 OP
 			r2 = fma(dX[1], dX[1], r2);												 // 2 OP
 			r2 = fma(dX[2], dX[2], r2);                     						 // 2 OP
-			const simd_vector kill_zero = r2 / (r2 + eps); 							 // 2 OP
+			const simd_svector kill_zero = r2 / (r2 + eps); 							 // 2 OP
 			const auto tmp = M * kill_zero;											 // 1 OP
 			Phi[i] = fma(Pot, tmp, Phi[i]);											 // 2 OP
 		}
@@ -394,35 +394,35 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 	return 133 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_indirect_ewald(expansion<float> &L, const vect<float> &x, std::vector<source> &y) {
+std::uint64_t gravity_indirect_ewald(expansion<double> &L, const vect<float> &x, std::vector<source> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
-	static const auto one = simd_vector(1.0);
-	static const auto half = simd_vector(0.5);
-	vect<simd_vector> X, Y;
-	simd_vector M;
-	expansion<simd_vector> Lacc;
+	static const auto one = simd_svector(1.0);
+	static const auto half = simd_svector(0.5);
+	vect<simd_svector> X, Y;
+	simd_svector M;
+	expansion<simd_svector> Lacc;
 	Lacc = 0;
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
 		y[j].x = vect<float>(1.0);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_LEN) {
-		for (int k = 0; k < SIMD_LEN; k++) {
+	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
+		for (int k = 0; k < SIMD_SLEN; k++) {
 			M[k] = y[j + k].m;
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
-			X[dim] = simd_vector(x[dim]);
+			X[dim] = simd_svector(x[dim]);
 		}
 
-		vect<simd_vector> dX = X - Y;             										// 3 OP
-		vect<simd_vector> sgn;
+		vect<simd_svector> dX = X - Y;             										// 3 OP
+		vect<simd_svector> sgn;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto absdx = abs(dX[dim]);										// 3 OP
 			sgn[dim] = copysign(dX[dim] * (half - absdx), 1.0);						// 9 OP
@@ -430,29 +430,29 @@ std::uint64_t gravity_indirect_ewald(expansion<float> &L, const vect<float> &x, 
 		}
 
 		vect<simd_int_vector> I;
-		vect<simd_vector> wm;
-		vect<simd_vector> w;
-		static const simd_vector dx0(0.5 / NE);
-		static const simd_vector max_i(NE - 1);
+		vect<simd_svector> wm;
+		vect<simd_svector> w;
+		static const simd_svector dx0(0.5 / NE);
+		static const simd_svector max_i(NE - 1);
 		for (int dim = 0; dim < NDIM; dim++) {
 			I[dim] = min(dX[dim] / dx0, max_i).to_int();								// 9 OP
-			wm[dim] = (dX[dim] / dx0 - simd_vector(I[dim]));							// 9 OP
-			w[dim] = simd_vector(1.0) - wm[dim];										// 3 OP
+			wm[dim] = (dX[dim] / dx0 - simd_svector(I[dim]));							// 9 OP
+			w[dim] = simd_svector(1.0) - wm[dim];										// 3 OP
 		}
-		const simd_vector w00 = w[0] * w[1];											// 1 OP
-		const simd_vector w01 = w[0] * wm[1];											// 1 OP
-		const simd_vector w10 = wm[0] * w[1];											// 1 OP
-		const simd_vector w11 = wm[0] * wm[1];											// 1 OP
-		const simd_vector w000 = w00 * w[2];											// 1 OP
-		const simd_vector w001 = w00 * wm[2];											// 1 OP
-		const simd_vector w010 = w01 * w[2];											// 1 OP
-		const simd_vector w011 = w01 * wm[2];											// 1 OP
-		const simd_vector w100 = w10 * w[2];											// 1 OP
-		const simd_vector w101 = w10 * wm[2];											// 1 OP
-		const simd_vector w110 = w11 * w[2];											// 1 OP
-		const simd_vector w111 = w11 * wm[2];											// 1 OP
-		vect<simd_vector> F;
-		simd_vector Pot;
+		const simd_svector w00 = w[0] * w[1];											// 1 OP
+		const simd_svector w01 = w[0] * wm[1];											// 1 OP
+		const simd_svector w10 = wm[0] * w[1];											// 1 OP
+		const simd_svector w11 = wm[0] * wm[1];											// 1 OP
+		const simd_svector w000 = w00 * w[2];											// 1 OP
+		const simd_svector w001 = w00 * wm[2];											// 1 OP
+		const simd_svector w010 = w01 * w[2];											// 1 OP
+		const simd_svector w011 = w01 * wm[2];											// 1 OP
+		const simd_svector w100 = w10 * w[2];											// 1 OP
+		const simd_svector w101 = w10 * wm[2];											// 1 OP
+		const simd_svector w110 = w11 * w[2];											// 1 OP
+		const simd_svector w111 = w11 * wm[2];											// 1 OP
+		vect<simd_svector> F;
+		simd_svector Pot;
 		const simd_int_vector J = I[0] * simd_int_vector(NEP12) + I[1] * simd_int_vector(NEP1) + I[2];
 		const simd_int_vector J000 = J;
 		const simd_int_vector J001 = J + simd_int_vector(1);
@@ -462,7 +462,7 @@ std::uint64_t gravity_indirect_ewald(expansion<float> &L, const vect<float> &x, 
 		const simd_int_vector J101 = J + simd_int_vector(1 + NEP12);
 		const simd_int_vector J110 = J + simd_int_vector(NEP1 + NEP12);
 		const simd_int_vector J111 = J + simd_int_vector(1 + NEP1 + NEP12);
-		simd_vector y000, y001, y010, y011, y100, y101, y110, y111;
+		simd_svector y000, y001, y010, y011, y100, y101, y110, y111;
 		for (int dim = 0; dim < NDIM; dim++) {
 			y000.gather(eforce[dim].data(), J000);
 			y001.gather(eforce[dim].data(), J001);

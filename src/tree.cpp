@@ -163,7 +163,7 @@ std::vector<vect<float>> tree::get_positions() const {
 }
 
 kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
-		expansion<float> L, rung_type min_rung, bool do_out) {
+		expansion<double> L, rung_type min_rung, bool do_out) {
 
 	kick_return rc;
 	if (!has_active && !do_out) {
@@ -287,7 +287,7 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 		int j = 0;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-				expansion<float> this_L = L << (pos_to_double(i->x) - multi.x);
+				expansion<double> this_L = L << (pos_to_double(i->x) - multi.x);
 				f[j].phi += this_L();
 				for (int dim = 0; dim < NDIM; dim++) {
 					f[j].g[dim] += -this_L(dim);
