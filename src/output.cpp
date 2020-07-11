@@ -77,4 +77,5 @@ void output_particles(const std::vector<output> &parts, const std::string filena
 	}
 	DBPutPointvar1(db, "phi", "points", phi.data(), nparts, DB_FLOAT, NULL);
 	DBPutPointvar1(db, "rung", "points", rung.data(), nparts, DB_INT, NULL);
+	DBClose(db);
 }
