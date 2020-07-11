@@ -279,14 +279,25 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 		}
 		std::vector<force> f(x.size(), { 0, vect<double>(0) });
 		int j = 0;
+//		for (auto i = part_begin; i != part_end; i++) {
+//			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
+//				force this_f = L.translate_L2((pos_to_double(i->x) - multi.x));
+//				f[j].phi += this_f.phi;
+//				f[j].g = f[j].g + this_f.g;
+//				j++;
+//			}
+//		}
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-				force this_f = L.translate_L2((pos_to_double(i->x) - multi.x));
-				f[j].phi += this_f.phi;
-				f[j].g = f[j].g + this_f.g;
+				expansion<double> this_L = L << (pos_to_double(i->x) - multi.x);
+				f[j].phi += this_L();
+				for (int dim = 0; dim < NDIM; dim++) {
+					f[j].g[dim] += -this_L(dim);
+				}
 				j++;
 			}
 		}
+
 		flop += gravity_direct(f, x, dsources);
 		if (opts.ewald) {
 			flop += gravity_ewald(f, x, esources);
