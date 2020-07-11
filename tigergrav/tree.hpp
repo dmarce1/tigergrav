@@ -53,7 +53,7 @@ class tree {
 	bool has_active;
 	std::array<tree_ptr, NCHILD> children;
 	std::array<vect<float>, NCHILD> child_com;
-
+	vect<float> coord_cent;
 
 	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;

@@ -56,6 +56,9 @@ tree::tree(range box, part_iter b, part_iter e) {
 	for (int dim = 1; dim < NDIM; dim++) {
 		max_span = std::max(max_span, box.max[dim] - box.min[dim]);
 	}
+	for( int dim = 0; dim < NDIM; dim++) {
+		coord_cent[dim] = 0.5 * (box.max[dim] + box.min[dim]);
+	}
 	if (e - b > opts.parts_per_node) {
 		leaf = false;
 		float max_span = 0.0;
@@ -98,6 +101,8 @@ multipole_info tree::compute_multipoles() {
 		}
 		if (multi.m() != 0.0) {
 			multi.x = multi.x / multi.m();
+		} else {
+			multi.x = coord_cent;
 		}
 		for (auto i = part_begin; i != part_end; i++) {
 			for (int j = 0; j < NDIM; j++) {
@@ -120,7 +125,7 @@ multipole_info tree::compute_multipoles() {
 		if (multi.m() != 0.0) {
 			multi.x = (ml.x * ml.m() + mr.x * mr.m()) / multi.m();
 		} else {
-			multi.x = vect<float>(0.0);
+			multi.x = coord_cent;
 		}
 		multi.m = (ml.m >> (ml.x - multi.x)) + (mr.m >> (mr.x - multi.x));
 		multi.r = std::max(abs(ml.x - multi.x) + ml.r, abs(mr.x - multi.x) + mr.r);
