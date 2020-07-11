@@ -17,15 +17,7 @@ using tree_ptr = std::shared_ptr<tree>;
 
 using mutex_type = hpx::lcos::local::spinlock;
 
-struct statistics {
-	vect<double> g;
-	vect<double> p;
-	double pot;
-	double kin;
-};
-
 struct kick_return {
-	statistics stats;
 	rung_type rung;
 	std::vector<output> out;
 };
@@ -59,8 +51,8 @@ public:
 //	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
 	kick_return kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
-			rung_type min_rung, bool do_statistics, bool do_output);
-	kick_return do_kick(const std::vector<force>& forces, rung_type min_rung, bool do_stats, bool do_out);
+			rung_type min_rung, bool do_output);
+	kick_return do_kick(const std::vector<force>& forces, rung_type min_rung, bool do_out);
 
 };
 

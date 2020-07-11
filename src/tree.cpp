@@ -124,10 +124,10 @@ std::vector<vect<float>> tree::get_positions() const {
 }
 
 kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
-		rung_type min_rung, bool do_stats, bool do_out) {
+		rung_type min_rung, bool do_out) {
 
 	kick_return rc;
-	if (!has_active && !do_stats) {
+	if (!has_active) {
 		rc.rung = 0;
 		return rc;
 	}
@@ -190,66 +190,50 @@ kick_return tree::kick(std::vector<tree_ptr> dchecklist, std::vector<source> dso
 			rc_l_fut = hpx::async(
 					[=]() {
 						const auto rc = children[0]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung,
-								do_stats, do_out);
+								do_out);
 						dec_thread();
 						return rc;
 					});
 		} else {
-			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung, do_stats, do_out));
+			rc_l_fut = hpx::make_ready_future(children[0]->kick(dchecklist, dsources, echecklist, esources, min_rung, do_out));
 		}
-		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
+		const auto rc_r = children[1]->kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung,  do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_out) {
 			rc.out = std::move(rc_l.out);
 			rc.out.insert(rc.out.end(), rc_r.out.begin(), rc_r.out.end());
 		}
-		if (do_stats) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				rc.stats.g[dim] = rc_r.stats.g[dim] + rc_l.stats.g[dim];
-				rc.stats.p[dim] = rc_r.stats.p[dim] + rc_l.stats.p[dim];
-			}
-			rc.stats.pot = rc_r.stats.pot + rc_l.stats.pot;
-			rc.stats.kin = rc_r.stats.kin + rc_l.stats.kin;
-		}
 	} else {
 		if (!dchecklist.empty() || !echecklist.empty()) {
-			rc = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_stats, do_out);
+			rc = kick(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources), min_rung, do_out);
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
+				if (i->rung >= min_rung || i->rung == null_rung || (i->flags.out && do_out)) {
 					x.push_back(pos_to_double(i->x));
 				}
 			}
 			std::vector<force> f(x.size());
-			flop += gravity_direct(f, x, dsources, do_stats || do_out);
+			flop += gravity_direct(f, x, dsources, do_out);
 			if (opts.ewald) {
-				flop += gravity_ewald(f, x, esources, do_stats || do_out);
+				flop += gravity_ewald(f, x, esources, do_out);
 			}
-			rc = do_kick(f, min_rung, do_stats, do_out);
+			rc = do_kick(f, min_rung, do_out);
 		}
 	}
 	return rc;
 }
 
-kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool do_stats, bool do_out) {
+kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung,  bool do_out) {
 	static const auto opts = options::get();
 	static const float eps = 10.0 * std::numeric_limits<float>::min();
 	static const float m = 1.0 / opts.problem_size;
 	kick_return rc;
 	rc.rung = 0;
 	int j = 0;
-	if (do_stats) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			rc.stats.g[dim] = 0.0;
-			rc.stats.p[dim] = 0.0;
-		}
-		rc.stats.pot = 0.0;
-		rc.stats.kin = 0.0;
-	}
 	for (auto i = part_begin; i != part_end; i++) {
-		if (i->rung >= min_rung || i->rung == null_rung || do_stats || (i->flags.out && do_out)) {
+		if (i->rung >= min_rung || i->rung == null_rung  || (i->flags.out && do_out)) {
 			if (i->rung >= min_rung || i->rung == null_rung) {
 				if (i->rung != -1) {
 					const float dt = rung_to_dt(i->rung);
@@ -263,12 +247,6 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 				dt = rung_to_dt(rung);
 				i->rung = rung;
 				i->v = i->v + f[j].g * (0.5 * dt);
-			}
-			if (do_stats) {
-				rc.stats.g = rc.stats.g + f[j].g * m;
-				rc.stats.p = rc.stats.p + i->v * m;
-				rc.stats.pot += 0.5 * m * f[j].phi;
-				rc.stats.kin += 0.5 * m * i->v.dot(i->v);
 			}
 			if (do_out && i->flags.out) {
 				output out;
