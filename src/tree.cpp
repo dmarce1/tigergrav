@@ -296,9 +296,6 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 			}
 		}
 		flop += gravity_direct(f, x, dsources);
-		if( esources.size() != 0 ) {
-			printf( "%i\n", esources.size());
-		}
 		if (opts.ewald) {
 			flop += gravity_ewald(f, x, esources);
 		}
