@@ -32,7 +32,7 @@ int hpx_main(int argc, char *argv[]) {
 
 	options opts;
 	opts.process_options(argc, argv);
-
+	tree::set_theta(opts.theta);
 	if (opts.ewald) {
 		init_ewald();
 	}

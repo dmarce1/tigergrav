@@ -51,9 +51,11 @@ class tree {
 	bool has_active;
 	std::array<tree_ptr, NCHILD> children;
 
+	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;
 
 public:
+	static void set_theta(float);
 	static std::uint64_t get_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
 	tree(range, part_iter, part_iter);

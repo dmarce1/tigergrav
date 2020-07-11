@@ -7,6 +7,8 @@
 #include <hpx/include/threads.hpp>
 
 std::atomic<std::uint64_t> tree::flop(0);
+float tree::theta_inv;
+
 
 static int num_threads = 1;
 static mutex_type thread_mtx;
@@ -38,6 +40,11 @@ auto thread_if_avail(F &&f) {
 	} else {
 		return hpx::make_ready_future(f());
 	}
+}
+
+
+void tree::set_theta(float t) {
+	theta_inv = 1.0 / t;
 }
 
 tree_ptr tree::new_(range r, part_iter b, part_iter e) {
@@ -161,7 +168,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 	for (auto c : dchecklist) {
 		auto other = c->get_monopole();
 		const auto dx = separation(mono.x - other.x);
-		if (dx > (mono.r + other.r) / opts.theta) {
+		if (dx > (mono.r + other.r) * theta_inv) {
 			dsources.push_back( { other.m, other.x });
 		} else {
 			if (c->is_leaf()) {
@@ -181,7 +188,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 		for (auto c : echecklist) {
 			auto other = c->get_monopole();
 			const auto dx = ewald_far_separation(mono.x - other.x);
-			if (dx > (mono.r + other.r) / opts.theta) {
+			if (dx > (mono.r + other.r) * theta_inv) {
 				esources.push_back( { other.m, other.x });
 			} else {
 				if (c->is_leaf()) {
