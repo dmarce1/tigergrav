@@ -223,9 +223,9 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> 
 				}
 			}
 			std::vector<force> f(x.size());
-			flop += gravity_direct(f, x, dsources, true);
+			flop += gravity_direct(f, x, dsources);
 			if (opts.ewald) {
-				flop += gravity_ewald(f, x, esources, true);
+				flop += gravity_ewald(f, x, esources);
 			}
 			rc = do_kick(f, min_rung, do_out);
 		}
@@ -271,9 +271,9 @@ kick_return tree::kick_direct(std::vector<source> &sources, rung_type min_rung, 
 			}
 		}
 		std::vector<force> f(x.size());
-		flop += gravity_direct(f, x, sources, true);
+		flop += gravity_direct(f, x, sources);
 		if (opts.ewald) {
-			flop += gravity_ewald(f, x, sources, true);
+			flop += gravity_ewald(f, x, sources);
 		}
 		rc = do_kick(f, min_rung, do_out);
 	}

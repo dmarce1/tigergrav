@@ -76,7 +76,7 @@ float ewald_far_separation(const vect<float> x) {
 	return std::max(std::sqrt(d), float(0.25));
 }
 
-std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y, const bool do_phi) {
+std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -126,25 +126,21 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 				const auto tmp = M * rinv3;					// 3 OP
 				nG[i][dim] = fma(dX[dim], tmp, nG[i][dim]);  // 6 OP
 			}
-			if (do_phi) {
-				const simd_vector kill_zero = r2 / (r2 + eps);  // 2 OP
-				const auto tmp = M * kill_zero; 	            // 1 OP
-				nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
-			}
+			const simd_vector kill_zero = r2 / (r2 + eps);  // 2 OP
+			const auto tmp = M * kill_zero; 	            // 1 OP
+			nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			f[i].g[dim] = -nG[i][dim].sum();
 		}
-		if (do_phi) {
-			f[i].phi = -nPhi[i].sum();
-		}
+		f[i].phi = -nPhi[i].sum();
 	}
-	return (do_phi ? 26 : 21 + ewald ? 18 : 0) * cnt1 * x.size();
+	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y, const bool do_phi) {
+std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -235,47 +231,41 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 				F[dim] = fma(w110, y110, F[dim]);												// 6 OP
 				F[dim] = fma(w111, y111, F[dim]);												// 6 OP
 			}
-			if (do_phi) {
-				y000.gather(epot.data(), J000);
-				y001.gather(epot.data(), J001);
-				y010.gather(epot.data(), J010);
-				y011.gather(epot.data(), J011);
-				y100.gather(epot.data(), J100);
-				y101.gather(epot.data(), J101);
-				y110.gather(epot.data(), J110);
-				y111.gather(epot.data(), J111);
-				Pot = w000 * y000;																// 1 OP
-				Pot = fma(w001, y001, Pot);												// 2 OP
-				Pot = fma(w010, y010, Pot);												// 2 OP
-				Pot = fma(w011, y011, Pot);												// 2 OP
-				Pot = fma(w100, y100, Pot);												// 2 OP
-				Pot = fma(w101, y101, Pot);												// 2 OP
-				Pot = fma(w110, y110, Pot);												// 2 OP
-				Pot = fma(w111, y111, Pot);												// 2 OP
-			}
+			y000.gather(epot.data(), J000);
+			y001.gather(epot.data(), J001);
+			y010.gather(epot.data(), J010);
+			y011.gather(epot.data(), J011);
+			y100.gather(epot.data(), J100);
+			y101.gather(epot.data(), J101);
+			y110.gather(epot.data(), J110);
+			y111.gather(epot.data(), J111);
+			Pot = w000 * y000;																// 1 OP
+			Pot = fma(w001, y001, Pot);												// 2 OP
+			Pot = fma(w010, y010, Pot);												// 2 OP
+			Pot = fma(w011, y011, Pot);												// 2 OP
+			Pot = fma(w100, y100, Pot);												// 2 OP
+			Pot = fma(w101, y101, Pot);												// 2 OP
+			Pot = fma(w110, y110, Pot);												// 2 OP
+			Pot = fma(w111, y111, Pot);												// 2 OP
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto tmp = M * sgn[dim];                                      // 3 OP
 				G[i][dim] = fma(F[dim], tmp, G[i][dim]);                            // 6 OP
 			}
-			if (do_phi) {
-				simd_vector r2 = dX[0] * dX[0];										     // 1 OP
-				r2 = fma(dX[1], dX[1], r2);												 // 2 OP
-				r2 = fma(dX[2], dX[2], r2);                     						 // 2 OP
-				const simd_vector kill_zero = r2 / (r2 + eps); 							 // 2 OP
-				const auto tmp = M * kill_zero;											 // 1 OP
-				Phi[i] = fma(Pot, tmp, Phi[i]);											 // 2 OP
-			}
+			simd_vector r2 = dX[0] * dX[0];										     // 1 OP
+			r2 = fma(dX[1], dX[1], r2);												 // 2 OP
+			r2 = fma(dX[2], dX[2], r2);                     						 // 2 OP
+			const simd_vector kill_zero = r2 / (r2 + eps); 							 // 2 OP
+			const auto tmp = M * kill_zero;											 // 1 OP
+			Phi[i] = fma(Pot, tmp, Phi[i]);											 // 2 OP
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			f[i].g[dim] += G[i][dim].sum();
 		}
-		if (do_phi) {
-			f[i].phi += Phi[i].sum();
-		}
+		f[i].phi += Phi[i].sum();
 	}
-	return (do_phi ? 133 : 108) * cnt1 * x.size();
+	return 133 * cnt1 * x.size();
 }
 
 void init_ewald() {
