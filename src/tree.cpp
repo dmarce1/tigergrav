@@ -224,14 +224,14 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 			}
 			std::vector<force> f(x.size(), { 0, vect<float>(0) });
 			int j = 0;
-			for (auto i = part_begin; i != part_end; i++, j++) {
+			for (auto i = part_begin; i != part_end; i++) {
 				if (i->rung >= min_rung || i->rung == null_rung || do_out) {
 					expansion<float> this_L = L << (pos_to_double(i->x) - multi.x);
 					f[j].phi += this_L();
 					for (int dim = 0; dim < NDIM; dim++) {
 						f[j].g[dim] += -this_L(dim);
 					}
-
+					j++;
 				}
 			}
 			flop += gravity_direct(f, x, dsources);
