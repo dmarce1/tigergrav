@@ -204,6 +204,69 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
+std::uint64_t gravity_indirect_multipole(expansion<float> &L, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
+	if (x.size() == 0) {
+		return 0;
+	}
+	std::uint64_t flop = 0;
+	static const auto opts = options::get();
+	static const bool ewald = opts.ewald;
+	static const auto h = opts.soft_len;
+	static const auto h2 = h * h;
+	static const simd_vector H(h);
+	static const simd_vector H2(h2);
+	vect<simd_vector> X, Y;
+	multipole<simd_vector> M;
+	expansion<simd_vector> Lacc;
+	Lacc = simd_vector(0);
+	const auto cnt1 = y.size();
+	const auto cnt2 = ((cnt1 - 1 + SIMD_LEN) / SIMD_LEN) * SIMD_LEN;
+	y.resize(cnt2);
+	for (int j = cnt1; j < cnt2; j++) {
+		y[j].m = 0.0;
+		y[j].x = vect<float>(1.0);
+	}
+	for (int j = 0; j < cnt1; j += SIMD_LEN) {
+		for (int k = 0; k < SIMD_LEN; k++) {
+			M()[k] = y[j + k].m();
+			for (int n = 0; n < NDIM; n++) {
+				for (int l = 0; l <= n; l++) {
+					M(n, l)[k] = y[j + k].m(n, l);
+				}
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = y[j + k].x[dim];
+			}
+		}
+		for (int i = 0; i < x.size(); i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				X[dim] = simd_vector(x[i][dim]);
+			}
+
+			vect<simd_vector> dX = X - Y;             		// 3 OP
+			if (ewald) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					const auto absdx = abs(dX[dim]);										// 3 OP
+					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+				}
+			}
+			multipole_interaction(Lacc, M, dX);
+		}
+	}
+	for (int i = 0; i < x.size(); i++) {
+		L() += Lacc().sum();
+		for (int j = 0; j < NDIM; j++) {
+			for (int k = 0; k <= j; j++) {
+				L(j, k) += Lacc(j, k).sum();
+				for (int l = 0; l <= k; l++) {
+					L(j, k, l) += Lacc(j, k, l).sum();
+				}
+			}
+		}
+	}
+	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
+}
+
 std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
 	if (x.size() == 0) {
 		return 0;

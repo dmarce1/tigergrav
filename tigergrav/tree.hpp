@@ -44,7 +44,6 @@ struct kick_return {
 	std::vector<output> out;
 };
 
-
 class tree {
 	multipole_info multi;
 	part_iter part_begin;
@@ -53,6 +52,8 @@ class tree {
 	float max_span;
 	bool has_active;
 	std::array<tree_ptr, NCHILD> children;
+	std::array<vect<float>, NCHILD> child_com;
+
 
 	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;
@@ -74,6 +75,7 @@ public:
 	bool active_particles(int rung, bool do_out);
 	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<multi_src> multi_srcs, std::vector<tree_ptr> echecklist,
 			std::vector<source> esources, rung_type min_rung, bool do_output);
+	kick_return kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, expansion<float> L, rung_type min_rung, bool do_output);
 	kick_return kick_direct(std::vector<source>&, rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
 

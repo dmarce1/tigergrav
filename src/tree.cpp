@@ -124,6 +124,8 @@ multipole_info tree::compute_multipoles() {
 		}
 		multi.m = (ml.m >> (ml.x - multi.x)) + (mr.m >> (mr.x - multi.x));
 		multi.r = std::max(abs(ml.x - multi.x) + ml.r, abs(mr.x - multi.x) + mr.r);
+		child_com[0] = ml.x;
+		child_com[1] = mr.x;
 	}
 	return multi;
 }
@@ -154,6 +156,15 @@ std::vector<vect<float>> tree::get_positions() const {
 	}
 	return pos;
 }
+
+
+kick_return kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, expansion<float> L, rung_type min_rung, bool do_output) {
+
+
+
+
+}
+
 
 kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<source> dsources, std::vector<multi_src> multi_srcs, std::vector<tree_ptr> echecklist,
 		std::vector<source> esources, rung_type min_rung, bool do_out) {
