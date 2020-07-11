@@ -168,6 +168,9 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 			for (int n = 0; n < NDIM; n++) {
 				for (int l = 0; l <= n; l++) {
 					M(n, l)[k] = y[j + k].m(n, l);
+					for (int p = 0; p <= l; p++) {
+						M(n, l, p)[k] = y[j + k].m(n, l, p);
+					}
 				}
 			}
 			for (int dim = 0; dim < NDIM; dim++) {

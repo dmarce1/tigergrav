@@ -104,11 +104,13 @@ multipole_info tree::compute_multipoles() {
 			multi.x = coord_cent;
 		}
 		for (auto i = part_begin; i != part_end; i++) {
+			const auto X = multi.x - pos_to_double(i->x);
 			for (int j = 0; j < NDIM; j++) {
 				for (int k = 0; k <= j; k++) {
-					const auto Xj = pos_to_double(i->x[j]);
-					const auto Xk = pos_to_double(i->x[k]);
-					multi.m(j, k) += m * (Xj - multi.x[j]) * (Xk - multi.x[k]);
+					multi.m(j, k) += m * X[j] * X[k];
+					for (int l = 0; l <= k; l++) {
+						multi.m(j, k, l) += m * X[j] * X[k] * X[l];
+					}
 				}
 			}
 		}
@@ -126,7 +128,7 @@ multipole_info tree::compute_multipoles() {
 		} else {
 			multi.x = coord_cent;
 		}
-		multi.m = (ml.m >> (ml.x - multi.x)) + (mr.m >> (mr.x - multi.x));
+		multi.m = (ml.m >> (multi.x - ml.x)) + (mr.m >> (multi.x - mr.x));
 		multi.r = std::max(abs(ml.x - multi.x) + ml.r, abs(mr.x - multi.x) + mr.r);
 		child_com[0] = ml.x;
 		child_com[1] = mr.x;

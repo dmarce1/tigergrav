@@ -20,7 +20,7 @@
 
 #include <tigergrav/multipole.hpp>
 
-constexpr int LP = 20;
+constexpr int LP = 35;
 
 struct force {
 	float phi;
@@ -46,6 +46,8 @@ public:
 	T& operator ()(int i, int j);
 	T operator ()(int i, int j, int k) const;
 	T& operator ()(int i, int j, int k);
+	T operator ()(int i, int j, int k, int l) const;
+	T& operator ()(int i, int j, int k, int l);
 	expansion<T>& operator =(const expansion<T> &expansion);
 	expansion<T>& operator =(T expansion);
 	force translate_L2(const vect<T> &dX) const;
@@ -107,6 +109,24 @@ inline T& expansion<T>::operator ()(int i, int j, int k) {
 }
 
 template<class T>
+inline T& expansion<T>::operator ()(int i, int j, int k, int l) {
+	static constexpr size_t map4[3][3][3][3] = { { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7,
+			8 }, { 5, 8, 9 } } }, { { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 3, 6, 7 }, { 6, 10, 11 }, { 7, 11, 12 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8,
+			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
+			{ 9, 13, 14 } } } };
+	return (*this)[20 + map4[i][j][k][l]];
+}
+
+template<class T>
+inline T expansion<T>::operator ()(int i, int j, int k, int l) const {
+	static constexpr size_t map4[3][3][3][3] = { { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7,
+			8 }, { 5, 8, 9 } } }, { { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 3, 6, 7 }, { 6, 10, 11 }, { 7, 11, 12 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8,
+			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
+			{ 9, 13, 14 } } } };
+	return (*this)[20 + map4[i][j][k][l]];
+}
+
+template<class T>
 inline expansion<T>& expansion<T>::operator =(const expansion<T> &expansion) {
 	for (int i = 0; i < LP; i++) {
 		(*this)[i] = expansion[i];
@@ -137,7 +157,7 @@ inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
-			me() += me(a, b) * dX[a] * dX[b] * float(0.5);
+			me() += me(a, b) * dX[a] * dX[b] * (0.5);
 		}
 	}
 	for (int a = 0; a < 3; a++) {
@@ -155,7 +175,7 @@ inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
-				me(a) += me(a, b, c) * dX[b] * dX[c] * float(0.5);
+				me(a) += me(a, b, c) * dX[b] * dX[c] * (0.5);
 			}
 		}
 	}
@@ -179,7 +199,7 @@ inline force expansion<T>::translate_L2(const vect<T> &dX) const {
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
-			f.phi += me(a, b) * dX[a] * dX[b] * float(0.5);
+			f.phi += me(a, b) * dX[a] * dX[b] * (0.5);
 		}
 	}
 	for (int a = 0; a < 3; a++) {
@@ -198,7 +218,7 @@ inline force expansion<T>::translate_L2(const vect<T> &dX) const {
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
-				f.g[a] -= me(a, b, c) * dX[b] * dX[c] * float(0.5);
+				f.g[a] -= me(a, b, c) * dX[b] * dX[c] * (0.5);
 			}
 		}
 	}
@@ -246,6 +266,7 @@ inline expansion<T> green_direct(const vect<T> &dX) {
 	const T d1 = -d0 * r2inv;
 	const T d2 = -3.0 * d1 * r2inv;
 	const T d3 = -5.0 * d2 * r2inv;
+	const T d4 = -7.0 * d3 * r2inv;
 
 	expansion<T> D;
 	D = 0.0;
@@ -263,6 +284,42 @@ inline expansion<T> green_direct(const vect<T> &dX) {
 			}
 		}
 	}
+	for (int i = 0; i < NDIM; i++) {
+		for (int j = 0; j <= i; j++) {
+			for (int k = 0; k <= j; k++) {
+				for (int l = 0; l <= k; l++) {
+					D(i, j, k, l) = dX[i] * dX[j] * dX[k] * dX[l] * d4;
+					if (i == j) {
+						D(i, j, k, l) += dX[k] * dX[l] * d3;
+					}
+					if (i == k) {
+						D(i, j, k, l) += dX[j] * dX[l] * d3;
+					}
+					if (i == l) {
+						D(i, j, k, l) += dX[j] * dX[k] * d3;
+					}
+					if (j == k) {
+						D(i, j, k, l) += dX[i] * dX[l] * d3;
+					}
+					if (j == l) {
+						D(i, j, k, l) += dX[i] * dX[k] * d3;
+					}
+					if (k == l) {
+						D(i, j, k, l) += dX[i] * dX[j] * d3;
+					}
+					if (i == j && k == l) {
+						D(i, j, k, l) += d2;
+					}
+					if (i == k && j == l) {
+						D(i, j, k, l) += d2;
+					}
+					if (i == l && j == k) {
+						D(i, j, k, l) += d2;
+					}
+				}
+			}
+		}
+	}
 	return D;
 }
 
@@ -275,7 +332,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 	L1() += M2() * D();
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L1() += M2(a, b) * D(a, b) * float(0.5) * expansion_factor(a, b);
+			L1() += M2(a, b) * D(a, b) * (0.5) * expansion_factor(a, b);
 		}
 	}
 
@@ -285,7 +342,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				L1(a) += M2(c, b) * D(a, b, c) * float(0.5) * expansion_factor(c, b);
+				L1(a) += M2(c, b) * D(a, b, c) * (0.5) * expansion_factor(c, b);
 			}
 		}
 	}
@@ -317,7 +374,14 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 	f.first += M() * D();
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			f.first += M(a, b) * D(a, b) * float(0.5) * expansion_factor(a, b);
+			f.first += M(a, b) * D(a, b) * (0.5) * expansion_factor(a, b);
+		}
+	}
+	for (int a = 0; a < 3; a++) {
+		for (int b = 0; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				f.first += M(a, b, c) * D(a, b, c) * (1.0 / 6.0) * expansion_factor(a, b, c);
+			}
 		}
 	}
 	f.second = vect<float>(0);
@@ -327,7 +391,16 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				f.second[a] -= M(c, b) * D(a, b, c) * float(0.5) * expansion_factor(c, b);
+				f.second[a] -= M(c, b) * D(a, b, c) * (0.5) * expansion_factor(c, b);
+			}
+		}
+	}
+	for (int a = 0; a < 3; a++) {
+		for (int b = 0; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				for (int d = c; d < 3; d++) {
+					f.second[a] -= M(c, b, d) * D(a, b, c, d) * (1.0 / 6.0) * expansion_factor(b, c, d);
+				}
 			}
 		}
 	}
