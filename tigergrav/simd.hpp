@@ -344,7 +344,7 @@ public:
 	}
 	inline double sum() const {
 		double sum = 0.0;
-		for (int i = 0; i < SIMD_SLEN; i++) {
+		for (int i = 0; i < SIMD_DLEN; i++) {
 			sum += (*this)[i];
 		}
 		return sum;

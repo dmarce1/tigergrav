@@ -209,19 +209,21 @@ std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<float>
 	if (y.size() == 0) {
 		return 0;
 	}
+	static const auto one = simd_dvector(1.0);
+	static const auto half = simd_dvector(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_svector H(h);
-	static const simd_svector H2(h2);
-	vect<simd_svector> X, Y;
-	multipole<simd_svector> M;
-	expansion<simd_svector> Lacc;
-	Lacc = simd_svector(0);
+	static const simd_dvector H(h);
+	static const simd_dvector H2(h2);
+	vect<simd_dvector> X, Y;
+	multipole<simd_dvector> M;
+	expansion<simd_dvector> Lacc;
+	Lacc = simd_dvector(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
+	const auto cnt2 = ((cnt1 - 1 + SIMD_DLEN) / SIMD_DLEN) * SIMD_DLEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
@@ -229,10 +231,10 @@ std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<float>
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_svector(x[dim]);
+		X[dim] = simd_dvector(x[dim]);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
-		for (int k = 0; k < SIMD_SLEN; k++) {
+	for (int j = 0; j < cnt1; j += SIMD_DLEN) {
+		for (int k = 0; k < SIMD_DLEN; k++) {
 			M()[k] = y[j + k].m();
 			for (int n = 0; n < NDIM; n++) {
 				for (int l = 0; l <= n; l++) {
@@ -243,7 +245,7 @@ std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<float>
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		vect<simd_svector> dX = X - Y;             		// 3 OP
+		vect<simd_dvector> dX = X - Y;             		// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
