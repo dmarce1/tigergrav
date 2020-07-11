@@ -5,7 +5,7 @@
 part_vect initial_particle_set(std::string pn, int N, int Nout) {
 	part_vect parts;
 	parts.reserve(N);
-
+	srand(0);
 	if (pn == "cosmos") {
 		for (int i = 0; i < N; i++) {
 			particle p;

@@ -5,3 +5,4 @@
 #define NDIM    3
 #define NCHILD  2
 
+#define ERROR() printf( "ERROR %s %i\n", __FILE__, __LINE__)

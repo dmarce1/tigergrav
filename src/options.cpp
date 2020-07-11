@@ -27,8 +27,8 @@ bool options::process_options(int argc, char *argv[]) {
 	("help", "produce help message") //
 	("config_file", po::value < std::string > (&config_file)->default_value(""), "configuration file") //
 	("problem", po::value < std::string > (&problem)->default_value("cosmos"), "problem type") //
+	("solver_test", po::value<bool>(&solver_test)->default_value(0), "test gravity solver") //
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
-	("silo_on_fly", po::value<bool>(&silo_on_fly)->default_value(true), "convert to SILO on the fly") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("solver_type", po::value<int>(&solver_type)->default_value(1), "0 = direct, 1 = Barnes-Hut") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
@@ -92,8 +92,8 @@ bool options::process_options(int argc, char *argv[]) {
 	SHOW(parts_per_node);
 	SHOW_STR(problem);
 	SHOW(problem_size);
-	SHOW(silo_on_fly);
 	SHOW(soft_len);
+	SHOW(solver_test);
 	SHOW(solver_type);
 	SHOW(t_max);
 	SHOW(theta);

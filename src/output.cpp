@@ -12,11 +12,40 @@
 
 #include <silo.h>
 
+#include <set>
+
 #include <fenv.h>
 
+error compute_error(std::vector<output> test, std::vector<output> direct) {
+	error err;
+	std::multiset<double> top_errs;
+	err.err = 0.0;
+	err.g = vect<float>(0);
+	if (test.size() != direct.size()) {
+		ERROR();
+	}
+	for (int i = 0; i < test.size(); i++) {
+		const auto dg = abs(test[i].g - direct[i].g);
+		const auto gd = abs(test[i].g);
+		const auto this_err = dg / gd;
+		err.g = err.g + test[i].g;
+		err.err += this_err;
+		if (top_errs.size() < test.size() / 100) {
+			top_errs.insert(this_err);
+		} else {
+			if (this_err > *(top_errs.begin())) {
+				top_errs.erase(top_errs.begin());
+				top_errs.insert(this_err);
+			}
+		}
+	}
+	err.g = err.g / test.size();
+	err.err /= test.size();
+	err.err99 = *(top_errs.begin());
+	return err;
+}
 
-
-void output_particles(const std::vector<output>& parts, const std::string filename) {
+void output_particles(const std::vector<output> &parts, const std::string filename) {
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	std::array<std::vector<double>, NDIM> x;
@@ -25,7 +54,7 @@ void output_particles(const std::vector<output>& parts, const std::string filena
 	std::vector<float> phi;
 	std::vector<int> rung;
 
-	for( auto i = parts.begin(); i != parts.end(); i++) {
+	for (auto i = parts.begin(); i != parts.end(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			x[dim].push_back(i->x[dim]);
 			g[dim].push_back(i->g[dim]);

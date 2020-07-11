@@ -346,6 +346,10 @@ std::uint64_t tree::get_flop() {
 	return flop;
 }
 
+void tree::reset_flop() {
+	flop = 0;
+}
+
 bool tree::active_particles(int rung, bool do_out) {
 	bool rc;
 	if (is_leaf()) {

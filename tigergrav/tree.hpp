@@ -57,6 +57,7 @@ class tree {
 public:
 	static void set_theta(float);
 	static std::uint64_t get_flop();
+	static void reset_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
 	tree(range, part_iter, part_iter);
 	monopole compute_monopoles();

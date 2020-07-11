@@ -10,7 +10,24 @@ struct output {
 	vect<float> g;
 	float phi;
 	int rung;
+	bool operator<(const output &other) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			if (x[dim] < other.x[dim]) {
+				return true;
+			} else if (x[dim] > other.x[dim]) {
+				return false;
+			}
+		}
+		return false;
+	}
 };
 
+struct error {
+	double err;
+	double err99;
+	vect<double> g;
+};
 
-void output_particles(const std::vector<output>& parts, const std::string filename);
+void output_particles(const std::vector<output> &parts, const std::string filename);
+
+error compute_error(std::vector<output> test, std::vector<output> direct);
