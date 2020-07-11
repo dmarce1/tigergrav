@@ -24,6 +24,7 @@ find_package(Boost REQUIRED)
 
 
 set(tigergrav_source_files
+	src/expansion.cpp
 	src/gravity.cpp
 	src/initialize.cpp
 	src/main.cpp
@@ -39,6 +40,7 @@ set(tigergrav_header_files
 	tigergrav/defs.hpp
 	tigergrav/gravity.hpp
 	tigergrav/initialize.hpp
+	tigergrav/multipole.hpp
 	tigergrav/output.hpp
 	tigergrav/options.hpp
 	tigergrav/particle.hpp
