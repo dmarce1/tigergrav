@@ -49,7 +49,6 @@ int hpx_main(int argc, char *argv[]) {
 			abort();
 		}
 	};
-	bool do_stats = true;
 	bool do_out = true;
 	const auto show = [&]() {
 		if (iter % 25 == 0) {
@@ -61,7 +60,7 @@ int hpx_main(int argc, char *argv[]) {
 		printf("%9i ", (int) kr.rung);
 		printf("%9i ", (int) min_rung(itime));
 		printf("%13.6e ", root_ptr->get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
-		if (do_stats) {
+		if (do_out) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				printf("%13.6e ", kr.stats.g[dim]);
 			}
@@ -77,8 +76,7 @@ int hpx_main(int argc, char *argv[]) {
 	root_ptr->compute_monopoles();
 	const auto mrung = min_rung(0);
 	root_ptr->active_particles(mrung, do_out);
-	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_stats,
-			do_out);
+	kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung, do_out);
 	if (do_out) {
 	}
 	dt = rung_to_dt(kr.rung);
@@ -91,12 +89,6 @@ int hpx_main(int argc, char *argv[]) {
 		} else {
 			do_out = false;
 		}
-		if ((t + dt) / opts.dt_stat >= si) {
-			do_stats = true;
-			si++;
-		} else {
-			do_stats = false;
-		}
 		root_ptr->drift(dt);
 		root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		root_ptr->compute_monopoles();
@@ -104,7 +96,7 @@ int hpx_main(int argc, char *argv[]) {
 		const auto mrung = min_rung(itime);
 		root_ptr->active_particles(mrung, do_out);
 		kr = root_ptr->kick(std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), std::vector<tree_ptr>(1, root_ptr), std::vector<source>(), mrung,
-				do_stats, do_out);
+				do_out);
 		if (do_out) {
 		}
 		t = time_to_float(itime);
