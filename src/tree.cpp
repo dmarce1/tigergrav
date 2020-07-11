@@ -56,7 +56,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 	for (int dim = 1; dim < NDIM; dim++) {
 		max_span = std::max(max_span, box.max[dim] - box.min[dim]);
 	}
-	for( int dim = 0; dim < NDIM; dim++) {
+	for (int dim = 0; dim < NDIM; dim++) {
 		coord_cent[dim] = 0.5 * (box.max[dim] + box.min[dim]);
 	}
 	if (e - b > opts.parts_per_node) {
@@ -171,7 +171,6 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 	}
 
 	std::vector<tree_ptr> next_dchecklist;
-	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	std::function<float(const vect<float>)> separation;
@@ -218,30 +217,43 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<source>
 			rc.stats = rc_r.stats + rc_l.stats;
 		}
 	} else {
-		if (!dchecklist.empty()) {
-			rc = kick_fmm(std::move(dchecklist), std::move(dsources), L, min_rung, do_out);
-		} else {
-			std::vector<vect<float>> x;
-			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-					x.push_back(pos_to_double(i->x));
-				}
-			}
-			std::vector<force> f(x.size(), { 0, vect<float>(0) });
-			int j = 0;
-			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-					expansion<float> this_L = L << (pos_to_double(i->x) - multi.x);
-					f[j].phi += this_L();
-					for (int dim = 0; dim < NDIM; dim++) {
-						f[j].g[dim] += -this_L(dim);
+		while (!dchecklist.empty()) {
+			for (auto c : dchecklist) {
+				auto other = c->get_multipole();
+				const auto dx = separation(multi.x - other.x);
+				if (c->is_leaf()) {
+					const auto pos = c->get_positions();
+					for (auto x : pos) {
+						dsources.push_back( { m, x });
 					}
-					j++;
+				} else {
+					auto next = c->get_children();
+					next_dchecklist.push_back(next[0]);
+					next_dchecklist.push_back(next[1]);
 				}
 			}
-			flop += gravity_direct(f, x, dsources);
-			rc = do_kick(f, min_rung, do_out);
+			dchecklist = std::move(next_dchecklist);
 		}
+		std::vector<vect<float>> x;
+		for (auto i = part_begin; i != part_end; i++) {
+			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
+				x.push_back(pos_to_double(i->x));
+			}
+		}
+		std::vector<force> f(x.size(), { 0, vect<float>(0) });
+		int j = 0;
+		for (auto i = part_begin; i != part_end; i++) {
+			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
+				expansion<float> this_L = L << (pos_to_double(i->x) - multi.x);
+				f[j].phi += this_L();
+				for (int dim = 0; dim < NDIM; dim++) {
+					f[j].g[dim] += -this_L(dim);
+				}
+				j++;
+			}
+		}
+		flop += gravity_direct(f, x, dsources);
+		rc = do_kick(f, min_rung, do_out);
 	}
 	return rc;
 }
