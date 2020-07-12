@@ -9,6 +9,8 @@
 #define TIGERGRAV_SIMD_HPP_
 
 #include <immintrin.h>
+#include <vector>
+#include <algorithm>
 
 #if defined(__AVX2__)
 #define SIMD_SLEN 8
@@ -65,7 +67,7 @@ public:
 	}
 	inline float sum() const {
 		float sum = 0.0;
-		for (int i = 0; i < SIMD_SLEN; i++) {
+		for( int i = 0; i < SIMD_SLEN; i++) {
 			sum += (*this)[i];
 		}
 		return sum;
