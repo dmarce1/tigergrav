@@ -1,6 +1,5 @@
 #include <tigergrav/expansion.hpp>
 
-
 expansion<float> expansion_factor;
 
 __attribute((constructor))
@@ -13,6 +12,9 @@ static void init_factors() {
 			expansion_factor(a, b) += 1.0;
 			for (int c = 0; c < NDIM; ++c) {
 				expansion_factor(a, b, c) += 1.0;
+				for (int d = 0; d < NDIM; ++d) {
+					expansion_factor(a, b, c, d) += 1.0;
+				}
 			}
 		}
 	}

@@ -335,42 +335,26 @@ inline expansion<T> green_direct(const vect<T> &dX) {
 			}
 		}
 	}
+
 	for (int i = 0; i < NDIM; i++) {
+		D(i, i, i, i) += dX[i] * dX[i] * d3;
+		D(i, i, i, i) += 2.0 * d2;
 		for (int j = 0; j <= i; j++) {
+			const auto tmp1 = dX[i] * dX[j] * d3;
+			D(i, i, i, j) += tmp1;
+			D(i, j, j, j) += tmp1;
+			D(i, i, j, j) += d2;
 			for (int k = 0; k <= j; k++) {
+				D(i, i, j, k) += dX[j] * dX[k] * d3;
+				D(i, j, k, k) += dX[i] * dX[j] * d3;
+				D(i, j, j, k) += dX[i] * dX[k] * d3;
 				for (int l = 0; l <= k; l++) {
-					D(i, j, k, l) = dX[i] * dX[j] * dX[k] * dX[l] * d4;
-					if (i == j) {
-						D(i, j, k, l) += dX[k] * dX[l] * d3;
-					}
-					if (i == k) {
-						D(i, j, k, l) += dX[j] * dX[l] * d3;
-					}
-					if (i == l) {
-						D(i, j, k, l) += dX[j] * dX[k] * d3;
-					}
-					if (j == k) {
-						D(i, j, k, l) += dX[i] * dX[l] * d3;
-					}
-					if (j == l) {
-						D(i, j, k, l) += dX[i] * dX[k] * d3;
-					}
-					if (k == l) {
-						D(i, j, k, l) += dX[i] * dX[j] * d3;
-					}
-					if (i == j && k == l) {
-						D(i, j, k, l) += d2;
-					}
-					if (i == k && j == l) {
-						D(i, j, k, l) += d2;
-					}
-					if (i == l && j == k) {
-						D(i, j, k, l) += d2;
-					}
+					D(i, j, k, l) += dX[i] * dX[j] * dX[k] * dX[l] * d4;
 				}
 			}
 		}
 	}
+
 	return D;
 }
 
