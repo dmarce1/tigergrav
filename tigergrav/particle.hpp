@@ -37,6 +37,7 @@ struct particle {
 
 using part_vect = std::vector<particle>;
 using part_iter = part_vect::iterator;
+using const_part_iter = part_vect::const_iterator;
 
 template<class I, class F>
 I bisect(I begin, I end, F &&below) {

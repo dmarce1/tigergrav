@@ -13,18 +13,6 @@
 using pos_type = std::uint32_t;
 
 
-inline double pos_to_float(pos_type x) {
-	return ((float) x + (float) 0.5) / ((float) std::numeric_limits<pos_type>::max() + (float) 1.0);
-}
-
-
-inline vect<float> pos_to_float(vect<pos_type> x) {
-	vect<float> f;
-	for (int dim = 0; dim < NDIM; dim++) {
-		f[dim] = pos_to_float(x[dim]);
-	}
-	return f;
-}
 
 inline double pos_to_double(pos_type x) {
 	return ((double) x + (double) 0.5) / ((double) std::numeric_limits<pos_type>::max() + (double) 1.0);
