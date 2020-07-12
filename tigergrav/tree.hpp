@@ -44,6 +44,11 @@ struct kick_return {
 	std::vector<output> out;
 };
 
+struct check_item {
+	bool opened;
+	tree_ptr ptr;
+};
+
 class tree {
 	multipole_info multi;
 	part_iter part_begin;
@@ -75,7 +80,7 @@ public:
 	bool active_particles(int rung, bool do_out);
 	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs, std::vector<tree_ptr> echecklist,
 			std::vector<source> esources, rung_type min_rung, bool do_output);
-	kick_return kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
+	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<vect<float>> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
 			expansion<ireal> L, rung_type min_rung, bool do_output);
 	kick_return kick_direct(std::vector<vect<float>>&, rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);

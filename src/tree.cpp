@@ -186,8 +186,8 @@ std::vector<vect<float>> tree::get_positions() const {
 	return pos;
 }
 
-kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
-		expansion<ireal> L, rung_type min_rung, bool do_out) {
+kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<vect<float>> dsources, std::vector<tree_ptr> echecklist,
+		std::vector<source> esources, expansion<ireal> L, rung_type min_rung, bool do_out) {
 
 	kick_return rc;
 	if (!has_active && !do_out) {
@@ -195,7 +195,7 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 		return rc;
 	}
 
-	std::vector<tree_ptr> next_dchecklist;
+	std::vector<check_item> next_dchecklist;
 	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
@@ -208,20 +208,25 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 	next_echecklist.reserve(NCHILD * echecklist.size());
 
 	for (auto c : dchecklist) {
-		auto other = c->get_multipole();
+		auto other = c.ptr->get_multipole();
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
-		if (dx > (multi.r + other.r) * theta_inv) {
-			dmulti_srcs.push_back( { other.m, other.x });
-		} else {
-			if (c->is_leaf()) {
-				const auto pos = c->get_positions();
+		const bool far = dx > (multi.r + other.r) * theta_inv;
+		if (far) {
+			if (c.opened) {
+				const auto pos = c.ptr->get_positions();
 				for (auto x : pos) {
 					dsources.push_back(x);
 				}
 			} else {
-				auto next = c->get_children();
-				next_dchecklist.push_back(next[0]);
-				next_dchecklist.push_back(next[1]);
+				dmulti_srcs.push_back( { other.m, other.x });
+			}
+		} else {
+			if (c.ptr->is_leaf()) {
+				next_dchecklist.push_back( { true, c.ptr });
+			} else {
+				auto next = c.ptr->get_children();
+				next_dchecklist.push_back( { false, next[0] });
+				next_dchecklist.push_back( { false, next[1] });
 			}
 		}
 	}
@@ -247,11 +252,14 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 		}
 	}
 	flop += gravity_CC(L, multi.x, dmulti_srcs);
+	flop += gravity_CP(L, multi.x, dsources);
 	if (opts.ewald) {
 		flop += gravity_CP_ewald(L, multi.x, emulti_srcs);
 	}
 	dchecklist = std::move(next_dchecklist);
 	echecklist = std::move(next_echecklist);
+	dmulti_srcs.resize(0);
+	dsources.resize(0);
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail(
 				[=]() {
@@ -272,15 +280,26 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 	} else {
 		while (!dchecklist.empty()) {
 			for (auto c : dchecklist) {
-				if (c->is_leaf()) {
-					const auto pos = c->get_positions();
+				auto other = c.ptr->get_multipole();
+				const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
+				const bool far = dx > (multi.r + other.r) * theta_inv;
+				if( c.opened ) {
+					const auto pos = c.ptr->get_positions();
 					for (auto x : pos) {
 						dsources.push_back(x);
 					}
 				} else {
-					auto next = c->get_children();
-					next_dchecklist.push_back(next[0]);
-					next_dchecklist.push_back(next[1]);
+					if( far ) {
+						dmulti_srcs.push_back( { other.m, other.x });
+					} else {
+						if (c.ptr->is_leaf()) {
+							next_dchecklist.push_back( { true, c.ptr });
+						} else {
+							auto next = c.ptr->get_children();
+							next_dchecklist.push_back( { false, next[0] });
+							next_dchecklist.push_back( { false, next[1] });
+						}
+					}
 				}
 			}
 			dchecklist = std::move(next_dchecklist);
@@ -318,6 +337,7 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 		}
 
 		flop += gravity_PP(f, x, dsources);
+		flop += gravity_PC(f, x, dmulti_srcs);
 		if (opts.ewald) {
 			flop += gravity_PP_ewald(f, x, esources);
 		}
