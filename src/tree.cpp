@@ -199,12 +199,13 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 	std::vector<tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
-	std::function<double(const vect<double>)> separation;
 
 	static thread_local std::vector<multi_src> dmulti_srcs;
 	static thread_local std::vector<source> emulti_srcs;
 	dmulti_srcs.resize(0);
 	emulti_srcs.resize(0);
+	next_dchecklist.reserve(NCHILD * dchecklist.size());
+	next_echecklist.reserve(NCHILD * echecklist.size());
 
 	for (auto c : dchecklist) {
 		auto other = c->get_multipole();
@@ -224,6 +225,7 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 			}
 		}
 	}
+
 	if (opts.ewald) {
 		for (auto c : echecklist) {
 			auto other = c->get_monopole();
@@ -248,13 +250,15 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 	if (opts.ewald) {
 		flop += gravity_indirect_ewald(L, multi.x, emulti_srcs);
 	}
+	dchecklist = std::move(next_dchecklist);
+	echecklist = std::move(next_echecklist);
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail(
 				[=]() {
-					return children[0]->kick_fmm(std::move(next_dchecklist), std::move(dsources), std::move(next_echecklist), std::move(esources),
+					return children[0]->kick_fmm(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources),
 							L << (child_com[0] - multi.x), min_rung, do_out);
 				});
-		const auto rc_r = children[1]->kick_fmm(std::move(next_dchecklist), std::move(dsources), std::move(next_echecklist), std::move(esources),
+		const auto rc_r = children[1]->kick_fmm(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources),
 				L << (child_com[1] - multi.x), min_rung, do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
@@ -266,8 +270,6 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 			rc.stats = rc_r.stats + rc_l.stats;
 		}
 	} else {
-		dchecklist = std::move(next_dchecklist);
-		echecklist = std::move(next_echecklist);
 		while (!dchecklist.empty()) {
 			for (auto c : dchecklist) {
 				if (c->is_leaf()) {
