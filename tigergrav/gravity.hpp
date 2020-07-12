@@ -7,16 +7,6 @@
 #include <tigergrav/particle.hpp>
 
 
-#ifdef INDIRECT_DOUBLE
-using ireal = double;
-using isimd_vector = simd_dvector;
-#define ISIMD_LEN SIMD_DLEN
-#else
-using ireal = float;
-using isimd_vector = simd_svector;
-#define ISIMD_LEN SIMD_SLEN
-#endif
-
 struct multipole_info {
 	multipole<ireal> m;
 	vect<ireal> x;

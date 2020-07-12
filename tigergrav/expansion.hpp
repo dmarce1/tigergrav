@@ -311,70 +311,70 @@ inline void expansion<T>::invert() {
 }
 
 template<class T>
-inline expansion<T> green_direct(const vect<T> &dX) {
-	const T r2inv = 1.0 / dX.dot(dX);
-	const T d0 = -sqrt(r2inv);
-	const T d1 = -d0 * r2inv;
-	const T d2 = -3.0 * d1 * r2inv;
-	const T d3 = -5.0 * d2 * r2inv;
-	const T d4 = -7.0 * d3 * r2inv;
+inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
+	const T r2inv = 1.0 / dX.dot(dX);						// 6
+	const T d0 = -sqrt(r2inv);								// 2
+	const T d1 = -d0 * r2inv;								// 2
+	const T d2 = -3.0 * d1 * r2inv;							// 3
+	const T d3 = -5.0 * d2 * r2inv;							// 3
+	const T d4 = -7.0 * d3 * r2inv;							// 3
 
 	expansion<T> D;
 	D = 0.0;
-	D() += d0;
+	D() += d0;												// 1
 	for (int a = 0; a < 3; a++) {
-		D(a) += dX[a] * d1;
-		D(a, a) += d1;
-		D(a, a, a) += dX[a] * d2;
+		D(a) += dX[a] * d1;									// 6
+		D(a, a) += d1;										// 3
+		D(a, a, a) += dX[a] * d2;							// 6
 		for (int b = a; b < 3; b++) {
-			D(a, b) += dX[a] * dX[b] * d2;
-			D(a, a, b) += dX[b] * d2;
-			D(a, b, b) += dX[a] * d2;
+			D(a, b) += dX[a] * dX[b] * d2;					// 18
+			D(a, a, b) += dX[b] * d2;						// 12
+			D(a, b, b) += dX[a] * d2;						// 12
 			for (int c = b; c < 3; c++) {
-				D(a, b, c) += dX[a] * dX[b] * dX[c] * d3;
+				D(a, b, c) += dX[a] * dX[b] * dX[c] * d3;	// 40
 			}
 		}
 	}
 
 	for (int i = 0; i < NDIM; i++) {
-		D(i, i, i, i) += dX[i] * dX[i] * d3;
+		D(i, i, i, i) += dX[i] * dX[i] * d3;				// 9
 	}
 	for (int i = 0; i < NDIM; i++) {
-		D(i, i, i, i) += 2.0 * d2;
+		D(i, i, i, i) += 2.0 * d2;							// 6
 	}
 	for (int i = 0; i < NDIM; i++) {
 		for (int j = 0; j <= i; j++) {
-			D(i, i, i, j) += dX[i] * dX[j] * d3;
+			D(i, i, i, j) += dX[i] * dX[j] * d3;			// 18
 		}
 	}
 	for (int i = 0; i < NDIM; i++) {
 		for (int j = 0; j <= i; j++) {
-			D(i, j, j, j) += dX[i] * dX[j] * d3;
+			D(i, j, j, j) += dX[i] * dX[j] * d3;			// 18
 		}
 	}
 	for (int i = 0; i < NDIM; i++) {
 		for (int j = 0; j <= i; j++) {
-			D(i, i, j, j) += d2;
+			D(i, i, j, j) += d2;							// 6
 		}
 	}
 	for (int i = 0; i < NDIM; i++) {
 		for (int j = 0; j <= i; j++) {
 			for (int k = 0; k <= j; k++) {
-				D(i, i, j, k) += dX[j] * dX[k] * d3;
+				D(i, i, j, k) += dX[j] * dX[k] * d3;		// 30
 			}
 		}
 	}
 	for (int i = 0; i < NDIM; i++) {
 		for (int j = 0; j <= i; j++) {
 			for (int k = 0; k <= j; k++) {
-				D(i, j, k, k) += dX[i] * dX[j] * d3;
+				D(i, j, k, k) += dX[i] * dX[j] * d3;		// 30
 			}
 		}
 	}
 	for (int i = 0; i < NDIM; i++) {
 		for (int j = 0; j <= i; j++) {
 			for (int k = 0; k <= j; k++) {
-				D(i, j, j, k) += dX[i] * dX[k] * d3;
+				D(i, j, j, k) += dX[i] * dX[k] * d3;		// 30
 			}
 		}
 	}
@@ -382,7 +382,7 @@ inline expansion<T> green_direct(const vect<T> &dX) {
 		for (int j = 0; j <= i; j++) {
 			for (int k = 0; k <= j; k++) {
 				for (int l = 0; l <= k; l++) {
-					D(i, j, k, l) += dX[i] * dX[j] * dX[k] * dX[l] * d4;
+					D(i, j, k, l) += dX[i] * dX[j] * dX[k] * dX[l] * d4;	// 75
 				}
 			}
 		}
@@ -391,16 +391,17 @@ inline expansion<T> green_direct(const vect<T> &dX) {
 	return D;
 }
 
-template<class T>
-inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect<T> dX) {
+extern expansion<ireal> expansion_factor;
 
-	extern expansion<T> expansion_factor;
-	const auto D = green_direct(dX);
+template<class T>
+inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect<T> dX) { // 701
+
+	const auto D = green_direct(dX);													// 339
 
 	L1() += M2() * D();
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L1() += M2(a, b) * D(a, b) * (0.5) * expansion_factor(a, b);
+			L1() += M2(a, b) * D(a, b) * expansion_factor(a, b);						// 18
 		}
 	}
 	for (int a = 0; a < 3; a++) {
@@ -408,37 +409,37 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				L1(a) += M2(c, b) * D(a, b, c) * (0.5);
+			for (int c = b; c < 3; c++) {
+				L1(a) += M2(c, b) * D(a, b, c) * expansion_factor(c, b);				// 54
 			}
 		}
 	}
 
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L1(a, b) += M2() * D(a, b);
+			L1(a, b) += M2() * D(a, b);													// 12
 		}
 	}
 
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				L1(a, b, c) += M2() * D(a, b, c);
+				L1(a, b, c) += M2() * D(a, b, c);										// 20
+			}
+		}
+	}
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				L1() -= M2(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 30
 			}
 		}
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				L1() -= M2(a, b, c) * D(a, b, c) * (1.0 / 6.0);
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				for (int d = 0; d < 3; d++) {
-					L1(a) -= M2(b, c, d) * D(a, b, c, d) * (1.0 / 6.0);
+			for (int c = b; c < 3; c++) {
+				for (int d = c; d < 3; d++) {
+					L1(a) -= M2(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	// 90
 				}
 			}
 		}
@@ -446,8 +447,8 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
-				for (int d = 0; d < 3; d++) {
-					L1(a, b) += M2(c, d) * D(a, b, c, d) * (0.5);
+				for (int d = c; d < 3; d++) {
+					L1(a, b) += M2(c, d) * D(a, b, c, d) * expansion_factor(c, d);		// 108
 				}
 			}
 		}
@@ -456,7 +457,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					L1(a, b, c, d) += M2() * D(a, b, c, d);
+					L1(a, b, c, d) += M2() * D(a, b, c, d);								// 30
 				}
 			}
 		}
@@ -468,20 +469,18 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 
 	const auto D = green_direct(dX);
 
-	extern expansion<float> expansion_factor;
-
 	std::pair<T, vect<T>> f;
 	f.first = 0.0;
 	f.first += M() * D();
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			f.first += M(a, b) * D(a, b) * (0.5) * expansion_factor(a, b);
+			f.first += M(a, b) * D(a, b) * expansion_factor(a, b);
 		}
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				f.first -= M(a, b, c) * D(a, b, c) * (1.0 / 6.0) * expansion_factor(a, b, c);
+				f.first -= M(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);
 			}
 		}
 	}
@@ -492,7 +491,7 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				f.second[a] -= M(c, b) * D(a, b, c) * (0.5) * expansion_factor(c, b);
+				f.second[a] -= M(c, b) * D(a, b, c) * expansion_factor(c, b);
 			}
 		}
 	}
@@ -500,7 +499,7 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					f.second[a] += M(c, b, d) * D(a, b, c, d) * (1.0 / 6.0) * expansion_factor(b, c, d);
+					f.second[a] += M(c, b, d) * D(a, b, c, d) * expansion_factor(b, c, d);
 				}
 			}
 		}

@@ -249,14 +249,14 @@ std::uint64_t gravity_indirect_multipole(expansion<ireal> &L, const vect<ireal> 
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		vect<isimd_vector> dX = X - Y;             		// 3 OP
+		vect<isimd_vector> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
 				dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
 			}
 		}
-		multipole_interaction(Lacc, M, dX);
+		multipole_interaction(Lacc, M, dX);												// 701 OP
 	}
 
 	L() += Lacc().sum();
@@ -272,7 +272,7 @@ std::uint64_t gravity_indirect_multipole(expansion<ireal> &L, const vect<ireal> 
 			}
 		}
 	}
-	return (26 + ewald ? 18 : 0) * cnt1;
+	return (704 + ewald ? 18 : 0) * cnt1;
 }
 
 std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
