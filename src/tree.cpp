@@ -15,7 +15,7 @@ static bool inc_thread();
 static void dec_thread();
 
 bool inc_thread() {
-	static const int nmax = 2 * hpx::threads::hardware_concurrency();
+	static const int nmax = 4 * hpx::threads::hardware_concurrency();
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
@@ -31,8 +31,11 @@ void dec_thread() {
 template<class F>
 auto thread_if_avail(F &&f) {
 	if (inc_thread()) {
-		auto rc = hpx::async(f);
-		dec_thread();
+		auto rc = hpx::async([](F&& f) {
+			auto rc = f();
+			dec_thread();
+			return rc;
+		},std::forward<F>(f));
 		return rc;
 	} else {
 		return hpx::make_ready_future(f());
