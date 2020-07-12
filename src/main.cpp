@@ -18,13 +18,11 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 		std::vector<vect<float>> sources;
 		return root_ptr->kick_direct(sources, mrung, do_out);
 	} else if (type == 1) {
-		root_ptr->compute_multipoles();
-		root_ptr->active_particles(mrung, do_out);
+		root_ptr->compute_multipoles(mrung, do_out);
 		return root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<vect<float>>(), std::vector<multi_src>(), std::vector<tree_ptr>(1, root_ptr),
 				std::vector<source>(), mrung, do_out);
 	} else if (type == 2) {
-		root_ptr->compute_multipoles();
-		root_ptr->active_particles(mrung, do_out);
+		root_ptr->compute_multipoles(mrung, do_out);
 		expansion<ireal> L;
 		L = 0.0;
 		return root_ptr->kick_fmm(std::vector<check_item>(1, {false,root_ptr}),std::vector<check_item>(1, {false,root_ptr}), L, mrung, do_out);

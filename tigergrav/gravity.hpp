@@ -7,12 +7,6 @@
 #include <tigergrav/particle.hpp>
 
 
-struct multipole_info {
-	multipole<ireal> m;
-	vect<ireal> x;
-	ireal r;
-};
-
 struct multi_src {
 	multipole<ireal > m;
 	vect<ireal> x;

@@ -49,13 +49,21 @@ struct check_item {
 	tree_ptr ptr;
 };
 
+
+struct multipole_info {
+	multipole<ireal> m;
+	vect<ireal> x;
+	ireal r;
+	bool has_active;
+};
+
+
 class tree {
 	multipole_info multi;
 	part_iter part_begin;
 	part_iter part_end;
 	bool leaf;
 	double max_span;
-	bool has_active;
 	std::array<tree_ptr, NCHILD> children;
 	std::array<vect<double>, NCHILD> child_com;
 	vect<double> coord_cent;
@@ -69,7 +77,7 @@ public:
 	static void reset_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
 	tree(range, part_iter, part_iter);
-	multipole_info compute_multipoles();
+	multipole_info compute_multipoles(rung_type min_rung, bool do_out);
 	multipole_info get_multipole() const;
 	monopole get_monopole() const;
 	bool is_leaf() const;

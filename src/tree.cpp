@@ -31,7 +31,7 @@ void dec_thread() {
 template<class F>
 auto thread_if_avail(F &&f) {
 	if (inc_thread()) {
-		auto rc = hpx::async([](F&& f) {
+		auto rc = hpx::async([](F &&f) {
 			auto rc = f();
 			dec_thread();
 			return rc;
@@ -84,14 +84,17 @@ tree::tree(range box, part_iter b, part_iter e) {
 				return pos_to_double(p.x[max_dim]) < mid;
 			});
 		}
-		children[0] = new_(boxl, b, mid_iter);
+		auto rcl = thread_if_avail([=]() {
+			return new_(boxl, b, mid_iter);
+		});
 		children[1] = new_(boxr, mid_iter, e);
+		children[0] = rcl.get();
 	} else {
 		leaf = true;
 	}
 }
 
-multipole_info tree::compute_multipoles() {
+multipole_info tree::compute_multipoles(rung_type mrung, bool do_out) {
 	const auto &opts = options::get();
 	const auto m = 1.0 / opts.problem_size;
 	multi.m = 0.0;
@@ -121,10 +124,23 @@ multipole_info tree::compute_multipoles() {
 		for (auto i = part_begin; i != part_end; i++) {
 			multi.r = std::max(multi.r, (ireal) abs(pos_to_double(i->x) - multi.x));
 		}
+		bool rc = do_out;
+		if (!do_out) {
+			for (auto i = part_begin; i != part_end; i++) {
+				if (i->rung >= mrung || i->rung == null_rung) {
+					rc = true;
+					break;
+				}
+			}
+		}
+		multi.has_active = rc;
 	} else {
 		multipole_info ml, mr;
-		ml = children[0]->compute_multipoles();
-		mr = children[1]->compute_multipoles();
+		auto rcl = thread_if_avail([=]() {
+			return children[0]->compute_multipoles(mrung, do_out);
+		});
+		mr = children[1]->compute_multipoles(mrung, do_out);
+		ml = rcl.get();
 		multi.m() = ml.m() + mr.m();
 		if (multi.m() != 0.0) {
 			multi.x = (ml.x * ml.m() + mr.x * mr.m()) / multi.m();
@@ -132,6 +148,7 @@ multipole_info tree::compute_multipoles() {
 			multi.x = coord_cent;
 		}
 		multi.m = (ml.m >> (ml.x - multi.x)) + (mr.m >> (mr.x - multi.x));
+		multi.has_active = ml.has_active || mr.has_active;
 		multi.r = std::max(abs(ml.x - multi.x) + ml.r, abs(mr.x - multi.x) + mr.r);
 		child_com[0] = ml.x;
 		child_com[1] = mr.x;
@@ -192,7 +209,7 @@ std::vector<vect<float>> tree::get_positions() const {
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, expansion<ireal> L, rung_type min_rung, bool do_out) {
 
 	kick_return rc;
-	if (!has_active && !do_out) {
+	if (!multi.has_active && !do_out) {
 		rc.rung = 0;
 		return rc;
 	}
@@ -371,7 +388,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 		std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung, bool do_out) {
 
 	kick_return rc;
-	if (!has_active && !do_out) {
+	if (!multi.has_active && !do_out) {
 		rc.rung = 0;
 		return rc;
 	}
@@ -470,7 +487,7 @@ kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_r
 	}
 
 	kick_return rc;
-	if (!has_active && !do_out) {
+	if (!multi.has_active && !do_out) {
 		rc.rung = 0;
 		return rc;
 	}
@@ -558,10 +575,19 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 }
 
 void tree::drift(double dt) {
-	for (auto i = part_begin; i != part_end; i++) {
-		const vect<double> dx = i->v * dt;
-		const vect<pos_type> dxi = double_to_pos(dx);
-		i->x = i->x + dxi;
+	if (is_leaf()) {
+		for (auto i = part_begin; i != part_end; i++) {
+			const vect<double> dx = i->v * dt;
+			const vect<pos_type> dxi = double_to_pos(dx);
+			i->x = i->x + dxi;
+		}
+	} else {
+		auto rcl = thread_if_avail([=]() {
+			children[0]->drift(dt);
+			return 1;
+		});
+		children[1]->drift(dt);
+		rcl.get();
 	}
 }
 
@@ -574,11 +600,14 @@ void tree::reset_flop() {
 }
 
 bool tree::active_particles(int rung, bool do_out) {
+	if (do_out) {
+		return true;
+	}
 	bool rc;
 	if (is_leaf()) {
 		rc = false;
 		for (auto i = part_begin; i != part_end; i++) {
-			if (i->rung >= rung || i->rung == null_rung || (do_out && i->flags.out)) {
+			if (i->rung >= rung || i->rung == null_rung) {
 				rc = true;
 				break;
 			}
@@ -588,6 +617,6 @@ bool tree::active_particles(int rung, bool do_out) {
 		const auto rc2 = children[1]->active_particles(rung, do_out);
 		rc = rc1 || rc2;
 	}
-	has_active = rc;
+	multi.has_active = rc;
 	return rc;
 }
