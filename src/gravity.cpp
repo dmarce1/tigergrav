@@ -514,7 +514,7 @@ std::uint64_t gravity_indirect_ewald(expansion<ireal> &L, const vect<float> &x, 
 		for (int n = 0; n < NDIM; n++) {
 			for (int m = 0; m <= n; m++) {
 				y000.gather(eforce2[n][m].data(), J);
-				Lacc(n, m) -= y000 * M * sgn[n] * sgn[m];
+				Lacc(n, m) -= y000 * M * sgn[n] * sgn[m];					//  24 OP
 			}
 		}
 	}
@@ -525,7 +525,7 @@ std::uint64_t gravity_indirect_ewald(expansion<ireal> &L, const vect<float> &x, 
 			L(n, m) += Lacc(n, m).sum();
 		}
 	}
-	return 133 * cnt1;
+	return 157 * cnt1;
 }
 
 void init_ewald() {
