@@ -118,13 +118,17 @@ inline multipole<T>& multipole<T>::operator>>=(const vect<T> &Y) {
 	multipole<T> &me = *this;
 	for (int p = 0; p < 3; p++) {
 		for (int q = p; q < 3; q++) {
-			me(p, q) += me() * Y[p] * Y[q];
 			for (int l = q; l < 3; l++) {
 				me(p, q, l) += me() * Y[p] * Y[q] * Y[l];
 				me(p, q, l) += me(p, q) * Y[l];
 				me(p, q, l) += me(q, l) * Y[p];
 				me(p, q, l) += me(l, p) * Y[q];
 			}
+		}
+	}
+	for (int p = 0; p < 3; p++) {
+		for (int q = p; q < 3; q++) {
+			me(p, q) += me() * Y[p] * Y[q];
 		}
 	}
 	return me;

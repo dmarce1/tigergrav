@@ -104,7 +104,7 @@ multipole_info tree::compute_multipoles() {
 			multi.x = coord_cent;
 		}
 		for (auto i = part_begin; i != part_end; i++) {
-			const auto X =pos_to_double(i->x)- multi.x;
+			const auto X = pos_to_double(i->x)- multi.x;
 			for (int j = 0; j < NDIM; j++) {
 				for (int k = 0; k <= j; k++) {
 					multi.m(j, k) += m * X[j] * X[k];
