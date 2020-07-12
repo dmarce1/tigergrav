@@ -351,19 +351,20 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				echecklist = std::move(next_echecklist);
 			}
 		}
-		std::vector<vect<float>> x;
+		static thread_local std::vector<vect<float>> x;
+		x.resize(0);
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
 				x.push_back(pos_to_double(i->x));
 			}
 		}
-		std::vector<force> f(x.size(), { 0, vect<double>(0) });
+		std::vector<force> f(x.size());
 		int j = 0;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-				force this_f = L.translate_L2((pos_to_double(i->x) - multi.x));
-				f[j].phi += this_f.phi;
-				f[j].g = f[j].g + this_f.g;
+				force this_f = L.translate_L2(x[j] - multi.x);
+				f[j].phi = this_f.phi;
+				f[j].g = this_f.g;
 				j++;
 			}
 		}
