@@ -104,7 +104,7 @@ multipole_info tree::compute_multipoles() {
 			multi.x = coord_cent;
 		}
 		for (auto i = part_begin; i != part_end; i++) {
-			const auto X = pos_to_double(i->x)- multi.x;
+			const auto X = pos_to_double(i->x) - multi.x;
 			for (int j = 0; j < NDIM; j++) {
 				for (int k = 0; k <= j; k++) {
 					multi.m(j, k) += m * X[j] * X[k];
@@ -128,10 +128,33 @@ multipole_info tree::compute_multipoles() {
 		} else {
 			multi.x = coord_cent;
 		}
-		multi.m = (ml.m >> (ml.x-multi.x)) + (mr.m >> (mr.x-multi.x));
+		multi.m = (ml.m >> (ml.x - multi.x)) + (mr.m >> (mr.x - multi.x));
 		multi.r = std::max(abs(ml.x - multi.x) + ml.r, abs(mr.x - multi.x) + mr.r);
 		child_com[0] = ml.x;
 		child_com[1] = mr.x;
+		if (part_end - part_begin > 0) {
+			range corners;
+			for (int dim = 0; dim < NDIM; dim++) {
+				corners.max[dim] = -std::numeric_limits<ireal>::max();
+				corners.min[dim] = +std::numeric_limits<ireal>::max();
+			}
+			for (auto i = part_begin; i != part_end; i++) {
+				const auto X = pos_to_double(i->x);
+				for (int dim = 0; dim < NDIM; dim++) {
+					corners.max[dim] = std::max(corners.max[dim], X[dim]);
+					corners.min[dim] = std::min(corners.min[dim], X[dim]);
+				}
+			}
+			ireal rmin = abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.min[1], (ireal) corners.min[2] }));
+			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.min[1], (ireal) corners.min[2] })));
+			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.max[1], (ireal) corners.min[2] })));
+			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.max[1], (ireal) corners.min[2] })));
+			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.min[1], (ireal) corners.max[2] })));
+			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.min[1], (ireal) corners.max[2] })));
+			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.max[1], (ireal) corners.max[2] })));
+			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.max[1], (ireal) corners.max[2] })));
+			multi.r = std::min(multi.r, rmin);
+		}
 	}
 	return multi;
 }
