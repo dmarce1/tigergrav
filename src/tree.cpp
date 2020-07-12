@@ -145,15 +145,15 @@ multipole_info tree::compute_multipoles() {
 					corners.min[dim] = std::min(corners.min[dim], X[dim]);
 				}
 			}
-			ireal rmin = abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.min[1], (ireal) corners.min[2] }));
-			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.min[1], (ireal) corners.min[2] })));
-			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.max[1], (ireal) corners.min[2] })));
-			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.max[1], (ireal) corners.min[2] })));
-			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.min[1], (ireal) corners.max[2] })));
-			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.min[1], (ireal) corners.max[2] })));
-			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.max[1], (ireal) corners.max[2] })));
-			rmin = std::min(rmin, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.max[1], (ireal) corners.max[2] })));
-			multi.r = std::min(multi.r, rmin);
+			ireal rmax = abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.min[1], (ireal) corners.min[2] }));
+			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.min[1], (ireal) corners.min[2] })));
+			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.max[1], (ireal) corners.min[2] })));
+			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.max[1], (ireal) corners.min[2] })));
+			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.min[1], (ireal) corners.max[2] })));
+			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.min[1], (ireal) corners.max[2] })));
+			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.max[1], (ireal) corners.max[2] })));
+			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.max[1], (ireal) corners.max[2] })));
+			multi.r = std::min(multi.r, rmax);
 		}
 	}
 	return multi;
@@ -200,8 +200,12 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	std::function<double(const vect<double>)> separation;
-	std::vector<multi_src> dmulti_srcs;
-	std::vector<source> emulti_srcs;
+
+	static thread_local std::vector<multi_src> dmulti_srcs;
+	static thread_local std::vector<source> emulti_srcs;
+	dmulti_srcs.resize(0);
+	emulti_srcs.resize(0);
+
 	for (auto c : dchecklist) {
 		auto other = c->get_multipole();
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
@@ -220,7 +224,6 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 			}
 		}
 	}
-	dchecklist = std::move(next_dchecklist);
 	if (opts.ewald) {
 		for (auto c : echecklist) {
 			auto other = c->get_monopole();
@@ -240,7 +243,6 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 				}
 			}
 		}
-		echecklist = std::move(next_echecklist);
 	}
 	flop += gravity_indirect_multipole(L, multi.x, dmulti_srcs);
 	if (opts.ewald) {
@@ -249,10 +251,10 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail(
 				[=]() {
-					return children[0]->kick_fmm(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources),
+					return children[0]->kick_fmm(std::move(next_dchecklist), std::move(dsources), std::move(next_echecklist), std::move(esources),
 							L << (child_com[0] - multi.x), min_rung, do_out);
 				});
-		const auto rc_r = children[1]->kick_fmm(std::move(dchecklist), std::move(dsources), std::move(echecklist), std::move(esources),
+		const auto rc_r = children[1]->kick_fmm(std::move(next_dchecklist), std::move(dsources), std::move(next_echecklist), std::move(esources),
 				L << (child_com[1] - multi.x), min_rung, do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
@@ -264,6 +266,8 @@ kick_return tree::kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<fl
 			rc.stats = rc_r.stats + rc_l.stats;
 		}
 	} else {
+		dchecklist = std::move(next_dchecklist);
+		echecklist = std::move(next_echecklist);
 		while (!dchecklist.empty()) {
 			for (auto c : dchecklist) {
 				if (c->is_leaf()) {
