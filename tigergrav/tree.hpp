@@ -76,7 +76,7 @@ public:
 	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs, std::vector<tree_ptr> echecklist,
 			std::vector<source> esources, rung_type min_rung, bool do_output);
 	kick_return kick_fmm(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<tree_ptr> echecklist, std::vector<source> esources,
-			expansion<double> L, rung_type min_rung, bool do_output);
+			expansion<ireal> L, rung_type min_rung, bool do_output);
 	kick_return kick_direct(std::vector<vect<float>>&, rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
 

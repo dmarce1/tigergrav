@@ -1,27 +1,39 @@
 #pragma once
 
+#include <tigergrav/defs.hpp>
+#include <tigergrav/simd.hpp>
 #include <tigergrav/expansion.hpp>
 #include <tigergrav/multipole.hpp>
 #include <tigergrav/particle.hpp>
 
 
+#ifdef INDIRECT_DOUBLE
+using ireal = double;
+using isimd_vector = simd_dvector;
+#define ISIMD_LEN SIMD_DLEN
+#else
+using ireal = float;
+using isimd_vector = simd_svector;
+#define ISIMD_LEN SIMD_SLEN
+#endif
+
 struct multipole_info {
-	multipole<double> m;
-	vect<double> x;
-	double r;
+	multipole<ireal> m;
+	vect<ireal> x;
+	ireal r;
 };
 
 struct multi_src {
-	multipole<double > m;
-	vect<double> x;
+	multipole<ireal > m;
+	vect<ireal> x;
 };
 
 
 std::uint64_t gravity_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_direct_multipole(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_indirect_multipole(expansion<double>&, const vect<double> &x, std::vector<multi_src> &y);
+std::uint64_t gravity_indirect_multipole(expansion<ireal>&, const vect<ireal> &x, std::vector<multi_src> &y);
 std::uint64_t gravity_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<source> &y);
-std::uint64_t gravity_indirect_ewald(expansion<double> &L, const vect<float> &x, std::vector<source> &y);
+std::uint64_t gravity_indirect_ewald(expansion<ireal> &L, const vect<float> &x, std::vector<source> &y);
 double ewald_near_separation(const vect<double> x);
 double ewald_far_separation(const vect<double> x);
 void init_ewald();

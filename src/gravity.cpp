@@ -206,36 +206,36 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<double> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_indirect_multipole(expansion<ireal> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_dvector(1.0);
-	static const auto half = simd_dvector(0.5);
+	static const auto one = isimd_vector(1.0);
+	static const auto half = isimd_vector(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_dvector H(h);
-	static const simd_dvector H2(h2);
-	vect<simd_dvector> X, Y;
-	multipole<simd_dvector> M;
-	expansion<simd_dvector> Lacc;
-	Lacc = simd_dvector(0);
+	static const isimd_vector H(h);
+	static const isimd_vector H2(h2);
+	vect<isimd_vector> X, Y;
+	multipole<isimd_vector> M;
+	expansion<isimd_vector> Lacc;
+	Lacc = isimd_vector(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_DLEN) / SIMD_DLEN) * SIMD_DLEN;
+	const auto cnt2 = ((cnt1 - 1 + ISIMD_LEN) / ISIMD_LEN) * ISIMD_LEN;
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = vect<double>(1.0);
+		y[j].x = vect<ireal>(1.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_dvector(x[dim]);
+		X[dim] = isimd_vector(x[dim]);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_DLEN) {
-		for (int k = 0; k < SIMD_DLEN; k++) {
+	for (int j = 0; j < cnt1; j += ISIMD_LEN) {
+		for (int k = 0; k < ISIMD_LEN; k++) {
 			M()[k] = y[j + k].m();
 			for (int n = 0; n < NDIM; n++) {
 				for (int l = 0; l <= n; l++) {
@@ -249,7 +249,7 @@ std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<double
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		vect<simd_dvector> dX = X - Y;             		// 3 OP
+		vect<isimd_vector> dX = X - Y;             		// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
@@ -403,7 +403,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 	return 133 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_indirect_ewald(expansion<double> &L, const vect<float> &x, std::vector<source> &y) {
+std::uint64_t gravity_indirect_ewald(expansion<ireal> &L, const vect<float> &x, std::vector<source> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto one = simd_svector(1.0);
