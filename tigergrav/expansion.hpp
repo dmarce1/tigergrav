@@ -338,16 +338,49 @@ inline expansion<T> green_direct(const vect<T> &dX) {
 
 	for (int i = 0; i < NDIM; i++) {
 		D(i, i, i, i) += dX[i] * dX[i] * d3;
+	}
+	for (int i = 0; i < NDIM; i++) {
 		D(i, i, i, i) += 2.0 * d2;
+	}
+	for (int i = 0; i < NDIM; i++) {
 		for (int j = 0; j <= i; j++) {
-			const auto tmp1 = dX[i] * dX[j] * d3;
-			D(i, i, i, j) += tmp1;
-			D(i, j, j, j) += tmp1;
+			D(i, i, i, j) += dX[i] * dX[j] * d3;
+		}
+	}
+	for (int i = 0; i < NDIM; i++) {
+		for (int j = 0; j <= i; j++) {
+			D(i, j, j, j) += dX[i] * dX[j] * d3;
+		}
+	}
+	for (int i = 0; i < NDIM; i++) {
+		for (int j = 0; j <= i; j++) {
 			D(i, i, j, j) += d2;
+		}
+	}
+	for (int i = 0; i < NDIM; i++) {
+		for (int j = 0; j <= i; j++) {
 			for (int k = 0; k <= j; k++) {
 				D(i, i, j, k) += dX[j] * dX[k] * d3;
+			}
+		}
+	}
+	for (int i = 0; i < NDIM; i++) {
+		for (int j = 0; j <= i; j++) {
+			for (int k = 0; k <= j; k++) {
 				D(i, j, k, k) += dX[i] * dX[j] * d3;
+			}
+		}
+	}
+	for (int i = 0; i < NDIM; i++) {
+		for (int j = 0; j <= i; j++) {
+			for (int k = 0; k <= j; k++) {
 				D(i, j, j, k) += dX[i] * dX[k] * d3;
+			}
+		}
+	}
+	for (int i = 0; i < NDIM; i++) {
+		for (int j = 0; j <= i; j++) {
+			for (int k = 0; k <= j; k++) {
 				for (int l = 0; l <= k; l++) {
 					D(i, j, k, l) += dX[i] * dX[j] * dX[k] * dX[l] * d4;
 				}
