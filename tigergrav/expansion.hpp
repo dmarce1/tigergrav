@@ -413,7 +413,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
-				L1() += M2(a, b, c) * D(a, b, c) * (1.0 / 6.0);
+				L1() -= M2(a, b, c) * D(a, b, c) * (1.0 / 6.0);
 			}
 		}
 	}
@@ -421,7 +421,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		for (int b = 0; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
 				for (int d = 0; d < 3; d++) {
-					L1(a) += M2(b, c, d) * D(a, b, c, d) * (1.0 / 6.0);
+					L1(a) -= M2(b, c, d) * D(a, b, c, d) * (1.0 / 6.0);
 				}
 			}
 		}
@@ -444,7 +444,6 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 			}
 		}
 	}
-
 }
 
 template<class T>
@@ -465,7 +464,7 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				f.first += M(a, b, c) * D(a, b, c) * (1.0 / 6.0) * expansion_factor(a, b, c);
+				f.first -= M(a, b, c) * D(a, b, c) * (1.0 / 6.0) * expansion_factor(a, b, c);
 			}
 		}
 	}
@@ -484,7 +483,7 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					f.second[a] -= M(c, b, d) * D(a, b, c, d) * (1.0 / 6.0) * expansion_factor(b, c, d);
+					f.second[a] += M(c, b, d) * D(a, b, c, d) * (1.0 / 6.0) * expansion_factor(b, c, d);
 				}
 			}
 		}

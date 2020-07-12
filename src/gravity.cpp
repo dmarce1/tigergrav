@@ -267,7 +267,7 @@ std::uint64_t gravity_indirect_multipole(expansion<double> &L, const vect<double
 			for (int l = 0; l <= k; l++) {
 				L(j, k, l) += Lacc(j, k, l).sum();
 				for (int m = 0; m <= l; m++) {
-					L(j, k, l, m) = Lacc(j, k, l, m).sum();
+					L(j, k, l, m) += Lacc(j, k, l, m).sum();
 				}
 			}
 		}
