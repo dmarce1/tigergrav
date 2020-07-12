@@ -550,7 +550,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
 				dt = rung_to_dt(rung);
-				i->rung = rung;
+				i->rung = std::max(rung, rung_type(i->rung - 1));
 				i->v = i->v + f[j].g * (0.5 * dt);
 			}
 			if (do_out) {
