@@ -78,7 +78,7 @@ double ewald_far_separation(const vect<double> x) {
 	return std::max(std::sqrt(d), double(0.25));
 }
 
-std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
+std::uint64_t gravity_PP(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -140,7 +140,7 @@ std::uint64_t gravity_direct(std::vector<force> &f, const std::vector<vect<float
 	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_PC(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -206,7 +206,7 @@ std::uint64_t gravity_direct_multipole(std::vector<force> &f, const std::vector<
 	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_indirect_multipole(expansion<ireal> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC(expansion<ireal> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -275,7 +275,83 @@ std::uint64_t gravity_indirect_multipole(expansion<ireal> &L, const vect<ireal> 
 	return (704 + ewald ? 18 : 0) * cnt1;
 }
 
-std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
+std::uint64_t gravity_CP(expansion<ireal> &L, const vect<ireal> &x, std::vector<vect<ireal>> &y) {
+	if (y.size() == 0) {
+		return 0;
+	}
+	static const auto one = isimd_vector(1.0);
+	static const auto half = isimd_vector(0.5);
+	std::uint64_t flop = 0;
+	static const auto opts = options::get();
+	static const auto m = 1.0 / opts.problem_size;
+	static const bool ewald = opts.ewald;
+	static const auto h = opts.soft_len;
+	static const auto h2 = h * h;
+	static const isimd_vector H(h);
+	static const isimd_vector H2(h2);
+	vect<isimd_vector> X, Y;
+	multipole<isimd_vector> M;
+	expansion<isimd_vector> Lacc;
+	Lacc = isimd_vector(0);
+	const auto cnt1 = y.size();
+	const auto cnt2 = ((cnt1 - 1 + ISIMD_LEN) / ISIMD_LEN) * ISIMD_LEN;
+	y.resize(cnt2);
+	for (int j = cnt1; j < cnt2; j++) {
+		y[j] = vect<ireal>(1.0);
+	}
+
+	for (int dim = 0; dim < NDIM; dim++) {
+		X[dim] = isimd_vector(x[dim]);
+	}
+	for (int k = 0; k < ISIMD_LEN; k++) {
+		M()[k] = m;
+		for (int n = 0; n < NDIM; n++) {
+			for (int l = 0; l <= n; l++) {
+				M(n, l)[k] = 0.0;
+				for (int p = 0; p <= l; p++) {
+					M(n, l, p)[k] = 0.0;
+				}
+			}
+		}
+	}
+	for (int j = 0; j < cnt1; j += ISIMD_LEN) {
+		for (int k = 0; k < ISIMD_LEN; k++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = y[j + k][dim];
+			}
+		}
+		if (j + ISIMD_LEN > cnt1) {
+			for (int k = cnt1; k < cnt2; k++) {
+				M()[k - j] = 0.0;
+			}
+		}
+		vect<isimd_vector> dX = X - Y;             										// 3 OP
+		if (ewald) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				const auto absdx = abs(dX[dim]);										// 3 OP
+				dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+			}
+		}
+		multipole_interaction(Lacc, M, dX);												// 701 OP
+	}
+
+	L() += Lacc().sum();
+	for (int j = 0; j < NDIM; j++) {
+		L(j) += Lacc(j).sum();
+		for (int k = 0; k <= j; k++) {
+			L(j, k) += Lacc(j, k).sum();
+			for (int l = 0; l <= k; l++) {
+				L(j, k, l) += Lacc(j, k, l).sum();
+				for (int m = 0; m <= l; m++) {
+					L(j, k, l, m) += Lacc(j, k, l, m).sum();
+				}
+			}
+		}
+	}
+	return (704 + ewald ? 18 : 0) * cnt1;
+}
+
+std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -403,7 +479,7 @@ std::uint64_t gravity_ewald(std::vector<force> &f, const std::vector<vect<float>
 	return 133 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_indirect_ewald(expansion<ireal> &L, const vect<float> &x, std::vector<source> &y) {
+std::uint64_t gravity_CP_ewald(expansion<ireal> &L, const vect<float> &x, std::vector<source> &y) {
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto one = simd_svector(1.0);
