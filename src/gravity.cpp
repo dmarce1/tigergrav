@@ -78,7 +78,7 @@ double ewald_far_separation(const vect<double> x) {
 	return std::max(std::sqrt(d), double(0.25));
 }
 
-std::uint64_t gravity_PP(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
+std::uint64_t gravity_PP(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<const_part_set> &ysets) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -93,43 +93,47 @@ std::uint64_t gravity_PP(std::vector<force> &f, const std::vector<vect<float>> &
 	vect<simd_svector> X, Y;
 	std::vector<vect<simd_svector>> nG(x.size(), vect<float>(0.0));
 	std::vector<simd_svector> nPhi(x.size(), 0.0);
-	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
-	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = vect<float>(1.0e+10);
-	}
-	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
-		for (int k = 0; k < SIMD_SLEN; k++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k][dim];
-			}
-		}
-		for (int i = 0; i < x.size(); i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_svector(x[i][dim]);
-			}
-
-			vect<simd_svector> dX = X - Y;             		// 3 OP
-			if (ewald) {
+	for (auto yset : ysets) {
+		const std::size_t ysize = yset.second - yset.first;
+		for (int j = 0; j < ysize; j += SIMD_SLEN) {
+			const int kend = std::min((int) SIMD_SLEN, (int) (ysize - j));
+			for (int k = 0; k < kend; k++) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					const auto absdx = abs(dX[dim]);										// 3 OP
-					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+					Y[dim][k] = pos_to_double((yset.first + j + k)->x[dim]);
 				}
 			}
-			simd_svector r2 = dX[0] * dX[0];					// 1 OP
-			r2 = fma(dX[1], dX[1], r2);						// 2 OP
-			r2 = fma(dX[2], dX[2], r2);                     // 2 OP
-			const simd_svector rinv = rsqrt(r2 + H2);        // 2 OP
-			const simd_svector rinv3 = rinv * rinv * rinv;   // 2 OP
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto tmp = M * rinv3;					// 3 OP
-				nG[i][dim] = fma(dX[dim], tmp, nG[i][dim]);  // 6 OP
+			for (int k = kend; k < SIMD_SLEN; k++) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					Y[dim][k] = 1.0e+10;
+				}
 			}
-			const simd_svector kill_zero = r2 / (r2 + eps);  // 2 OP
-			const auto tmp = M * kill_zero; 	            // 1 OP
-			nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
+			for (int i = 0; i < x.size(); i++) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					X[dim] = simd_svector(x[i][dim]);
+				}
+
+				vect<simd_svector> dX = X - Y;             		// 3 OP
+				if (ewald) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						const auto absdx = abs(dX[dim]);										// 3 OP
+						dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+					}
+				}
+				simd_svector r2 = dX[0] * dX[0];					// 1 OP
+				r2 = fma(dX[1], dX[1], r2);						// 2 OP
+				r2 = fma(dX[2], dX[2], r2);                     // 2 OP
+				const simd_svector rinv = rsqrt(r2 + H2);        // 2 OP
+				const simd_svector rinv3 = rinv * rinv * rinv;   // 2 OP
+				for (int dim = 0; dim < NDIM; dim++) {
+					const auto tmp = M * rinv3;					// 3 OP
+					nG[i][dim] = fma(dX[dim], tmp, nG[i][dim]);  // 6 OP
+				}
+				const simd_svector kill_zero = r2 / (r2 + eps);  // 2 OP
+				const auto tmp = M * kill_zero; 	            // 1 OP
+				nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
+			}
 		}
+		flop +=(26 + ewald ? 18 : 0) * ysize * x.size();
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
@@ -137,7 +141,7 @@ std::uint64_t gravity_PP(std::vector<force> &f, const std::vector<vect<float>> &
 		}
 		f[i].phi += -nPhi[i].sum();
 	}
-	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
+	return flop;
 }
 
 std::uint64_t gravity_PC(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {

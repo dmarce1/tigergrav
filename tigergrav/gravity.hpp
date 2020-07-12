@@ -13,7 +13,7 @@ struct multi_src {
 };
 
 
-std::uint64_t gravity_PP(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y);
+std::uint64_t gravity_PP(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<const_part_set> &part_sets);
 std::uint64_t gravity_PC(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
 std::uint64_t gravity_CC(expansion<ireal>&, const vect<ireal> &x, std::vector<multi_src> &y);
 std::uint64_t gravity_CP(expansion<ireal> &L, const vect<float> &x, std::vector<vect<float>> &y);
