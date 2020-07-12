@@ -351,10 +351,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				echecklist = std::move(next_echecklist);
 			}
 		}
-		std::vector<vect<pos_type>> x;
+		std::vector<vect<float>> x;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-				x.push_back(i->x);
+				x.push_back(pos_to_double(i->x));
 			}
 		}
 		std::vector<force> f(x.size(), { 0, vect<double>(0) });
@@ -450,10 +450,10 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<const_pa
 		if (!dchecklist.empty() || !echecklist.empty()) {
 			rc = kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources), min_rung, do_out);
 		} else {
-			std::vector<vect<pos_type>> x;
+			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
 				if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-					x.push_back(i->x);
+					x.push_back(pos_to_double(i->x));
 				}
 			}
 			std::vector<force> f(x.size(), { 0, vect<double>(0) });
@@ -497,10 +497,10 @@ kick_return tree::kick_direct(std::vector<const_part_set> &sources, rung_type mi
 			rc.stats = rc_r.stats + rc_l.stats;
 		}
 	} else {
-		std::vector<vect<pos_type>> x;
+		std::vector<vect<float>> x;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-				x.push_back(i->x);
+				x.push_back(pos_to_double(i->x));
 			}
 		}
 		std::vector<force> f(x.size(), { 0, vect<double>(0) });

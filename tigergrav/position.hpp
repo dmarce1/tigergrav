@@ -12,10 +12,10 @@
 
 using pos_type = std::uint32_t;
 
-constexpr auto pos_factor = 1.0 / ((double) std::numeric_limits<pos_type>::max() + 1.0);
+
 
 inline double pos_to_double(pos_type x) {
-	return ((double) x + (double) 0.5) * pos_factor;
+	return ((double) x + (double) 0.5) / ((double) std::numeric_limits<pos_type>::max() + (double) 1.0);
 }
 
 
