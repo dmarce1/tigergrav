@@ -288,6 +288,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 	}
+//	printf( "%li\n", esources.size());
 	flop += gravity_CC(L, multi.x, dmulti_srcs);
 	flop += gravity_CP(L, multi.x, dsources);
 	if (opts.ewald) {

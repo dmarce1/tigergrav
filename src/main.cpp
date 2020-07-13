@@ -61,7 +61,7 @@ int hpx_main(int argc, char *argv[]) {
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
 		printf("%13s %13s %13s %13s %13s %13s %13s %13s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
-		for (double theta = 1.0; theta >= 0.2; theta -= 0.1) {
+		for (double theta = 1.0; theta >= 0.17; theta -= 0.05) {
 			parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
 			root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 			tree::set_theta(theta);

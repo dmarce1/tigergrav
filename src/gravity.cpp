@@ -18,12 +18,14 @@ static const auto one = simd_svector(1.0);
 static const auto half = simd_svector(0.5);
 static const simd_svector eps = simd_svector(std::numeric_limits<float>::min());
 
-double EW(general_vect<double, NDIM> x) {
+force EW(general_vect<double, NDIM> x) {
+	force f;
 	general_vect<double, NDIM> n, h;
 	constexpr int nmax = 5;
 	constexpr int hmax = 10;
 
 	double sum1 = 0.0;
+	vect<double> fsum1 = 0.0;
 	for (int i = -nmax; i <= nmax; i++) {
 		for (int j = -nmax; j <= nmax; j++) {
 			for (int k = -nmax; k <= nmax; k++) {
@@ -36,11 +38,17 @@ double EW(general_vect<double, NDIM> x) {
 					const double xmn2 = absxmn * absxmn;         // 1 OP
 					const double xmn3 = xmn2 * absxmn;           // 1 OP
 					sum1 += -(1.0 - erf(2.0 * absxmn)) / absxmn; // 6 OP
+					for (int dim = 0; dim < NDIM; dim++) {
+						fsum1[dim] += (x[dim] - n[dim])
+								* (-4.0 * std::exp(-4.0 * absxmn * absxmn) / (std::sqrt(M_PI) * absxmn * absxmn)
+										- (1.0 - erf(2.0 * absxmn)) / (absxmn * absxmn * absxmn));
+					}
 				}
 			}
 		}
 	}
 	double sum2 = 0.0;
+	vect<double> fsum2 = 0.0;
 	for (int i = -hmax; i <= hmax; i++) {
 		for (int j = -hmax; j <= hmax; j++) {
 			for (int k = -hmax; k <= hmax; k++) {
@@ -51,11 +59,18 @@ double EW(general_vect<double, NDIM> x) {
 				const double h2 = absh * absh;                  // 1 OP
 				if (absh <= 10 && absh > 0) {
 					sum2 += -(1.0 / M_PI) * (1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0) * cos(2.0 * M_PI * h.dot(x))); // 14 OP
+					for (int dim = 0; dim < NDIM; dim++) {
+						fsum2[dim] += 2.0 * h[dim] / h2 * exp(-M_PI * M_PI * h2 / 4.0) * sin(2.0 * M_PI * h.dot(x));
+					}
 				}
 			}
 		}
 	}
-	return M_PI / 4.0 + sum1 + sum2 + 1 / abs(x);
+	f.phi = M_PI / 4.0 + sum1 + sum2 + 1 / abs(x);
+	for (int dim = 0; dim < NDIM; dim++) {
+		f.g[dim] = fsum1[dim] + fsum2[dim] + x[dim] / (abs(x) * abs(x) * abs(x));
+	}
+	return f;
 }
 
 double ewald_near_separation(const vect<double> x) {
@@ -133,7 +148,7 @@ std::uint64_t gravity_PP(std::vector<force> &f, const std::vector<vect<float>> &
 				nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
 			}
 		}
-		flop +=(26 + ewald ? 18 : 0) * ysize * x.size();
+		flop += (26 + ewald ? 18 : 0) * ysize * x.size();
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
@@ -645,17 +660,12 @@ void init_ewald() {
 						x[1] = j * dx0;
 						x[2] = k * dx0;
 						if (x.dot(x) != 0.0) {
-							const double dx = 0.05 * dx0;
+							const double dx = 0.5 * dx0;
+							const auto f = EW(x);
+							epot[i * NEP12 + j * NEP1 + k] = f.phi;
 							for (int dim = 0; dim < NDIM; dim++) {
-								auto ym = x;
-								auto yp = x;
-								ym[dim] -= 0.5 * dx;
-								yp[dim] += 0.5 * dx;
-								const auto f = -(EW(yp) - EW(ym)) / dx;
-								eforce[dim][i * NEP12 + j * NEP1 + k] = f;
+								eforce[dim][i * NEP12 + j * NEP1 + k] = f.g[dim];
 							}
-							const auto p = EW(x);
-							epot[i * NEP12 + j * NEP1 + k] = p;
 						}
 					};
 					futs.push_back(hpx::async(func));
