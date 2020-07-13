@@ -137,7 +137,7 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		bool rc = do_out;
 		if (!do_out) {
 			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= mrung || i->rung == null_rung) {
+				if (i->rung >= mrung) {
 					rc = true;
 					break;
 				}
@@ -171,7 +171,7 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		multi.m = (ml.first.m >> (ml.first.x - multi.x)) + (mr.first.m >> (mr.first.x - multi.x));
 		multi.has_active = ml.first.has_active || mr.first.has_active;
 		multi.r = std::max(abs(ml.first.x - multi.x) + ml.first.r, abs(mr.first.x - multi.x) + mr.first.r);
-		for( int dim = 0; dim < NDIM; dim++) {
+		for (int dim = 0; dim < NDIM; dim++) {
 			prange.max[dim] = std::max(ml.second.max[dim], mr.second.max[dim]);
 			prange.min[dim] = std::min(ml.second.min[dim], mr.second.min[dim]);
 		}
@@ -373,14 +373,14 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		static thread_local std::vector<vect<float>> x;
 		x.resize(0);
 		for (auto i = part_begin; i != part_end; i++) {
-			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
+			if (i->rung >= min_rung || do_out) {
 				x.push_back(pos_to_double(i->x));
 			}
 		}
 		std::vector<force> f(x.size());
 		int j = 0;
 		for (auto i = part_begin; i != part_end; i++) {
-			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
+			if (i->rung >= min_rung || do_out) {
 				force this_f = L.translate_L2(x[j] - multi.x);
 				f[j].phi = this_f.phi;
 				f[j].g = this_f.g;
@@ -471,7 +471,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<const_pa
 		} else {
 			std::vector<vect<float>> x;
 			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || i->rung == null_rung || do_out) {
+				if (i->rung >= min_rung || do_out) {
 					x.push_back(pos_to_double(i->x));
 				}
 			}
@@ -518,7 +518,7 @@ kick_return tree::kick_direct(std::vector<const_part_set> &sources, rung_type mi
 	} else {
 		std::vector<vect<float>> x;
 		for (auto i = part_begin; i != part_end; i++) {
-			if (i->rung >= min_rung || i->rung == null_rung || do_out) {
+			if (i->rung >= min_rung || do_out) {
 				x.push_back(pos_to_double(i->x));
 			}
 		}
@@ -550,8 +550,8 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 		rc.stats.zero();
 	}
 	for (auto i = part_begin; i != part_end; i++) {
-		if (i->rung >= min_rung || i->rung == null_rung || do_out) {
-			if (i->rung >= min_rung || i->rung == null_rung) {
+		if (i->rung >= min_rung || do_out) {
+			if (i->rung >= min_rung) {
 				if (i->rung != -1) {
 					const double dt = rung_to_dt(i->rung);
 					i->v = i->v + f[j].g * (0.5 * dt);
@@ -619,7 +619,7 @@ bool tree::active_particles(int rung, bool do_out) {
 	if (is_leaf()) {
 		rc = false;
 		for (auto i = part_begin; i != part_end; i++) {
-			if (i->rung >= rung || i->rung == null_rung) {
+			if (i->rung >= rung) {
 				rc = true;
 				break;
 			}
