@@ -85,7 +85,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 		double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		decltype(b) mid_iter;
-		if (e - b < std::sqrt(opts.problem_size)) {
+		if (e - b < 64 * opts.parts_per_node) {
 			std::sort(b, e, [max_dim](const particle &p1, const particle &p2) {
 				return p1.x[max_dim] < p2.x[max_dim];
 			});

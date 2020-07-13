@@ -279,7 +279,7 @@ std::uint64_t gravity_CC(expansion<ireal> &L, const vect<ireal> &x, std::vector<
 	return (704 + ewald ? 18 : 0) * cnt1;
 }
 
-std::uint64_t gravity_CP(expansion<ireal> &L, const vect<ireal> &x, std::vector<vect<ireal>> &y) {
+std::uint64_t gravity_CP(expansion<ireal> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}

@@ -10,6 +10,8 @@
 //#define INDIRECT_DOUBLE
 #define BALANCED_TREE
 
+#define INDIRECT_DOUBLE
+
 #ifdef INDIRECT_DOUBLE
 using ireal = double;
 #define isimd_vector simd_dvector

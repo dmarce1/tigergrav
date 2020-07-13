@@ -31,9 +31,9 @@ bool options::process_options(int argc, char *argv[]) {
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("solver_type", po::value<int>(&solver_type)->default_value(2), "0 = direct, 1 = Barnes-Hut, 2 = Fast Multipole Method") //
-	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
+	("parts_per_node", po::value<int>(&parts_per_node)->default_value(32), "maximum number of particles on a node") //
 	("problem_size", po::value<int>(&problem_size)->default_value(4096), "number of particles") //
-	("theta", po::value<double>(&theta)->default_value(0.7), "separation parameter") //
+	("theta", po::value<double>(&theta)->default_value(0.5), "separation parameter") //
 	("eta", po::value<double>(&eta)->default_value(0.2), "accuracy parameter") //
 	("soft_len", po::value<double>(&soft_len)->default_value(-1), "softening parameter") //
 	("dt_max", po::value<double>(&dt_max)->default_value(-1), "maximum timestep size") //
