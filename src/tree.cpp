@@ -225,8 +225,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		return rc;
 	}
 
-	std::vector<check_item> next_dchecklist;
-	std::vector<check_item> next_echecklist;
+	static thread_local std::vector<check_item> next_dchecklist;
+	static thread_local std::vector<check_item> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 
@@ -236,6 +236,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	dmulti_srcs.resize(0);
 	esources.resize(0);
 	dsources.resize(0);
+	next_dchecklist.resize(0);
+	next_echecklist.resize(0);
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
 
@@ -293,8 +295,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	if (opts.ewald) {
 		flop += gravity_CP_ewald(L, multi.x, esources);
 	}
-	dchecklist = std::move(next_dchecklist);
-	echecklist = std::move(next_echecklist);
+	std::swap(dchecklist, next_dchecklist);
+	std::swap(echecklist, next_echecklist);
+	next_dchecklist.resize(0);
+	next_echecklist.resize(0);
 	dmulti_srcs.resize(0);
 	dsources.resize(0);
 	esources.resize(0);
@@ -336,7 +340,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					}
 				}
 			}
-			dchecklist = std::move(next_dchecklist);
+			std::swap(dchecklist, next_dchecklist);
+			next_dchecklist.resize(0);
 		}
 		if (opts.ewald) {
 			while (!echecklist.empty()) {
@@ -363,7 +368,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 						}
 					}
 				}
-				echecklist = std::move(next_echecklist);
+				std::swap(echecklist, next_echecklist);
+				next_echecklist.resize(0);
 			}
 		}
 		static thread_local std::vector<vect<float>> x;
@@ -389,7 +395,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		if (opts.ewald) {
 			flop += gravity_PP_ewald(f, x, esources);
 		}
-//		printf( "%i %i\n", dsources.size(), esources.size());
 		rc = do_kick(f, min_rung, do_out);
 	}
 	return rc;
