@@ -25,7 +25,7 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 		root_ptr->compute_multipoles(mrung, do_out);
 		expansion<ireal> L;
 		L = 0.0;
-		return root_ptr->kick_fmm(std::vector<check_item>(1, {false,root_ptr}),std::vector<check_item>(1, {false,root_ptr}), L, mrung, do_out);
+		return root_ptr->kick_fmm(std::vector<check_item>(1, {false,root_ptr}),std::vector<check_item>(1, {false,root_ptr}),{{0.5,0.5,0.5}}, L, mrung, do_out);
 	} else {
 		printf("Unknown gravity solver type\n");
 		return kick_return();
@@ -34,6 +34,8 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 
 int hpx_main(int argc, char *argv[]) {
 
+	printf( "sizeof(particle) = %li\n", sizeof(particle));
+	printf( "sizeof(tree)     = %li\n", sizeof(tree));
 	feenableexcept(FE_DIVBYZERO);
 	feenableexcept(FE_INVALID);
 	feenableexcept(FE_OVERFLOW);

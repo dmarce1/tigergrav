@@ -54,11 +54,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
-	for (int dim = 0; dim < NDIM; dim++) {
-		coord_cent[dim] = 0.5 * (box.max[dim] + box.min[dim]);
-	}
 	if (e - b > opts.parts_per_node) {
-		leaf = false;
 		double max_span = 0.0;
 		range prange;
 		for (int dim = 0; dim < NDIM; dim++) {
@@ -104,16 +100,15 @@ tree::tree(range box, part_iter b, part_iter e) {
 		});
 		children[1] = new_(boxr, mid_iter, e);
 		children[0] = rcl.get();
-	} else {
-		leaf = true;
 	}
 }
 
-multipole_info tree::compute_multipoles(rung_type mrung, bool do_out) {
+std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool do_out) {
 	const auto &opts = options::get();
 	const auto m = 1.0 / opts.problem_size;
 	multi.m = 0.0;
-	if (leaf) {
+	range prange;
+	if (is_leaf()) {
 		multi.x = vect<double>(0.0);
 		for (auto i = part_begin; i != part_end; i++) {
 			multi.m() += m;
@@ -122,7 +117,7 @@ multipole_info tree::compute_multipoles(rung_type mrung, bool do_out) {
 		if (multi.m() != 0.0) {
 			multi.x = multi.x / multi.m();
 		} else {
-			multi.x = coord_cent;
+			ERROR();
 		}
 		for (auto i = part_begin; i != part_end; i++) {
 			const auto X = pos_to_double(i->x) - multi.x;
@@ -149,49 +144,48 @@ multipole_info tree::compute_multipoles(rung_type mrung, bool do_out) {
 			}
 		}
 		multi.has_active = rc;
+		for (int dim = 0; dim < NDIM; dim++) {
+			prange.max[dim] = 0.0;
+			prange.min[dim] = 1.0;
+		}
+		for (auto i = part_begin; i != part_end; i++) {
+			const auto X = pos_to_double(i->x);
+			for (int dim = 0; dim < NDIM; dim++) {
+				prange.max[dim] = std::max(prange.max[dim], X[dim]);
+				prange.min[dim] = std::min(prange.min[dim], X[dim]);
+			}
+		}
 	} else {
-		multipole_info ml, mr;
+		std::pair<multipole_info, range> ml, mr;
 		auto rcl = thread_if_avail([=]() {
 			return children[0]->compute_multipoles(mrung, do_out);
 		});
 		mr = children[1]->compute_multipoles(mrung, do_out);
 		ml = rcl.get();
-		multi.m() = ml.m() + mr.m();
+		multi.m() = ml.first.m() + mr.first.m();
 		if (multi.m() != 0.0) {
-			multi.x = (ml.x * ml.m() + mr.x * mr.m()) / multi.m();
+			multi.x = (ml.first.x * ml.first.m() + mr.first.x * mr.first.m()) / multi.m();
 		} else {
-			multi.x = coord_cent;
+			ERROR();
 		}
-		multi.m = (ml.m >> (ml.x - multi.x)) + (mr.m >> (mr.x - multi.x));
-		multi.has_active = ml.has_active || mr.has_active;
-		multi.r = std::max(abs(ml.x - multi.x) + ml.r, abs(mr.x - multi.x) + mr.r);
-		child_com[0] = ml.x;
-		child_com[1] = mr.x;
-		if (part_end - part_begin > 0) {
-			range corners;
-			for (int dim = 0; dim < NDIM; dim++) {
-				corners.max[dim] = -std::numeric_limits<ireal>::max();
-				corners.min[dim] = +std::numeric_limits<ireal>::max();
-			}
-			for (auto i = part_begin; i != part_end; i++) {
-				const auto X = pos_to_double(i->x);
-				for (int dim = 0; dim < NDIM; dim++) {
-					corners.max[dim] = std::max(corners.max[dim], X[dim]);
-					corners.min[dim] = std::min(corners.min[dim], X[dim]);
-				}
-			}
-			ireal rmax = abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.min[1], (ireal) corners.min[2] }));
-			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.min[1], (ireal) corners.min[2] })));
-			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.max[1], (ireal) corners.min[2] })));
-			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.max[1], (ireal) corners.min[2] })));
-			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.min[1], (ireal) corners.max[2] })));
-			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.min[1], (ireal) corners.max[2] })));
-			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.min[0], (ireal) corners.max[1], (ireal) corners.max[2] })));
-			rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) corners.max[0], (ireal) corners.max[1], (ireal) corners.max[2] })));
-			multi.r = std::min(multi.r, rmax);
+		multi.m = (ml.first.m >> (ml.first.x - multi.x)) + (mr.first.m >> (mr.first.x - multi.x));
+		multi.has_active = ml.first.has_active || mr.first.has_active;
+		multi.r = std::max(abs(ml.first.x - multi.x) + ml.first.r, abs(mr.first.x - multi.x) + mr.first.r);
+		for( int dim = 0; dim < NDIM; dim++) {
+			prange.max[dim] = std::max(ml.second.max[dim], mr.second.max[dim]);
+			prange.min[dim] = std::min(ml.second.min[dim], mr.second.min[dim]);
 		}
+		ireal rmax = abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.min[1], (ireal) prange.min[2] }));
+		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.min[1], (ireal) prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.max[1], (ireal) prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.max[1], (ireal) prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.min[1], (ireal) prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.min[1], (ireal) prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.max[1], (ireal) prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.max[1], (ireal) prange.max[2] })));
+		multi.r = std::min(multi.r, rmax);
 	}
-	return multi;
+	return std::make_pair(multi, prange);
 }
 
 multipole_info tree::get_multipole() const {
@@ -203,7 +197,8 @@ monopole tree::get_monopole() const {
 }
 
 bool tree::is_leaf() const {
-	return leaf;
+	static const auto opts = options::get();
+	return (part_end - part_begin) <= opts.parts_per_node;
 }
 
 std::array<tree_ptr, NCHILD> tree::get_children() const {
@@ -217,13 +212,16 @@ const_part_set tree::get_positions() const {
 	return iters;
 }
 
-kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, expansion<ireal> L, rung_type min_rung, bool do_out) {
+kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<ireal> L,
+		rung_type min_rung, bool do_out) {
 
 	kick_return rc;
 	if (!multi.has_active && !do_out) {
 		rc.rung = 0;
 		return rc;
 	}
+
+	L = L << (multi.x - Lcom);
 
 	static thread_local std::vector<check_item> next_dchecklist;
 	static thread_local std::vector<check_item> next_echecklist;
@@ -304,9 +302,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	esources.resize(0);
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=]() {
-			return children[0]->kick_fmm(std::move(dchecklist), std::move(echecklist), L << (child_com[0] - multi.x), min_rung, do_out);
+			return children[0]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
 		});
-		const auto rc_r = children[1]->kick_fmm(std::move(dchecklist), std::move(echecklist), L << (child_com[1] - multi.x), min_rung, do_out);
+		const auto rc_r = children[1]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_out) {

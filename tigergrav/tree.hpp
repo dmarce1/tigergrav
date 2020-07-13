@@ -62,11 +62,7 @@ class tree {
 	multipole_info multi;
 	part_iter part_begin;
 	part_iter part_end;
-	bool leaf;
 	std::array<tree_ptr, NCHILD> children;
-	std::array<vect<double>, NCHILD> child_com;
-	vect<double> coord_cent;
-
 	static double theta_inv;
 	static std::atomic<std::uint64_t> flop;
 
@@ -76,7 +72,7 @@ public:
 	static void reset_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
 	tree(range, part_iter, part_iter);
-	multipole_info compute_multipoles(rung_type min_rung, bool do_out);
+	std::pair<multipole_info,range> compute_multipoles(rung_type min_rung, bool do_out);
 	multipole_info get_multipole() const;
 	monopole get_monopole() const;
 	bool is_leaf() const;
@@ -87,7 +83,7 @@ public:
 	bool active_particles(int rung, bool do_out);
 	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<const_part_set> dsources, std::vector<multi_src> multi_srcs,
 			std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung, bool do_output);
-	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, expansion<ireal> L, rung_type min_rung, bool do_output);
+	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal>& Lcom, expansion<ireal> L, rung_type min_rung, bool do_output);
 	kick_return kick_direct(std::vector<const_part_set>&, rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
 
