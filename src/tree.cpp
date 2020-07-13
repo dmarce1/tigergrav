@@ -85,17 +85,20 @@ tree::tree(range box, part_iter b, part_iter e) {
 		double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		decltype(b) mid_iter;
-#ifdef BALANCED_TREE
-#error
-#else
-		if (e - b == 0) {
-			mid_iter = e;
-		} else {
-			mid_iter = bisect(b, e, [max_dim, mid](const particle &p) {
-				return pos_to_double(p.x[max_dim]) < mid;
+		if (e - b < std::sqrt(opts.problem_size)) {
+			std::sort(b, e, [max_dim](const particle &p1, const particle &p2) {
+				return p1.x[max_dim] < p2.x[max_dim];
 			});
+			mid_iter = b + (e - b) / 2;
+		} else {
+			if (e - b == 0) {
+				mid_iter = e;
+			} else {
+				mid_iter = bisect(b, e, [max_dim, mid](const particle &p) {
+					return pos_to_double(p.x[max_dim]) < mid;
+				});
+			}
 		}
-#endif
 		auto rcl = thread_if_avail([=]() {
 			return new_(boxl, b, mid_iter);
 		});
