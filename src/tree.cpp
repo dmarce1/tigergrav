@@ -54,27 +54,19 @@ tree::tree(range box, part_iter b, part_iter e) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
+	max_span = box.max[0] - box.min[0];
+	for (int dim = 1; dim < NDIM; dim++) {
+		max_span = std::max(max_span, box.max[dim] - box.min[dim]);
+	}
 	for (int dim = 0; dim < NDIM; dim++) {
 		coord_cent[dim] = 0.5 * (box.max[dim] + box.min[dim]);
 	}
 	if (e - b > opts.parts_per_node) {
 		leaf = false;
 		double max_span = 0.0;
-		range prange;
-		for (int dim = 0; dim < NDIM; dim++) {
-			prange.max[dim] = 0.0;
-			prange.min[dim] = +1.0;
-		}
-		for (auto i = b; i != e; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto x = pos_to_double(i->x[dim]);
-				prange.max[dim] = std::max(prange.max[dim], x);
-				prange.min[dim] = std::min(prange.min[dim], x);
-			}
-		}
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
-			const auto this_span = prange.max[dim] - prange.min[dim];
+			const auto this_span = box.max[dim] - box.min[dim];
 			if (this_span > max_span) {
 				max_span = this_span;
 				max_dim = dim;
@@ -85,9 +77,6 @@ tree::tree(range box, part_iter b, part_iter e) {
 		double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		decltype(b) mid_iter;
-#ifdef BALANCED_TREE
-#error
-#else
 		if (e - b == 0) {
 			mid_iter = e;
 		} else {
@@ -95,7 +84,6 @@ tree::tree(range box, part_iter b, part_iter e) {
 				return pos_to_double(p.x[max_dim]) < mid;
 			});
 		}
-#endif
 		auto rcl = thread_if_avail([=]() {
 			return new_(boxl, b, mid_iter);
 		});
@@ -521,7 +509,7 @@ kick_return tree::kick_direct(std::vector<const_part_set> &sources, rung_type mi
 		if (opts.ewald) {
 			std::vector<source> esources;
 			for (auto s : sources) {
-				for (auto i = s.first; i != s.second; i++) {
+				for( auto i = s.first; i != s.second; i++) {
 					const vect<float> x = pos_to_double(i->x);
 					esources.push_back( { m, x });
 				}
