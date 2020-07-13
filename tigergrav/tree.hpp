@@ -63,7 +63,6 @@ class tree {
 	part_iter part_begin;
 	part_iter part_end;
 	bool leaf;
-	double max_span;
 	std::array<tree_ptr, NCHILD> children;
 	std::array<vect<double>, NCHILD> child_com;
 	vect<double> coord_cent;

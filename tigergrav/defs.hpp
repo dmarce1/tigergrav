@@ -8,6 +8,7 @@
 #define ERROR() printf( "ERROR %s %i\n", __FILE__, __LINE__)
 
 //#define INDIRECT_DOUBLE
+//#define BALANCED_TREE
 
 #ifdef INDIRECT_DOUBLE
 using ireal = double;
