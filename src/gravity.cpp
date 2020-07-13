@@ -6,7 +6,7 @@
 #include <hpx/include/async.hpp>
 
 constexpr int NE = 64;
-constexpr int NEP1 = 65;
+constexpr int NEP1 = NE + 1;
 constexpr int NEP12 = NEP1 * NEP1;
 
 using ewald_table_t = std::array<float,NEP1*NEP1*NEP1>;
@@ -18,6 +18,9 @@ static const auto one = simd_svector(1.0);
 static const auto half = simd_svector(0.5);
 static const simd_svector eps = simd_svector(std::numeric_limits<float>::min());
 
+std::vector<vect<double>> ewald_h;
+std::vector<vect<double>> ewald_n;
+
 force EW(general_vect<double, NDIM> x) {
 	force f;
 	general_vect<double, NDIM> n, h;
@@ -26,43 +29,30 @@ force EW(general_vect<double, NDIM> x) {
 
 	double sum1 = 0.0;
 	vect<double> fsum1 = 0.0;
-	for (int i = -nmax; i <= nmax; i++) {
-		for (int j = -nmax; j <= nmax; j++) {
-			for (int k = -nmax; k <= nmax; k++) {
-				n[0] = i;
-				n[1] = j;
-				n[2] = k;
-				const auto xmn = x - n;                          // 3 OP
-				double absxmn = abs(x - n);                      // 5 OP
-				if (absxmn < 3.6) {
-					const double xmn2 = absxmn * absxmn;         // 1 OP
-					const double xmn3 = xmn2 * absxmn;           // 1 OP
-					sum1 += -(1.0 - erf(2.0 * absxmn)) / absxmn; // 6 OP
-					for (int dim = 0; dim < NDIM; dim++) {
-						fsum1[dim] += (x[dim] - n[dim])
-								* (-4.0 * std::exp(-4.0 * absxmn * absxmn) / (std::sqrt(M_PI) * absxmn * absxmn)
-										- (1.0 - erf(2.0 * absxmn)) / (absxmn * absxmn * absxmn));
-					}
-				}
+	for (auto n : ewald_n) {
+		const auto xmn = x - n;                          // 3 OP
+		double absxmn = abs(x - n);                      // 5 OP
+		if (absxmn < 3.6) {
+			const double xmn2 = absxmn * absxmn;         // 1 OP
+			const double xmn3 = xmn2 * absxmn;           // 1 OP
+			sum1 += -(1.0 - erf(2.0 * absxmn)) / absxmn; // 6 OP
+			for (int dim = 0; dim < NDIM; dim++) {
+				fsum1[dim] += (x[dim] - n[dim]) * (-4.0 * std::exp(-4.0 * xmn2) / (std::sqrt(M_PI) * xmn2) - (1.0 - erf(2.0 * absxmn)) / xmn3);
 			}
 		}
 	}
 	double sum2 = 0.0;
 	vect<double> fsum2 = 0.0;
-	for (int i = -hmax; i <= hmax; i++) {
-		for (int j = -hmax; j <= hmax; j++) {
-			for (int k = -hmax; k <= hmax; k++) {
-				h[0] = i;
-				h[1] = j;
-				h[2] = k;
-				const double absh = abs(h);                     // 5 OP
-				const double h2 = absh * absh;                  // 1 OP
-				if (absh <= 10 && absh > 0) {
-					sum2 += -(1.0 / M_PI) * (1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0) * cos(2.0 * M_PI * h.dot(x))); // 14 OP
-					for (int dim = 0; dim < NDIM; dim++) {
-						fsum2[dim] += 2.0 * h[dim] / h2 * exp(-M_PI * M_PI * h2 / 4.0) * sin(2.0 * M_PI * h.dot(x));
-					}
-				}
+	for (auto h : ewald_h) {
+		const double absh = abs(h);                     // 5 OP
+		if (absh <= 10 && absh > 0) {
+			const double h2 = absh * absh;                     // 1 OP
+			const double h2inv = 1.0 / h2;
+			const double omega = 2.0 * M_PI * h.dot(x);
+			const double h2invexptau = h2inv * exp(-M_PI * M_PI * h2 / 4.0);
+			sum2 += -(1.0 / M_PI) * (h2invexptau * cos(omega)); // 14 OP
+			for (int dim = 0; dim < NDIM; dim++) {
+				fsum2[dim] += 2.0 * h[dim] * h2invexptau * sin(omega);
 			}
 		}
 	}
@@ -624,6 +614,38 @@ std::uint64_t gravity_CP_ewald(expansion<ireal> &L, const vect<float> &x, std::v
 }
 
 void init_ewald() {
+
+	force f;
+	general_vect<double, NDIM> n, h;
+	constexpr int nmax = 5;
+	constexpr int hmax = 10;
+
+	double sum1 = 0.0;
+	vect<double> fsum1 = 0.0;
+	for (int i = -nmax; i <= nmax; i++) {
+		for (int j = -nmax; j <= nmax; j++) {
+			for (int k = -nmax; k <= nmax; k++) {
+				n[0] = i;
+				n[1] = j;
+				n[2] = k;
+				ewald_n.push_back(n);
+			}
+		}
+	}
+	for (int i = -hmax; i <= hmax; i++) {
+		for (int j = -hmax; j <= hmax; j++) {
+			for (int k = -hmax; k <= hmax; k++) {
+				h[0] = i;
+				h[1] = j;
+				h[2] = k;
+				const double absh = abs(h);                     // 5 OP
+				if (absh <= 10 && absh > 0) {
+					ewald_h.push_back(h);
+				}
+			}
+		}
+	}
+
 	FILE *fp = fopen("ewald.dat", "rb");
 	if (fp) {
 		int cnt = 0;
@@ -638,6 +660,7 @@ void init_ewald() {
 		}
 		fclose(fp);
 	} else {
+
 		printf("ewald.dat not found\n");
 		printf("Initializing Ewald (this may take some time)\n");
 
