@@ -553,7 +553,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 	for (auto i = part_begin; i != part_end; i++) {
 		if (i->rung >= min_rung || do_out) {
 			if (i->rung >= min_rung) {
-				if (i->rung != -1) {
+				if (i->rung != 0) {
 					const double dt = rung_to_dt(i->rung);
 					i->v = i->v + f[j].g * (0.5 * dt);
 				}
@@ -563,7 +563,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
 				dt = rung_to_dt(rung);
-				i->rung = std::max(rung, rung_type(i->rung - 1));
+				i->rung = std::max(std::max(rung, rung_type(i->rung - 1)), (rung_type)1);
 				i->v = i->v + f[j].g * (0.5 * dt);
 			}
 			if (do_out) {
