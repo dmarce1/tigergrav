@@ -312,6 +312,7 @@ inline void expansion<T>::invert() {
 
 template<class T>
 inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
+
 	const T r2inv = 1.0 / dX.dot(dX);						// 6
 	const T d0 = -sqrt(r2inv);								// 2
 	const T d1 = -d0 * r2inv;								// 2
@@ -322,65 +323,24 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 	expansion<T> D;
 	D = 0.0;
 	D() += d0;												// 1
-	for (int a = 0; a < 3; a++) {
-		D(a) += dX[a] * d1;									// 6
-		D(a, a) += d1;										// 3
-		D(a, a, a) += dX[a] * d2;							// 6
-		for (int b = a; b < 3; b++) {
-			D(a, b) += dX[a] * dX[b] * d2;					// 18
-			D(a, a, b) += dX[b] * d2;						// 12
-			D(a, b, b) += dX[a] * d2;						// 12
-			for (int c = b; c < 3; c++) {
-				D(a, b, c) += dX[a] * dX[b] * dX[c] * d3;	// 40
-			}
-		}
-	}
-
 	for (int i = 0; i < NDIM; i++) {
+		D(i) += dX[i] * d1;									// 6
+		D(i, i) += d1;										// 3
+		D(i, i, i) += dX[i] * d2;							// 6
 		D(i, i, i, i) += dX[i] * dX[i] * d3;				// 9
-	}
-	for (int i = 0; i < NDIM; i++) {
 		D(i, i, i, i) += 2.0 * d2;							// 6
-	}
-	for (int i = 0; i < NDIM; i++) {
 		for (int j = 0; j <= i; j++) {
+			D(i, j) += dX[i] * dX[j] * d2;					// 18
+			D(i, i, j) += dX[j] * d2;						// 12
+			D(i, j, j) += dX[i] * d2;						// 12
 			D(i, i, i, j) += dX[i] * dX[j] * d3;			// 18
-		}
-	}
-	for (int i = 0; i < NDIM; i++) {
-		for (int j = 0; j <= i; j++) {
 			D(i, j, j, j) += dX[i] * dX[j] * d3;			// 18
-		}
-	}
-	for (int i = 0; i < NDIM; i++) {
-		for (int j = 0; j <= i; j++) {
 			D(i, i, j, j) += d2;							// 6
-		}
-	}
-	for (int i = 0; i < NDIM; i++) {
-		for (int j = 0; j <= i; j++) {
 			for (int k = 0; k <= j; k++) {
+				D(i, j, k) += dX[i] * dX[j] * dX[k] * d3;	// 40
 				D(i, i, j, k) += dX[j] * dX[k] * d3;		// 30
-			}
-		}
-	}
-	for (int i = 0; i < NDIM; i++) {
-		for (int j = 0; j <= i; j++) {
-			for (int k = 0; k <= j; k++) {
 				D(i, j, k, k) += dX[i] * dX[j] * d3;		// 30
-			}
-		}
-	}
-	for (int i = 0; i < NDIM; i++) {
-		for (int j = 0; j <= i; j++) {
-			for (int k = 0; k <= j; k++) {
 				D(i, j, j, k) += dX[i] * dX[k] * d3;		// 30
-			}
-		}
-	}
-	for (int i = 0; i < NDIM; i++) {
-		for (int j = 0; j <= i; j++) {
-			for (int k = 0; k <= j; k++) {
 				for (int l = 0; l <= k; l++) {
 					D(i, j, k, l) += dX[i] * dX[j] * dX[k] * dX[l] * d4;	// 75
 				}
