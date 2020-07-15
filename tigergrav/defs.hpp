@@ -21,3 +21,6 @@ using ireal = float;
 #define isimd_vector  simd_svector
 #define ISIMD_LEN SIMD_SLEN
 #endif
+
+
+#define HEXAPOLE

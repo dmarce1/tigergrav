@@ -14,6 +14,11 @@ static void init_factors() {
 				expansion_factor(a, b, c) += 1.0 / 6.0;
 				for (int d = 0; d < NDIM; ++d) {
 					expansion_factor(a, b, c, d) += 1.0 / 24.0;
+#ifdef HEXAPOLE
+					for (int e = 0; e < NDIM; ++e) {
+						expansion_factor(a, b, c, d, e) += 1.0 / 120.0;
+					}
+#endif
 				}
 			}
 		}

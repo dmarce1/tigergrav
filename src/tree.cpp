@@ -126,6 +126,11 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 					multi.m(j, k) += m * X[j] * X[k];
 					for (int l = 0; l <= k; l++) {
 						multi.m(j, k, l) += m * X[j] * X[k] * X[l];
+#ifdef HEXAPOLE
+						for( int n = 0; n <= l; n++) {
+							multi.m(j, k, l, n) += m * X[j] * X[k] * X[l] * X[n];
+						}
+#endif
 					}
 				}
 			}

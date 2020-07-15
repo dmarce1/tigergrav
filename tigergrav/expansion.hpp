@@ -21,7 +21,11 @@
 #include <tigergrav/multipole.hpp>
 #include <tigergrav/options.hpp>
 
+#ifdef HEXAPOLE
+constexpr int LP = 56;
+#else
 constexpr int LP = 35;
+#endif
 
 struct force {
 	float phi;
@@ -30,6 +34,18 @@ struct force {
 
 template<class T>
 class expansion: public std::array<T, LP> {
+
+	static constexpr int map5[NDIM][NDIM][NDIM][NDIM][NDIM] = { { { { { 0, 1, 6 }, { 1, 2, 7 }, { 6, 7, 11 } }, { { 1, 2, 7 }, { 2, 3, 8 }, { 7, 8, 12 } }, { {
+			6, 7, 11 }, { 7, 8, 12 }, { 11, 12, 15 } } }, { { { 1, 2, 7 }, { 2, 3, 8 }, { 7, 8, 12 } }, { { 2, 3, 8 }, { 3, 4, 9 }, { 8, 9, 13 } }, {
+			{ 7, 8, 12 }, { 8, 9, 13 }, { 12, 13, 16 } } }, { { { 6, 7, 11 }, { 7, 8, 12 }, { 11, 12, 15 } }, { { 7, 8, 12 }, { 8, 9, 13 }, { 12, 13, 16 } }, {
+			{ 11, 12, 15 }, { 12, 13, 16 }, { 15, 16, 18 } } } }, { { { { 1, 2, 7 }, { 2, 3, 8 }, { 7, 8, 12 } }, { { 2, 3, 8 }, { 3, 4, 9 }, { 8, 9, 13 } }, {
+			{ 7, 8, 12 }, { 8, 9, 13 }, { 12, 13, 16 } } }, { { { 2, 3, 8 }, { 3, 4, 9 }, { 8, 9, 13 } }, { { 3, 4, 9 }, { 4, 5, 10 }, { 9, 10, 14 } }, { { 8,
+			9, 13 }, { 9, 10, 14 }, { 13, 14, 17 } } }, { { { 7, 8, 12 }, { 8, 9, 13 }, { 12, 13, 16 } }, { { 8, 9, 13 }, { 9, 10, 14 }, { 13, 14, 17 } }, { {
+			12, 13, 16 }, { 13, 14, 17 }, { 16, 17, 19 } } } }, { { { { 6, 7, 11 }, { 7, 8, 12 }, { 11, 12, 15 } },
+			{ { 7, 8, 12 }, { 8, 9, 13 }, { 12, 13, 16 } }, { { 11, 12, 15 }, { 12, 13, 16 }, { 15, 16, 18 } } },
+			{ { { 7, 8, 12 }, { 8, 9, 13 }, { 12, 13, 16 } }, { { 8, 9, 13 }, { 9, 10, 14 }, { 13, 14, 17 } },
+					{ { 12, 13, 16 }, { 13, 14, 17 }, { 16, 17, 19 } } }, { { { 11, 12, 15 }, { 12, 13, 16 }, { 15, 16, 18 } }, { { 12, 13, 16 },
+					{ 13, 14, 17 }, { 16, 17, 19 } }, { { 15, 16, 18 }, { 16, 17, 19 }, { 18, 19, 20 } } } } };
 
 public:
 	expansion<T>& operator*=(T r) {
@@ -49,6 +65,8 @@ public:
 	T& operator ()(int i, int j, int k);
 	T operator ()(int i, int j, int k, int l) const;
 	T& operator ()(int i, int j, int k, int l);
+	T operator ()(int i, int j, int k, int l, int m) const;
+	T& operator ()(int i, int j, int k, int l, int m);
 	expansion<T>& operator =(const expansion<T> &expansion);
 	expansion<T>& operator =(T expansion);
 	force translate_L2(const vect<T> &dX) const;
@@ -125,6 +143,16 @@ inline T expansion<T>::operator ()(int i, int j, int k, int l) const {
 			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
 			{ 9, 13, 14 } } } };
 	return (*this)[20 + map4[i][j][k][l]];
+}
+
+template<class T>
+inline T& expansion<T>::operator ()(int i, int j, int k, int l, int m) {
+	return (*this)[35 + map5[i][j][k][l][m]];
+}
+
+template<class T>
+inline T expansion<T>::operator ()(int i, int j, int k, int l, int m) const {
+	return (*this)[35 + map5[i][j][k][l][m]];
 }
 
 template<class T>
@@ -264,6 +292,7 @@ inline force expansion<T>::translate_L2(const vect<T> &dX) const {
 			}
 		}
 	}
+#ifdef HEXAPOLE
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
@@ -282,6 +311,7 @@ inline force expansion<T>::translate_L2(const vect<T> &dX) const {
 			}
 		}
 	}
+#endif
 	return f;
 }
 
@@ -326,6 +356,9 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 	const T d2 = -3.0 * d1 * r2inv;							// 3
 	const T d3 = -5.0 * d2 * r2inv;							// 3
 	const T d4 = -7.0 * d3 * r2inv;							// 3
+#ifdef HEXAPOLE
+	const T d5 = -9.0 * d4 * r2inv;							// 3
+#endif
 
 	expansion<T> D;
 	D = 0.0;
@@ -350,6 +383,57 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 				D(i, j, j, k) += dX[i] * dX[k] * d3;		// 30
 				for (int l = 0; l <= k; l++) {
 					D(i, j, k, l) += dX[i] * dX[j] * dX[k] * dX[l] * d4;	// 75
+#ifdef HEXAPOLE
+					for (int m = 0; m <= l; m++) {
+						D(i, j, k, l, m) += dX[i] * dX[k] * dX[k] * dX[l] * dX[m] * d5;
+						if (i == j) {
+							const auto tmp = dX[k] * dX[l] * dX[m] * d4;
+							D(i, j, k, l, m) += tmp;
+							D(i, k, j, l, m) += tmp;
+							D(i, k, l, j, m) += tmp;
+							D(i, k, l, m, j) += tmp;
+							D(m, i, j, k, l) += tmp;
+							D(m, i, k, j, l) += tmp;
+							D(m, i, k, l, j) += tmp;
+							D(m, l, i, j, k) += tmp;
+							D(m, l, i, k, j) += tmp;
+							D(m, l, k, i, j) += tmp;
+							if (k == l) {
+								const auto tmp = dX[m] * d3;
+								D(i, j, k, l, m) += tmp;
+								D(i, k, j, l, m) += tmp;
+								D(i, l, j, k, m) += tmp;
+								D(j, k, i, l, m) += tmp;
+								D(j, l, i, k, m) += tmp;
+								D(k, l, i, j, m) += tmp;
+								D(i, j, k, m, l) += tmp;
+								D(i, k, j, m, l) += tmp;
+								D(i, l, j, m, k) += tmp;
+								D(j, k, i, m, l) += tmp;
+								D(j, l, i, m, k) += tmp;
+								D(k, l, i, m, j) += tmp;
+								D(i, j, m, k, l) += tmp;
+								D(i, k, m, j, l) += tmp;
+								D(i, l, m, j, k) += tmp;
+								D(j, k, m, i, l) += tmp;
+								D(j, l, m, i, k) += tmp;
+								D(k, l, m, i, j) += tmp;
+								D(i, m, j, k, l) += tmp;
+								D(i, m, k, j, l) += tmp;
+								D(i, m, l, j, k) += tmp;
+								D(j, m, k, i, l) += tmp;
+								D(j, m, l, i, k) += tmp;
+								D(k, m, l, i, j) += tmp;
+								D(m, i, j, k, l) += tmp;
+								D(m, i, k, j, l) += tmp;
+								D(m, i, l, j, k) += tmp;
+								D(m, j, k, i, l) += tmp;
+								D(m, j, l, i, k) += tmp;
+								D(m, k, l, i, j) += tmp;
+							}
+						}
+					}
+#endif
 				}
 			}
 		}
@@ -418,6 +502,12 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 339 OPS
 						}
 					}
 				}
+			}
+		}
+	}
+	for (int i = -nmax; i <= nmax; i++) {
+		for (int j = -nmax; j <= nmax; j++) {
+			for (int k = -nmax; k <= nmax; k++) {
 				h[0] = i;
 				h[1] = j;
 				h[2] = k;
@@ -460,9 +550,9 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 339 OPS
 		for (int b = 0; b <= a; b++) {
 			D(a, b) = sw * (D(a, b) - D1(a, b));
 			for (int c = 0; c <= b; c++) {
-				D(a, b, c) = sw*(D(a, b, c) - D1(a, b, c));
+				D(a, b, c) = sw * (D(a, b, c) - D1(a, b, c));
 				for (int d = 0; d <= c; d++) {
-					D(a, b, c, d) = sw*(D(a, b, c, d) - D1(a, b, c, d));
+					D(a, b, c, d) = sw * (D(a, b, c, d) - D1(a, b, c, d));
 				}
 			}
 		}
@@ -473,7 +563,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 339 OPS
 extern expansion<ireal> expansion_factor;
 
 template<class T>
-inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect<T> dX, bool ewald = false) { // 701
+inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M, vect<T> dX, bool ewald = false) { // 701
 
 	expansion<T> D;
 	if (ewald) {
@@ -482,40 +572,40 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		D = green_direct(dX);
 	}
 
-	L1() += M2() * D();
+	L1() += M() * D();
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L1() += M2(a, b) * D(a, b) * expansion_factor(a, b);						// 18
+			L1() += M(a, b) * D(a, b) * expansion_factor(a, b);						// 18
 		}
 	}
 	for (int a = 0; a < 3; a++) {
-		L1(a) += M2() * D(a);
+		L1(a) += M() * D(a);
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				L1(a) += M2(c, b) * D(a, b, c) * expansion_factor(c, b);				// 54
+				L1(a) += M(c, b) * D(a, b, c) * expansion_factor(c, b);				// 54
 			}
 		}
 	}
 
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L1(a, b) += M2() * D(a, b);													// 12
+			L1(a, b) += M() * D(a, b);													// 12
 		}
 	}
 
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				L1(a, b, c) += M2() * D(a, b, c);										// 20
+				L1(a, b, c) += M() * D(a, b, c);										// 20
 			}
 		}
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				L1() -= M2(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 30
+				L1() -= M(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 30
 			}
 		}
 	}
@@ -523,7 +613,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					L1(a) -= M2(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	// 90
+					L1(a) -= M(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	// 90
 				}
 			}
 		}
@@ -532,7 +622,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		for (int b = a; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					L1(a, b) += M2(c, d) * D(a, b, c, d) * expansion_factor(c, d);		// 108
+					L1(a, b) += M(c, d) * D(a, b, c, d) * expansion_factor(c, d);		// 108
 				}
 			}
 		}
@@ -541,11 +631,29 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					L1(a, b, c, d) += M2() * D(a, b, c, d);								// 30
+					L1(a, b, c, d) += M() * D(a, b, c, d);								// 30
 				}
 			}
 		}
 	}
+
+#ifdef HEXAPOLE
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				for (int d = c; d < 3; d++) {
+					L1() += M(a, b, c, d) * D(a, b, c, d) * expansion_factor(a, b, c, d);			// 30
+					for (int e = 0; e <= d; e++) {
+//						L1(a) += M(b, c, d, e) * D(a, b, c, d, e) * expansion_factor(b, c, d, e);	// 90
+//						L1(a, b) -= M(c, d, e) * D(a, b, c, d, e) * expansion_factor(c, d, e);		// 108
+//						L1(a, b, c) += M(d, e) * D(a, b, c, d, e) * expansion_factor(d, e);		// 108
+//						L1(a, b, c, d, e) += M() * D(a, b, c, d, e);		// 108
+					}
+				}
+			}
+		}
+	}
+#endif
 }
 
 template<class T>
@@ -593,9 +701,27 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 			}
 		}
 	}
-	return f;
+
+#ifdef HEXAPOLE
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				for (int d = c; d < 3; d++) {
+					f.first += M(a, b, c, d) * D(a, b, c, d) * expansion_factor(a, b, c, d);			// 30
+					for (int e = 0; e <= d; e++) {
+						f.second[a] -= M(b, c, d, e) * D(a, b, c, d, e) * expansion_factor(b, c, d, e);	// 90
+					}
+				}
+			}
+		}
+	}
+#endif
+return f;
 
 }
+
+template<class T>
+constexpr int expansion<T>::map5[NDIM][NDIM][NDIM][NDIM][NDIM];
 
 /* namespace fmmx */
 #endif /* expansion_H_ */

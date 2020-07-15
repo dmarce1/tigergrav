@@ -308,6 +308,11 @@ std::uint64_t gravity_PC(std::vector<force> &f, const std::vector<vect<float>> &
 					M(n, l)[k] = y[j + k].m(n, l);
 					for (int p = 0; p <= l; p++) {
 						M(n, l, p)[k] = y[j + k].m(n, l, p);
+#ifdef HEXAPOLE
+						for (int q = 0; q <= p; q++) {
+							M(n, l, p, q) = y[j + k].m(n, l, p, q);
+						}
+#endif
 					}
 				}
 			}
@@ -380,6 +385,11 @@ std::uint64_t gravity_CC(expansion<ireal> &L, const vect<ireal> &x, std::vector<
 					M(n, l)[k] = y[j + k].m(n, l);
 					for (int p = 0; p <= l; p++) {
 						M(n, l, p)[k] = y[j + k].m(n, l, p);
+#ifdef HEXAPOLE
+						for (int q = 0; q <= p; q++) {
+							M(n, l, p, q) = y[j + k].m(n, l, p, q);
+						}
+#endif
 					}
 				}
 			}
@@ -406,6 +416,11 @@ std::uint64_t gravity_CC(expansion<ireal> &L, const vect<ireal> &x, std::vector<
 				L(j, k, l) += Lacc(j, k, l).sum();
 				for (int m = 0; m <= l; m++) {
 					L(j, k, l, m) += Lacc(j, k, l, m).sum();
+#ifdef HEXAPOLE
+					for (int n = 0; n <= m; n++) {
+						L(j, k, l, m, n) += Lacc(j, k, l, m, n).sum();
+					}
+#endif
 				}
 			}
 		}
@@ -482,26 +497,17 @@ std::uint64_t gravity_CP(expansion<ireal> &L, const vect<ireal> &x, std::vector<
 				L(j, k, l) += Lacc(j, k, l).sum();
 				for (int m = 0; m <= l; m++) {
 					L(j, k, l, m) += Lacc(j, k, l, m).sum();
+#ifdef HEXAPOLE
+					for (int n = 0; n <= m; n++) {
+						L(j, k, l, m, n) += Lacc(j, k, l, m, n).sum();
+					}
+#endif
 				}
 			}
 		}
 	}
 	return (704 + ewald ? 18 : 0) * cnt1;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
 	if (x.size() == 0) {
@@ -716,11 +722,6 @@ std::uint64_t gravity_CP_ewald(expansion<ireal> &L, const vect<ireal> &x, std::v
 	}
 	return (704 + ewald ? 18 : 0) * cnt1;
 }
-
-
-
-
-
 
 void init_ewald() {
 
