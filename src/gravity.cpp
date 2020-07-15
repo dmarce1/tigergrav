@@ -77,8 +77,6 @@ force EW(general_vect<double, NDIM> x) {
 	return f;
 }
 
-
-
 double ewald_near_separation(const vect<double> x) {
 	double d = 0.0;
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -97,6 +95,122 @@ double ewald_far_separation(const vect<double> x) {
 		d += this_d * this_d;
 	}
 	return std::max(std::sqrt(d), double(0.25));
+}
+
+std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
+	if (x.size() == 0) {
+		return 0;
+	}
+	std::uint64_t flop = 0;
+
+	static const auto one = simd_dvector(1.0);
+	static const auto half = simd_dvector(0.5);
+
+	static const auto opts = options::get();
+	simd_dvector M;
+	static const bool ewald = opts.ewald;
+	static const auto h = opts.soft_len;
+	static const auto h2 = h * h;
+	static const simd_dvector H(h);
+	static const simd_dvector H2(h2);
+	vect<simd_dvector> X, Y;
+	std::vector<vect<simd_dvector>> G(x.size(), vect<double>(0.0));
+	std::vector<simd_dvector> Phi(x.size(), 0.0);
+	const auto cnt1 = y.size();
+	const auto cnt2 = ((cnt1 - 1 + SIMD_DLEN) / SIMD_DLEN) * SIMD_DLEN;
+	y.resize(cnt2);
+	for (int j = cnt1; j < cnt2; j++) {
+		y[j].m = 0.0;
+		y[j].x = vect<double>(0.0);
+	}
+	for (int J = 0; J < cnt1; J += SIMD_DLEN) {
+		for (int k = 0; k < SIMD_DLEN; k++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = y[J + k].x[dim];
+			}
+			M[k] = y[J + k].m;
+		}
+		for (int I = 0; I < x.size(); I++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				X[dim] = simd_dvector(x[I][dim]);
+			}
+
+			vect<simd_dvector> dX0 = X - Y;             		// 3 OP
+			for (int dim = 0; dim < NDIM; dim++) {
+				const auto absdx = abs(dX0[dim]);										// 3 OP
+				dX0[dim] = copysign(min(absdx, one - absdx), dX0[dim] * (half - absdx));  // 15 OP
+			}
+			constexpr int nmax = 2;
+			constexpr int hmax = 2;
+			const double huge = std::numeric_limits<double>::max() / 10.0 / (nmax * nmax * nmax);
+			const double tiny = std::numeric_limits<double>::min() * 10.0;
+			vect<double> h;
+			vect<simd_dvector> n;
+			simd_dvector phi = 0.0;
+			vect<simd_dvector> g;
+			g = simd_dvector(0);
+			for (int i = -nmax; i <= nmax; i++) {
+				for (int j = -nmax; j <= nmax; j++) {
+					for (int k = -nmax; k <= nmax; k++) {
+						n[0] = i;
+						n[1] = j;
+						n[2] = k;
+						const vect<simd_dvector> dx = dX0 - n;                          // 3 OP
+						const simd_dvector r2 = dx.dot(dx);
+						const simd_dvector r = sqrt(r2);                      // 5 OP
+						const simd_dvector rinv = r / (r2 + tiny);
+						const simd_dvector r2inv = rinv * rinv;
+						const simd_dvector r3inv = r2inv * rinv;
+						const simd_dvector erfc = one - erf(2.0 * r);
+						const simd_dvector d0 = -erfc * rinv;
+						const simd_dvector expfactor = 4.0 * r * exp(-4.0 * r2) / sqrt(M_PI);
+						simd_dvector tmp = sin(-r2);
+						const simd_dvector d1 = (expfactor + erfc) * r3inv;
+						phi += d0; // 6 OP
+						for (int a = 0; a < NDIM; a++) {
+							g[a] -= (dX0[a] - n[a]) * d1;
+						}
+						h[0] = i;
+						h[1] = j;
+						h[2] = k;
+						const double h2 = h.dot(h);                     // 5 OP
+						if (h2 > 0) {
+							const double hinv = 1.0 / h2;                  // 1 OP
+							const double c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
+							simd_dvector hdotdx = simd_dvector(0);
+							for (int dim = 0; dim < NDIM; dim++) {
+								hdotdx += dX0[dim] * h[dim];
+							}
+							const simd_dvector omega = 2.0 * M_PI * hdotdx;
+							const simd_dvector c = cos(omega);
+							const simd_dvector s = sin(omega);
+							phi += -(1.0 / M_PI) * c0 * c;
+							for (int dim = 0; dim < NDIM; dim++) {
+								g[dim] += 2.0 * h[dim] * c0 * s;
+							}
+						}
+					}
+				}
+			}
+			const simd_dvector r = abs(dX0);
+			const simd_dvector rinv = r / (r * r + tiny);
+			phi = simd_dvector(M_PI / 4.0) + phi + rinv;
+			const simd_dvector sw = min(huge * r, 1.0);
+			phi = 2.8372975 * (simd_dvector(1.0) - sw) + phi * sw;
+			for (int dim = 0; dim < NDIM; dim++) {
+				g[dim] = g[dim] + dX0[dim] * rinv * rinv * rinv;
+			}
+			Phi[I] += M * phi;
+			G[I] += g * M;
+		}
+	}
+	for (int i = 0; i < x.size(); i++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			f[i].g[dim] += G[i][dim].sum();
+		}
+		f[i].phi += Phi[i].sum();
+	}
+	return (26 + ewald ? 18 : 0) * cnt1 * x.size();
 }
 
 std::uint64_t gravity_PP(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
@@ -370,35 +484,6 @@ std::uint64_t gravity_CP(expansion<ireal> &L, const vect<ireal> &x, std::vector<
 		}
 	}
 	return (704 + ewald ? 18 : 0) * cnt1;
-}
-
-std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<source> &y) {
-	if (x.size() == 0) {
-		return 0;
-	}
-	std::uint64_t flop = 0;
-	static const auto opts = options::get();
-	static const auto one = double(1.0);
-	static const auto half = double(0.5);
-	vect<double> X, Y;
-	double M;
-	const auto cnt1 = y.size();
-	for (int j = 0; j < cnt1; j++) {
-		M = y[j].m;
-		for (int i = 0; i < x.size(); i++) {
-			vect<double> dX = x[i] - y[j].x;             										// 3 OP
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto absdx = abs(dX[dim]);										// 3 OP
-				dX[dim] = std::copysign(std::min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
-			}
-			force this_f = EW(dX);
-			f[i].phi += M * this_f.phi;
-			for (int dim = 0; dim < NDIM; dim++) {
-				f[i].g[dim] += this_f.g[dim] * M;
-			}
-		}
-	}
-	return 133 * cnt1 * x.size();
 }
 
 std::uint64_t gravity_CP_ewald(expansion<ireal> &L, const vect<float> &x, std::vector<source> &y) {

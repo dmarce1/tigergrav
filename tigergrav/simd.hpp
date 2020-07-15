@@ -453,25 +453,25 @@ public:
 
 inline simd_dvector exp(const simd_dvector& a) {
 	simd_dvector v;
-	v.v = _mm256_exp_pd(v.v);
+	v.v = _mm256_exp_pd(a.v);
 	return v;
 }
 
 inline simd_dvector sin(const simd_dvector& a) {
 	simd_dvector v;
-	v.v = _mm256_sin_pd(v.v);
+	v.v = _mm256_sin_pd(a.v);
 	return v;
 }
 
 inline simd_dvector cos(const simd_dvector& a) {
 	simd_dvector v;
-	v.v = _mm256_cos_pd(v.v);
+	v.v = _mm256_cos_pd(a.v);
 	return v;
 }
 
 inline simd_dvector erf(const simd_dvector& a) {
 	simd_dvector v;
-	v.v = _mm256_erf_pd(v.v);
+	v.v = _mm256_erf_pd(a.v);
 	return v;
 }
 
