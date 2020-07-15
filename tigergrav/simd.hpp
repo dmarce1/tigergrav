@@ -173,7 +173,38 @@ public:
 	friend simd_svector min(const simd_svector &a, const simd_svector &b);
 	friend simd_svector fma(const simd_svector &a, const simd_svector &b, const simd_svector &c);
 
+	friend simd_svector exp(const simd_svector& a);
+	friend simd_svector sin(const simd_svector& a);
+	friend simd_svector cos(const simd_svector& a);
+	friend simd_svector erf(const simd_svector& a);
+
 };
+
+
+
+inline simd_svector exp(const simd_svector& a) {
+	simd_svector v;
+	v.v = _mm256_exp_ps(a.v);
+	return v;
+}
+
+inline simd_svector sin(const simd_svector& a) {
+	simd_svector v;
+	v.v = _mm256_sin_ps(a.v);
+	return v;
+}
+
+inline simd_svector cos(const simd_svector& a) {
+	simd_svector v;
+	v.v = _mm256_cos_ps(a.v);
+	return v;
+}
+
+inline simd_svector erf(const simd_svector& a) {
+	simd_svector v;
+	v.v = _mm256_erf_ps(a.v);
+	return v;
+}
 
 inline simd_svector fma(const simd_svector &a, const simd_svector &b, const simd_svector &c) {
 	simd_svector v;

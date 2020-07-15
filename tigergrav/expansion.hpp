@@ -19,6 +19,7 @@
 #define EXPAN222SION_H_
 
 #include <tigergrav/multipole.hpp>
+#include <tigergrav/options.hpp>
 
 constexpr int LP = 35;
 
@@ -313,8 +314,14 @@ inline void expansion<T>::invert() {
 template<class T>
 inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 
-	const T r2inv = 1.0 / dX.dot(dX);						// 6
-	const T d0 = -sqrt(r2inv);								// 2
+	static const T H = options::get().soft_len;
+	const double tiny = std::numeric_limits<float>::min() * 10.0;
+
+	const T r2 = dX.dot(dX);						// 6
+	const T r = sqrt(r2);
+	const T rinv = r / (r * r + H * H + tiny);
+	const T r2inv = rinv * rinv;
+	const T d0 = -rinv;								// 2
 	const T d1 = -d0 * r2inv;								// 2
 	const T d2 = -3.0 * d1 * r2inv;							// 3
 	const T d3 = -5.0 * d2 * r2inv;							// 3
@@ -352,14 +359,19 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 }
 
 template<class T>
-inline expansion<T> green_direct_ewald(const vect<T> &X) {		// 339 OPS
+inline expansion<T> green_ewald(const vect<T> &X) {		// 339 OPS
 	constexpr int nmax = 2;
+
+	const double huge = std::numeric_limits<float>::max() / 10.0 / (nmax * nmax * nmax);
+	const double tiny = std::numeric_limits<float>::min() * 10.0;
+
 	expansion<T> D;
 	D = green_direct(X);
 	for (int i = 0; i < LP; i++) {
 		D[i] = -D[i];
 	}
 	vect<double> n;
+	D() += T(M_PI / 4.0);
 	for (int a = -nmax; a <= +nmax; a++) {
 		n[0] = a;
 		for (int b = -nmax; b <= +nmax; b++) {
@@ -374,19 +386,19 @@ inline expansion<T> green_direct_ewald(const vect<T> &X) {		// 339 OPS
 					const T hdotx = hv.dot(X);
 					const double h2inv = 1.0 / h2;
 					T s = sin(2.0 * M_PI * hdotx);
-					T c = sqrt(T(1.0) - s * s);
+					T c = cos(2.0 * M_PI * hdotx);
 					s = s * h2inv;
 					c = c * h2inv;
 					const T a0 = (-1.0 / M_PI) * h2inv * exp(-M_PI * M_PI * h2 / 4.0);
 					D() += a0 * c;
 					for (int i = 0; i < NDIM; i++) {
-						D(i) += -(2.0 * M_PI) * h[i] * s;
+						D(i) += -(2.0 * M_PI) * a0 * h[i] * s;
 						for (int j = 0; j <= i; j++) {
-							D(i, j) += -pow(2.0 * M_PI, 2) * h[i] * h[j] * c;
+							D(i, j) += -pow(2.0 * M_PI, 2) * a0 * h[i] * h[j] * c;
 							for (int k = 0; k <= j; k++) {
-								D(i, j, k) += +pow(2.0 * M_PI, 3) * h[i] * h[j] * h[k] * s;
+								D(i, j, k) += +pow(2.0 * M_PI, 3) * a0 * h[i] * h[j] * h[k] * s;
 								for (int l = 0; l <= k; l++) {
-									D(i, j, k, l) += +pow(2.0 * M_PI, 4) * h[i] * h[j] * h[k] * h[l] * c;
+									D(i, j, k, l) += +pow(2.0 * M_PI, 4) * a0 * h[i] * h[j] * h[k] * h[l] * c;
 								}
 							}
 						}
@@ -395,11 +407,11 @@ inline expansion<T> green_direct_ewald(const vect<T> &X) {		// 339 OPS
 				}
 				vect<T> nv = n;
 				vect<T> dX = X - nv;
-				const T r2 = dX.dot(X);
+				const T r2 = dX.dot(dX);
 				const T r = sqrt(r2);
 				const T r4 = r2 * r2;
 				const T r6 = r2 * r4;
-				const T rinv = 1.0 / r;
+				const T rinv = r / (r * r + tiny);
 				const T r3inv = rinv * rinv * rinv;
 				const T r5inv = rinv * r3inv;
 				const T r7inv = rinv * r5inv;
@@ -409,8 +421,8 @@ inline expansion<T> green_direct_ewald(const vect<T> &X) {		// 339 OPS
 				const T d0 = -erfc * rinv;
 				const T d1 = +(exp0 + erfc) * r3inv;
 				const T d2 = -(exp0 * (T(3.0) + 8.0 * r2) + 3.0 * erfc) * r5inv;
-				const T d3 = +(exp0 * (T(15.0) + 40.0 * r2 + 64.0 * r4) + 15.0 * erfc) * r5inv;
-				const T d4 = -(exp0 * (T(105.0) + 8.0 * r2 * (T(35.0) + 56.0 * r2 + 64.0 * r4)) + 105.0 * erfc) * r5inv;
+				const T d3 = +(exp0 * (T(15.0) + 40.0 * r2 + 64.0 * r4) + 15.0 * erfc) * r7inv;
+				const T d4 = -(exp0 * (T(105.0) + 8.0 * r2 * (T(35.0) + 56.0 * r2 + 64.0 * r4)) + 105.0 * erfc) * r9inv;
 				D() += d0;												// 1
 				for (int i = 0; i < NDIM; i++) {
 					D(i) += dX[i] * d1;									// 6
@@ -439,6 +451,12 @@ inline expansion<T> green_direct_ewald(const vect<T> &X) {		// 339 OPS
 			}
 		}
 	}
+	const T sw = min(X.dot(X) * T(huge), T(1.0));
+	D() = 2.8372975 * (T(1.0) - sw) + D() * sw;
+	for (int i = 1; i < LP; i++) {
+		D[i] = sw * D[i];
+	}
+
 	return D;
 }
 
@@ -449,7 +467,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 
 	expansion<T> D;
 	if (ewald) {
-		D = green_direct_ewald(dX);
+		D = green_ewald(dX);
 	} else {
 		D = green_direct(dX);
 	}
@@ -523,7 +541,12 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 template<class T>
 inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T> dX, bool ewald = false) {
 
-	const auto D = green_direct(dX);
+	expansion<T> D;
+	if (ewald) {
+		D = green_ewald(dX);
+	} else {
+		D = green_direct(dX);
+	}
 
 	std::pair<T, vect<T>> f;
 	f.first = 0.0;
