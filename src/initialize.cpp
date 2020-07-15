@@ -21,9 +21,9 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 			parts[i].x = double_to_pos(vect<float>(0.5));
 			parts[i].v = vect<float>(0.0);
 		}
-		parts[0].x[0] = double_to_pos(0.74999);
+		parts[0].x[0] = double_to_pos(0.75);
 		parts[0].v[1] = 1.0 / std::sqrt(2);
-		parts[1].x[0] = double_to_pos(0.25001);
+		parts[1].x[0] = double_to_pos(0.25);
 		parts[1].v[1] = -1.0 / std::sqrt(2);
 	} else {
 		printf("Problem %s unknown\n", pn.c_str());

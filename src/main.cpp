@@ -107,8 +107,8 @@ int hpx_main(int argc, char *argv[]) {
 			printf("%9i ", (int) kr.rung);
 			printf("%9i ", (int) min_rung(itime));
 			printf("%13.6e ", root_ptr->get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
-			tree::reset_flop();
-			tstart = timer();
+//			tree::reset_flop();
+//			tstart = timer();
 			if (do_out) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					printf("%13.6e ", kr.stats.g[dim]);

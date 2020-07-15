@@ -181,7 +181,7 @@ inline simd_svector fma(const simd_svector &a, const simd_svector &b, const simd
 	return v;
 }
 
-inline simd_svector copysign(const simd_svector &x, const simd_svector &y) {
+inline simd_svector copysign(const simd_svector &y, const simd_svector &x) {
 	// From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
 	constexpr float signbit = -0.f;
 	static auto const avx_signbit = simd_svector(signbit).v;
@@ -482,7 +482,7 @@ inline simd_dvector fma(const simd_dvector &a, const simd_dvector &b, const simd
 	return v;
 }
 
-inline simd_dvector copysign(const simd_dvector &x, const simd_dvector &y) {
+inline simd_dvector copysign(const simd_dvector &y, const simd_dvector &x) {
 	// From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
 	constexpr double signbit = -0.f;
 	static auto const avx_signbit = simd_dvector(signbit).v;

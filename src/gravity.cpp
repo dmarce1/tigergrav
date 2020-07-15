@@ -23,42 +23,59 @@ std::vector<vect<double>> ewald_n;
 
 force EW(general_vect<double, NDIM> x) {
 	force f;
-	general_vect<double, NDIM> n, h;
-	constexpr int nmax = 5;
-	constexpr int hmax = 10;
-
-	double sum1 = 0.0;
-	vect<double> fsum1 = 0.0;
-	for (auto n : ewald_n) {
-		const auto xmn = x - n;                          // 3 OP
-		double absxmn = abs(x - n);                      // 5 OP
-		if (absxmn < 3.6) {
-			const double xmn2 = absxmn * absxmn;         // 1 OP
-			const double xmn3 = xmn2 * absxmn;           // 1 OP
-			sum1 += -(1.0 - erf(2.0 * absxmn)) / absxmn; // 6 OP
-			for (int dim = 0; dim < NDIM; dim++) {
-				fsum1[dim] += (x[dim] - n[dim]) * (-4.0 * std::exp(-4.0 * xmn2) / (std::sqrt(M_PI) * xmn2) - (1.0 - erf(2.0 * absxmn)) / xmn3);
+	if (x.dot(x) > 0.0) {
+		general_vect<double, NDIM> n, h;
+		constexpr int nmax = 2;
+		constexpr int hmax = 2;
+		double sum1 = 0.0;
+		vect<double> fsum1 = 0.0;
+		for (int i = -nmax; i <= nmax; i++) {
+			for (int j = -nmax; j <= nmax; j++) {
+				for (int k = -nmax; k <= nmax; k++) {
+					n[0] = i;
+					n[1] = j;
+					n[2] = k;
+					const auto xmn = x - n;                          // 3 OP
+					double absxmn = abs(x - n);                      // 5 OP
+					const double xmn2 = absxmn * absxmn;         // 1 OP
+					const double xmn3 = xmn2 * absxmn;           // 1 OP
+					sum1 += -(1.0 - erf(2.0 * absxmn)) / absxmn; // 6 OP
+					for (int dim = 0; dim < NDIM; dim++) {
+						fsum1[dim] += (x[dim] - n[dim])
+								* (-4.0 * std::exp(-4.0 * absxmn * absxmn) / (std::sqrt(M_PI) * absxmn * absxmn)
+										- (1.0 - erf(2.0 * absxmn)) / (absxmn * absxmn * absxmn));
+					}
+				}
 			}
 		}
-	}
-	double sum2 = 0.0;
-	vect<double> fsum2 = 0.0;
-	for (auto h : ewald_h) {
-		const double absh = abs(h);                     // 5 OP
-		if (absh <= 10 && absh > 0) {
-			const double h2 = absh * absh;                     // 1 OP
-			const double h2inv = 1.0 / h2;
-			const double omega = 2.0 * M_PI * h.dot(x);
-			const double h2invexptau = h2inv * exp(-M_PI * M_PI * h2 / 4.0);
-			sum2 += -(1.0 / M_PI) * (h2invexptau * cos(omega)); // 14 OP
-			for (int dim = 0; dim < NDIM; dim++) {
-				fsum2[dim] += 2.0 * h[dim] * h2invexptau * sin(omega);
+		double sum2 = 0.0;
+		vect<double> fsum2 = 0.0;
+		for (int i = -hmax; i <= hmax; i++) {
+			for (int j = -hmax; j <= hmax; j++) {
+				for (int k = -hmax; k <= hmax; k++) {
+					h[0] = i;
+					h[1] = j;
+					h[2] = k;
+					const double absh = abs(h);                     // 5 OP
+					const double h2 = absh * absh;                  // 1 OP
+					if (absh > 0) {
+						sum2 += -(1.0 / M_PI) * (1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0) * cos(2.0 * M_PI * h.dot(x))); // 14 OP
+						for (int dim = 0; dim < NDIM; dim++) {
+							fsum2[dim] += 2.0 * h[dim] / h2 * exp(-M_PI * M_PI * h2 / 4.0) * sin(2.0 * M_PI * h.dot(x));
+						}
+					}
+				}
 			}
 		}
-	}
-	f.phi = M_PI / 4.0 + sum1 + sum2 + 1 / abs(x);
-	for (int dim = 0; dim < NDIM; dim++) {
-		f.g[dim] = fsum1[dim] + fsum2[dim] + x[dim] / (abs(x) * abs(x) * abs(x));
+		f.phi = M_PI / 4.0 + sum1 + sum2 + 1 / abs(x);
+		for (int dim = 0; dim < NDIM; dim++) {
+			f.g[dim] = fsum1[dim] + fsum2[dim] + x[dim] / (abs(x) * abs(x) * abs(x));
+		}
+	} else {
+		f.phi = 0.0;
+		for (int dim = 0; dim < NDIM; dim++) {
+			f.g[dim] = 0.0;
+		}
 	}
 	return f;
 }
@@ -119,7 +136,7 @@ std::uint64_t gravity_PP(std::vector<force> &f, const std::vector<vect<float>> &
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
-					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+					dX[dim] = copysign(min(absdx, one - absdx),dX[dim] * (half - absdx));  // 15 OP
 				}
 			}
 			simd_svector r2 = dX[0] * dX[0];					// 1 OP
@@ -191,7 +208,7 @@ std::uint64_t gravity_PC(std::vector<force> &f, const std::vector<vect<float>> &
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
-					dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+					dX[dim] = copysign(min(absdx, one - absdx),dX[dim] * (half - absdx));  // 15 OP
 				}
 			}
 			auto this_f = multipole_interaction(M, dX);
@@ -258,7 +275,7 @@ std::uint64_t gravity_CC(expansion<ireal> &L, const vect<ireal> &x, std::vector<
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
-				dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+				dX[dim] = copysign(min(absdx, one - absdx),dX[dim] * (half - absdx));  // 15 OP
 			}
 		}
 		multipole_interaction(Lacc, M, dX);												// 701 OP
@@ -334,7 +351,7 @@ std::uint64_t gravity_CP(expansion<ireal> &L, const vect<ireal> &x, std::vector<
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
-				dX[dim] = copysign(dX[dim] * (half - absdx), min(absdx, one - absdx));  // 15 OP
+				dX[dim] = copysign(min(absdx, one - absdx),dX[dim] * (half - absdx));  // 15 OP
 			}
 		}
 		multipole_interaction(Lacc, M, dX);												// 701 OP
@@ -362,124 +379,25 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 	}
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
-	static const auto one = simd_svector(1.0);
-	static const auto half = simd_svector(0.5);
-	vect<simd_svector> X, Y;
-	simd_svector M;
-	std::vector<vect<simd_svector>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_svector> Phi(x.size(), 0.0);
+	static const auto one = double(1.0);
+	static const auto half = double(0.5);
+	vect<double> X, Y;
+	double M;
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_SLEN) / SIMD_SLEN) * SIMD_SLEN;
-	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = vect<float>(1.0);
-	}
-	for (int j = 0; j < cnt1; j += SIMD_SLEN) {
-		for (int k = 0; k < SIMD_SLEN; k++) {
-			M[k] = y[j + k].m;
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k].x[dim];
-			}
-		}
+	for (int j = 0; j < cnt1; j++) {
+		M = y[j].m;
 		for (int i = 0; i < x.size(); i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_svector(x[i][dim]);
-			}
-
-			vect<simd_svector> dX = X - Y;             										// 3 OP
-			vect<simd_svector> sgn;
+			vect<double> dX = x[i] - y[j].x;             										// 3 OP
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
-				sgn[dim] = copysign(dX[dim] * (half - absdx), 1.0);						// 9 OP
-				dX[dim] = min(absdx, one - absdx);                                      // 6 OP
+				dX[dim] = std::copysign(std::min(absdx, one - absdx),dX[dim] * (half - absdx));  // 15 OP
 			}
-
-			vect<simd_int_vector> I;
-			vect<simd_svector> wm;
-			vect<simd_svector> w;
-			static const simd_svector dx0(0.5 / NE);
-			static const simd_svector max_i(NE - 1);
+			force this_f = EW(dX);
+			f[i].phi += M * this_f.phi;
 			for (int dim = 0; dim < NDIM; dim++) {
-				I[dim] = min(dX[dim] / dx0, max_i).to_int();								// 9 OP
-				wm[dim] = (dX[dim] / dx0 - simd_svector(I[dim]));							// 9 OP
-				w[dim] = simd_svector(1.0) - wm[dim];										// 3 OP
+				f[i].g[dim] += this_f.g[dim] * M;
 			}
-			const simd_svector w00 = w[0] * w[1];											// 1 OP
-			const simd_svector w01 = w[0] * wm[1];											// 1 OP
-			const simd_svector w10 = wm[0] * w[1];											// 1 OP
-			const simd_svector w11 = wm[0] * wm[1];											// 1 OP
-			const simd_svector w000 = w00 * w[2];											// 1 OP
-			const simd_svector w001 = w00 * wm[2];											// 1 OP
-			const simd_svector w010 = w01 * w[2];											// 1 OP
-			const simd_svector w011 = w01 * wm[2];											// 1 OP
-			const simd_svector w100 = w10 * w[2];											// 1 OP
-			const simd_svector w101 = w10 * wm[2];											// 1 OP
-			const simd_svector w110 = w11 * w[2];											// 1 OP
-			const simd_svector w111 = w11 * wm[2];											// 1 OP
-			vect<simd_svector> F;
-			simd_svector Pot;
-			const simd_int_vector J = I[0] * simd_int_vector(NEP12) + I[1] * simd_int_vector(NEP1) + I[2];
-			const simd_int_vector J000 = J;
-			const simd_int_vector J001 = J + simd_int_vector(1);
-			const simd_int_vector J010 = J + simd_int_vector(NEP1);
-			const simd_int_vector J011 = J + simd_int_vector(1 + NEP1);
-			const simd_int_vector J100 = J + simd_int_vector(NEP12);
-			const simd_int_vector J101 = J + simd_int_vector(1 + NEP12);
-			const simd_int_vector J110 = J + simd_int_vector(NEP1 + NEP12);
-			const simd_int_vector J111 = J + simd_int_vector(1 + NEP1 + NEP12);
-			simd_svector y000, y001, y010, y011, y100, y101, y110, y111;
-			for (int dim = 0; dim < NDIM; dim++) {
-				y000.gather(eforce[dim].data(), J000);
-				y001.gather(eforce[dim].data(), J001);
-				y010.gather(eforce[dim].data(), J010);
-				y011.gather(eforce[dim].data(), J011);
-				y100.gather(eforce[dim].data(), J100);
-				y101.gather(eforce[dim].data(), J101);
-				y110.gather(eforce[dim].data(), J110);
-				y111.gather(eforce[dim].data(), J111);
-				F[dim] = w000 * y000;															// 3 OP
-				F[dim] = fma(w001, y001, F[dim]);												// 6 OP
-				F[dim] = fma(w010, y010, F[dim]);												// 6 OP
-				F[dim] = fma(w011, y011, F[dim]);												// 6 OP
-				F[dim] = fma(w100, y100, F[dim]);												// 6 OP
-				F[dim] = fma(w101, y101, F[dim]);												// 6 OP
-				F[dim] = fma(w110, y110, F[dim]);												// 6 OP
-				F[dim] = fma(w111, y111, F[dim]);												// 6 OP
-			}
-			y000.gather(epot.data(), J000);
-			y001.gather(epot.data(), J001);
-			y010.gather(epot.data(), J010);
-			y011.gather(epot.data(), J011);
-			y100.gather(epot.data(), J100);
-			y101.gather(epot.data(), J101);
-			y110.gather(epot.data(), J110);
-			y111.gather(epot.data(), J111);
-			Pot = w000 * y000;																// 1 OP
-			Pot = fma(w001, y001, Pot);												// 2 OP
-			Pot = fma(w010, y010, Pot);												// 2 OP
-			Pot = fma(w011, y011, Pot);												// 2 OP
-			Pot = fma(w100, y100, Pot);												// 2 OP
-			Pot = fma(w101, y101, Pot);												// 2 OP
-			Pot = fma(w110, y110, Pot);												// 2 OP
-			Pot = fma(w111, y111, Pot);												// 2 OP
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto tmp = M * sgn[dim];                                      // 3 OP
-				G[i][dim] = fma(F[dim], tmp, G[i][dim]);                            // 6 OP
-			}
-			simd_svector r2 = dX[0] * dX[0];										     // 1 OP
-			r2 = fma(dX[1], dX[1], r2);												 // 2 OP
-			r2 = fma(dX[2], dX[2], r2);                     						 // 2 OP
-			const simd_svector kill_zero = r2 / (r2 + eps); 							 // 2 OP
-			const auto tmp = M * kill_zero;											 // 1 OP
-			Phi[i] = fma(Pot, tmp, Phi[i]);											 // 2 OP
 		}
-	}
-	for (int i = 0; i < x.size(); i++) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] += G[i][dim].sum();
-		}
-		f[i].phi += Phi[i].sum();
 	}
 	return 133 * cnt1 * x.size();
 }
@@ -515,7 +433,7 @@ std::uint64_t gravity_CP_ewald(expansion<ireal> &L, const vect<float> &x, std::v
 		vect<simd_svector> sgn;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto absdx = abs(dX[dim]);										// 3 OP
-			sgn[dim] = copysign(dX[dim] * (half - absdx), 1.0);						// 9 OP
+			sgn[dim] = copysign(1.0,dX[dim] * (half - absdx));						// 9 OP
 			dX[dim] = min(absdx, one - absdx);                                      // 6 OP
 		}
 
