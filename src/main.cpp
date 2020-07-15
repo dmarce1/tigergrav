@@ -20,12 +20,13 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 	} else if (type == 1) {
 		root_ptr->compute_multipoles(mrung, do_out);
 		return root_ptr->kick_bh(std::vector<tree_ptr>(1, root_ptr), std::vector<vect<float>>(), std::vector<multi_src>(), std::vector<tree_ptr>(1, root_ptr),
-				std::vector<source>(), mrung, do_out);
+				std::vector<vect<float>>(), std::vector<multi_src>(), mrung, do_out);
 	} else if (type == 2) {
 		root_ptr->compute_multipoles(mrung, do_out);
 		expansion<ireal> L;
 		L = 0.0;
-		return root_ptr->kick_fmm(std::vector<check_item>(1, {false,root_ptr}),std::vector<check_item>(1, {false,root_ptr}),{{0.5,0.5,0.5}}, L, mrung, do_out);
+		return root_ptr->kick_fmm(std::vector<check_item>(1, { false, root_ptr }), std::vector<check_item>(1, { false, root_ptr }), { { 0.5, 0.5, 0.5 } }, L,
+				mrung, do_out);
 	} else {
 		printf("Unknown gravity solver type\n");
 		return kick_return();
@@ -34,8 +35,8 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 
 int hpx_main(int argc, char *argv[]) {
 
-	printf( "sizeof(particle) = %li\n", sizeof(particle));
-	printf( "sizeof(tree)     = %li\n", sizeof(tree));
+	printf("sizeof(particle) = %li\n", sizeof(particle));
+	printf("sizeof(tree)     = %li\n", sizeof(tree));
 	feenableexcept(FE_DIVBYZERO);
 	feenableexcept(FE_INVALID);
 	feenableexcept(FE_OVERFLOW);
@@ -61,7 +62,7 @@ int hpx_main(int argc, char *argv[]) {
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
 		printf("%13s %13s %13s %13s %13s %13s %13s %13s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
-		for (double theta = 1.0; theta >= 0.17; theta -= 0.05) {
+		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
 			parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
 			root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 			tree::set_theta(theta);
