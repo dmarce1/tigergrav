@@ -360,90 +360,88 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 
 template<class T>
 inline expansion<T> green_ewald(const vect<T> &X) {		// 339 OPS
+	expansion<T> D;
+	D = 0.0;
 	constexpr int nmax = 2;
-
+	constexpr int hmax = 2;
 	const double huge = std::numeric_limits<float>::max() / 10.0 / (nmax * nmax * nmax);
 	const double tiny = std::numeric_limits<float>::min() * 10.0;
-
-	expansion<T> D;
-	D = green_direct(X);
-	for (int i = 0; i < LP; i++) {
-		D[i] = -D[i];
-	}
-	vect<double> n;
-	D() += T(M_PI / 4.0);
-	for (int a = -nmax; a <= +nmax; a++) {
-		n[0] = a;
-		for (int b = -nmax; b <= +nmax; b++) {
-			n[1] = b;
-			for (int c = -nmax; c <= +nmax; c++) {
-				n[2] = c;
-
-				vect<double> h = n;
-				vect<T> hv = h;
-				const double h2 = h.dot(h);
-				if (h2 > 0.0) {
-					const T hdotx = hv.dot(X);
-					const double h2inv = 1.0 / h2;
-					T s = sin(2.0 * M_PI * hdotx);
-					T c = cos(2.0 * M_PI * hdotx);
-					s = s * h2inv;
-					c = c * h2inv;
-					const T a0 = (-1.0 / M_PI) * h2inv * exp(-M_PI * M_PI * h2 / 4.0);
-					D() += a0 * c;
-					for (int i = 0; i < NDIM; i++) {
-						D(i) += -(2.0 * M_PI) * a0 * h[i] * s;
-						for (int j = 0; j <= i; j++) {
-							D(i, j) += -pow(2.0 * M_PI, 2) * a0 * h[i] * h[j] * c;
-							for (int k = 0; k <= j; k++) {
-								D(i, j, k) += +pow(2.0 * M_PI, 3) * a0 * h[i] * h[j] * h[k] * s;
-								for (int l = 0; l <= k; l++) {
-									D(i, j, k, l) += +pow(2.0 * M_PI, 4) * a0 * h[i] * h[j] * h[k] * h[l] * c;
-								}
+	vect<T> n;
+	vect<double> h;
+	for (int i = -nmax; i <= nmax; i++) {
+		for (int j = -nmax; j <= nmax; j++) {
+			for (int k = -nmax; k <= nmax; k++) {
+				n[0] = i;
+				n[1] = j;
+				n[2] = k;
+				const vect<T> dx = X - n;                          // 3 OP
+				const T r2 = dx.dot(dx);
+				const T r4 = r2 * r2;
+				const T r6 = r2 * r4;
+				const T r = sqrt(r2);                      // 5 OP
+				const T rinv = r / (r2 + tiny);
+				const T r2inv = rinv * rinv;
+				const T r3inv = r2inv * rinv;
+				const T r5inv = r2inv * r3inv;
+				const T r7inv = r2inv * r5inv;
+				const T r9inv = r2inv * r7inv;
+				const T erfc = T(1) - erf(2.0 * r);
+				const T expfactor = 4.0 * r * exp(-4.0 * r2) / sqrt(M_PI);
+				T tmp = sin(-r2);
+				const T d0 = -erfc * rinv;
+				const T d1 = (expfactor + erfc) * r3inv;
+				const T d2 = -(expfactor * (T(3) + 8.0 * T(r2)) + 3.0 * erfc) * r5inv;
+				const T d3 = (expfactor * (T(15) + 40.0 * T(r2) + 64.0 * T(r4)) + 15.0 * erfc) * r7inv;
+				const T d4 = -(expfactor * (T(105) + 8.0 * T(r2) * (T(35) + 56.0 * r2 + 64.0 * r4)) + 105.0 * erfc) * r9inv;
+				D() += d0;												// 1
+				for (int a = 0; a < NDIM; a++) {
+					D(a) += dx[a] * d1;									// 6
+					D(a, a) += d1;										// 3
+					D(a, a, a) += dx[a] * d2;							// 6
+					D(a, a, a, a) += dx[a] * dx[a] * d3;				// 9
+					D(a, a, a, a) += 2.0 * d2;							// 6
+					for (int b = 0; b <= a; b++) {
+						D(a, b) += dx[a] * dx[b] * d2;					// 18
+						D(a, a, b) += dx[b] * d2;						// 12
+						D(a, b, b) += dx[a] * d2;						// 12
+						D(a, a, a, b) += dx[a] * dx[b] * d3;			// 18
+						D(a, b, b, b) += dx[a] * dx[b] * d3;			// 18
+						D(a, a, b, b) += d2;							// 6
+						for (int c = 0; c <= b; c++) {
+							D(a, b, c) += dx[a] * dx[b] * dx[c] * d3;	// 40
+							D(a, a, b, c) += dx[b] * dx[c] * d3;		// 30
+							D(a, b, c, c) += dx[a] * dx[b] * d3;		// 30
+							D(a, b, b, c) += dx[a] * dx[c] * d3;		// 30
+							for (int d = 0; d <= c; d++) {
+								D(a, b, c, d) += dx[a] * dx[b] * dx[c] * dx[d] * d4;	// 75
 							}
 						}
 					}
-
 				}
-				vect<T> nv = n;
-				vect<T> dX = X - nv;
-				const T r2 = dX.dot(dX);
-				const T r = sqrt(r2);
-				const T r4 = r2 * r2;
-				const T r6 = r2 * r4;
-				const T rinv = r / (r * r + tiny);
-				const T r3inv = rinv * rinv * rinv;
-				const T r5inv = rinv * r3inv;
-				const T r7inv = rinv * r5inv;
-				const T r9inv = rinv * r7inv;
-				const T erfc = T(1.0) - erf(2.0 * r);
-				const T exp0 = 4.0 * r * exp(-4.0 * r2) / sqrt(M_PI);
-				const T d0 = -erfc * rinv;
-				const T d1 = +(exp0 + erfc) * r3inv;
-				const T d2 = -(exp0 * (T(3.0) + 8.0 * r2) + 3.0 * erfc) * r5inv;
-				const T d3 = +(exp0 * (T(15.0) + 40.0 * r2 + 64.0 * r4) + 15.0 * erfc) * r7inv;
-				const T d4 = -(exp0 * (T(105.0) + 8.0 * r2 * (T(35.0) + 56.0 * r2 + 64.0 * r4)) + 105.0 * erfc) * r9inv;
-				D() += d0;												// 1
-				for (int i = 0; i < NDIM; i++) {
-					D(i) += dX[i] * d1;									// 6
-					D(i, i) += d1;										// 3
-					D(i, i, i) += dX[i] * d2;							// 6
-					D(i, i, i, i) += dX[i] * dX[i] * d3;				// 9
-					D(i, i, i, i) += 2.0 * d2;							// 6
-					for (int j = 0; j <= i; j++) {
-						D(i, j) += dX[i] * dX[j] * d2;					// 18
-						D(i, i, j) += dX[j] * d2;						// 12
-						D(i, j, j) += dX[i] * d2;						// 12
-						D(i, i, i, j) += dX[i] * dX[j] * d3;			// 18
-						D(i, j, j, j) += dX[i] * dX[j] * d3;			// 18
-						D(i, i, j, j) += d2;							// 6
-						for (int k = 0; k <= j; k++) {
-							D(i, j, k) += dX[i] * dX[j] * dX[k] * d3;	// 40
-							D(i, i, j, k) += dX[j] * dX[k] * d3;		// 30
-							D(i, j, k, k) += dX[i] * dX[j] * d3;		// 30
-							D(i, j, j, k) += dX[i] * dX[k] * d3;		// 30
-							for (int l = 0; l <= k; l++) {
-								D(i, j, k, l) += dX[i] * dX[j] * dX[k] * dX[l] * d4;	// 75
+				h[0] = i;
+				h[1] = j;
+				h[2] = k;
+				const double h2 = h.dot(h);                     // 5 OP
+				if (h2 > 0) {
+					const double hinv = 1.0 / h2;                  // 1 OP
+					const double c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
+					T hdotdx = T(0);
+					for (int a = 0; a < NDIM; a++) {
+						hdotdx += X[a] * h[a];
+					}
+					const T omega = 2.0 * M_PI * hdotdx;
+					const T c = cos(omega);
+					const T s = sin(omega);
+					D() += -(1.0 / M_PI) * c0 * c;
+					for (int a = 0; a < NDIM; a++) {
+						D(a) += 2.0 * h[a] * c0 * s;
+						for (int b = 0; b <= a; b++) {
+							D(a, b) += 4.0 * M_PI * h[a] * h[b] * c0 * c;
+							for (int c = 0; c <= b; c++) {
+								D(a, b, c) -= 8.0 * M_PI * M_PI * h[a] * h[b] * h[c] * c0 * s;
+								for (int d = 0; d <= c; d++) {
+									D(a, b, c, d) -= 16.0 * M_PI * M_PI * M_PI * h[a] * h[b] * h[c] * h[d] * c0 * c;
+								}
 							}
 						}
 					}
@@ -451,12 +449,24 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 339 OPS
 			}
 		}
 	}
-	const T sw = min(X.dot(X) * T(huge), T(1.0));
-	D() = 2.8372975 * (T(1.0) - sw) + D() * sw;
-	for (int i = 1; i < LP; i++) {
-		D[i] = sw * D[i];
+	const auto D1 = green_direct(X);
+	const T r = abs(X);
+	const T rinv = r / (r * r + tiny);
+	D() = T(M_PI / 4.0) + D() + rinv;
+	const T sw = min(T(huge) * r, T(1.0));
+	D() = 2.8372975 * (T(1) - sw) + D() * sw;
+	for (int a = 0; a < NDIM; a++) {
+		D(a) = sw * (D(a) - D1(a));
+		for (int b = 0; b <= a; b++) {
+			D(a, b) = sw * (D(a, b) - D1(a, b));
+			for (int c = 0; c <= b; c++) {
+				D(a, b, c) = sw*(D(a, b, c) - D1(a, b, c));
+				for (int d = 0; d <= c; d++) {
+					D(a, b, c, d) = sw*(D(a, b, c, d) - D1(a, b, c, d));
+				}
+			}
+		}
 	}
-
 	return D;
 }
 
