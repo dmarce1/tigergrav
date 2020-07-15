@@ -351,12 +351,108 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 	return D;
 }
 
+template<class T>
+inline expansion<T> green_direct_ewald(const vect<T> &X) {		// 339 OPS
+	constexpr int nmax = 2;
+	expansion<T> D;
+	D = green_direct(X);
+	for (int i = 0; i < LP; i++) {
+		D[i] = -D[i];
+	}
+	vect<double> n;
+	for (int a = -nmax; a <= +nmax; a++) {
+		n[0] = a;
+		for (int b = -nmax; b <= +nmax; b++) {
+			n[1] = b;
+			for (int c = -nmax; c <= +nmax; c++) {
+				n[2] = c;
+
+				vect<double> h = n;
+				vect<T> hv = h;
+				const double h2 = h.dot(h);
+				if (h2 > 0.0) {
+					const T hdotx = hv.dot(X);
+					const double h2inv = 1.0 / h2;
+					T s = sin(2.0 * M_PI * hdotx);
+					T c = sqrt(T(1.0) - s * s);
+					s = s * h2inv;
+					c = c * h2inv;
+					const T a0 = (-1.0 / M_PI) * h2inv * exp(-M_PI * M_PI * h2 / 4.0);
+					D() += a0 * c;
+					for (int i = 0; i < NDIM; i++) {
+						D(i) += -(2.0 * M_PI) * h[i] * s;
+						for (int j = 0; j <= i; j++) {
+							D(i, j) += -pow(2.0 * M_PI, 2) * h[i] * h[j] * c;
+							for (int k = 0; k <= j; k++) {
+								D(i, j, k) += +pow(2.0 * M_PI, 3) * h[i] * h[j] * h[k] * s;
+								for (int l = 0; l <= k; l++) {
+									D(i, j, k, l) += +pow(2.0 * M_PI, 4) * h[i] * h[j] * h[k] * h[l] * c;
+								}
+							}
+						}
+					}
+
+				}
+				vect<T> nv = n;
+				vect<T> dX = X - nv;
+				const T r2 = dX.dot(X);
+				const T r = sqrt(r2);
+				const T r4 = r2 * r2;
+				const T r6 = r2 * r4;
+				const T rinv = 1.0 / r;
+				const T r3inv = rinv * rinv * rinv;
+				const T r5inv = rinv * r3inv;
+				const T r7inv = rinv * r5inv;
+				const T r9inv = rinv * r7inv;
+				const T erfc = T(1.0) - erf(2.0 * r);
+				const T exp0 = 4.0 * r * exp(-4.0 * r2) / sqrt(M_PI);
+				const T d0 = -erfc * rinv;
+				const T d1 = +(exp0 + erfc) * r3inv;
+				const T d2 = -(exp0 * (T(3.0) + 8.0 * r2) + 3.0 * erfc) * r5inv;
+				const T d3 = +(exp0 * (T(15.0) + 40.0 * r2 + 64.0 * r4) + 15.0 * erfc) * r5inv;
+				const T d4 = -(exp0 * (T(105.0) + 8.0 * r2 * (T(35.0) + 56.0 * r2 + 64.0 * r4)) + 105.0 * erfc) * r5inv;
+				D() += d0;												// 1
+				for (int i = 0; i < NDIM; i++) {
+					D(i) += dX[i] * d1;									// 6
+					D(i, i) += d1;										// 3
+					D(i, i, i) += dX[i] * d2;							// 6
+					D(i, i, i, i) += dX[i] * dX[i] * d3;				// 9
+					D(i, i, i, i) += 2.0 * d2;							// 6
+					for (int j = 0; j <= i; j++) {
+						D(i, j) += dX[i] * dX[j] * d2;					// 18
+						D(i, i, j) += dX[j] * d2;						// 12
+						D(i, j, j) += dX[i] * d2;						// 12
+						D(i, i, i, j) += dX[i] * dX[j] * d3;			// 18
+						D(i, j, j, j) += dX[i] * dX[j] * d3;			// 18
+						D(i, i, j, j) += d2;							// 6
+						for (int k = 0; k <= j; k++) {
+							D(i, j, k) += dX[i] * dX[j] * dX[k] * d3;	// 40
+							D(i, i, j, k) += dX[j] * dX[k] * d3;		// 30
+							D(i, j, k, k) += dX[i] * dX[j] * d3;		// 30
+							D(i, j, j, k) += dX[i] * dX[k] * d3;		// 30
+							for (int l = 0; l <= k; l++) {
+								D(i, j, k, l) += dX[i] * dX[j] * dX[k] * dX[l] * d4;	// 75
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return D;
+}
+
 extern expansion<ireal> expansion_factor;
 
 template<class T>
-inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect<T> dX) { // 701
+inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect<T> dX, bool ewald = false) { // 701
 
-	const auto D = green_direct(dX);													// 339
+	expansion<T> D;
+	if (ewald) {
+		D = green_direct_ewald(dX);
+	} else {
+		D = green_direct(dX);
+	}
 
 	L1() += M2() * D();
 	for (int a = 0; a < 3; a++) {
@@ -425,7 +521,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 }
 
 template<class T>
-inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T> dX) {
+inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T> dX, bool ewald = false) {
 
 	const auto D = green_direct(dX);
 
