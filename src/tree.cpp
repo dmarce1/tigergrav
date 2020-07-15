@@ -205,8 +205,8 @@ std::array<tree_ptr, NCHILD> tree::get_children() const {
 	return children;
 }
 
-const_part_set tree::get_positions() const {
-	const_part_set iters;
+std::pair<const_part_iter,const_part_iter> tree::get_positions() const {
+	std::pair<const_part_iter,const_part_iter> iters;
 	iters.first = part_begin;
 	iters.second = part_end;
 	return iters;
@@ -246,7 +246,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		if (far) {
 			if (c.opened) {
 				const auto pos = c.ptr->get_positions();
-				for (auto i = pos.first; i != pos.second; i++) {
+				for( auto i = pos.first; i != pos.second; i++) {
 					dsources.push_back(pos_to_double(i->x));
 				}
 			} else {
@@ -271,8 +271,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			if (far) {
 				if (c.opened) {
 					const auto pos = c.ptr->get_positions();
-					for (auto i = pos.first; i != pos.second; i++) {
-						esources.push_back( { m, pos_to_double(i->x) });
+					for( auto i = pos.first; i != pos.second; i++) {
+						esources.push_back({m,pos_to_double(i->x)});
 					}
 				} else {
 					esources.push_back( { other.m, other.x });
@@ -316,15 +316,16 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			rc.stats = rc_r.stats + rc_l.stats;
 		}
 	} else {
-		static thread_local std::vector<const_part_set> dsets;
-		dsets.resize(0);
 		while (!dchecklist.empty()) {
 			for (auto c : dchecklist) {
 				auto other = c.ptr->get_multipole();
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
 				const bool far = dx > (multi.r + other.r) * theta_inv;
 				if (c.opened) {
-					dsets.push_back(c.ptr->get_positions());
+					const auto pos = c.ptr->get_positions();
+					for( auto i = pos.first; i != pos.second; i++) {
+						dsources.push_back(pos_to_double(i->x));
+					}
 				} else {
 					if (far) {
 						dmulti_srcs.push_back( { other.m, other.x });
@@ -350,8 +351,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					const bool far = dx > (multi.r + other.r) * theta_inv;
 					if (c.opened) {
 						const auto pos = c.ptr->get_positions();
-						for (auto i = pos.first; i != pos.second; i++) {
-							esources.push_back( { m, pos_to_double(i->x) });
+						for( auto i = pos.first; i != pos.second; i++) {
+							esources.push_back({m,pos_to_double(i->x)});
 						}
 					} else {
 						if (far) {
@@ -389,7 +390,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 
-		flop += gravity_PP(f, x, dsets);
+		flop += gravity_PP(f, x, dsources);
 		flop += gravity_PC(f, x, dmulti_srcs);
 		if (opts.ewald) {
 			flop += gravity_PP_ewald(f, x, esources);
@@ -399,7 +400,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	return rc;
 }
 
-kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<const_part_set> dsources, std::vector<multi_src> multi_srcs,
+kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs,
 		std::vector<tree_ptr> echecklist, std::vector<source> esources, rung_type min_rung, bool do_out) {
 
 	kick_return rc;
@@ -419,7 +420,10 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<const_pa
 			multi_srcs.push_back( { other.m, other.x });
 		} else {
 			if (c->is_leaf()) {
-				dsources.push_back(c->get_positions());
+				const auto pos = c->get_positions();
+				for( auto i = pos.first; i != pos.second; i++) {
+					dsources.push_back(pos_to_double(i->x));
+				}
 			} else {
 				auto next = c->get_children();
 				next_dchecklist.push_back(next[0]);
@@ -437,8 +441,8 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<const_pa
 			} else {
 				if (c->is_leaf()) {
 					const auto pos = c->get_positions();
-					for (auto i = pos.first; i != pos.second; i++) {
-						esources.push_back( { m, pos_to_double(i->x) });
+					for( auto i = pos.first; i != pos.second; i++) {
+						esources.push_back({m,pos_to_double(i->x)});
 					}
 				} else {
 					auto next = c->get_children();
@@ -488,12 +492,14 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<const_pa
 	return rc;
 }
 
-kick_return tree::kick_direct(std::vector<const_part_set> &sources, rung_type min_rung, bool do_out) {
+kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_rung, bool do_out) {
 
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	if (sources.size() == 0) {
-		sources.push_back( { part_begin, part_end });
+		for (auto i = part_begin; i != part_end; i++) {
+			sources.push_back(pos_to_double(i->x));
+		}
 	}
 
 	kick_return rc;
@@ -528,10 +534,7 @@ kick_return tree::kick_direct(std::vector<const_part_set> &sources, rung_type mi
 		if (opts.ewald) {
 			std::vector<source> esources;
 			for (auto s : sources) {
-				for (auto i = s.first; i != s.second; i++) {
-					const vect<float> x = pos_to_double(i->x);
-					esources.push_back( { m, x });
-				}
+				esources.push_back( { m, s });
 			}
 			flop += gravity_PP_ewald(f, x, esources);
 		}

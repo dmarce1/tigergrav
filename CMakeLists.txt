@@ -35,6 +35,11 @@ set(tigergrav_source_files
 	src/tree.cpp
 )
 
+set(test_source_files
+	src/rand.cpp
+	src/test.cpp
+)
+
 set(tigergrav_header_files
 	tigergrav/cuda_export.hpp
 	tigergrav/defs.hpp
@@ -66,8 +71,21 @@ add_hpx_executable(
     ${tigergrav_header_files}
  )
 
+add_hpx_executable(
+  test
+  DEPENDENCIES
+    Silo::silo Boost::boost
+  SOURCES
+    ${test_source_files}
+  HEADERS
+    ${tigergrav_header_files}
+ )
+
 
 
 target_include_directories(tigergrav PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(tigergrav PUBLIC "-march=native")
+
+target_include_directories(test PUBLIC ${PROJECT_SOURCE_DIR})
+target_compile_options(test PUBLIC "-march=native")
 

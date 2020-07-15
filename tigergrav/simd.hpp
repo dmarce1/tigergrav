@@ -8,7 +8,7 @@
 #ifndef TIGERGRAV_SIMD_HPP_
 #define TIGERGRAV_SIMD_HPP_
 
-#include <immintrin.h>
+#include <icc/immintrin.h>
 
 #if defined(__AVX2__)
 #define SIMD_SLEN 8
@@ -443,8 +443,38 @@ public:
 	friend simd_dvector max(const simd_dvector &a, const simd_dvector &b);
 	friend simd_dvector min(const simd_dvector &a, const simd_dvector &b);
 	friend simd_dvector fma(const simd_dvector &a, const simd_dvector &b, const simd_dvector &c);
+	friend simd_dvector exp(const simd_dvector& a);
+	friend simd_dvector erf(const simd_dvector& a);
+	friend simd_dvector sin(const simd_dvector& a);
+	friend simd_dvector cos(const simd_dvector& a);
 
 };
+
+
+inline simd_dvector exp(const simd_dvector& a) {
+	simd_dvector v;
+	v.v = _mm256_exp_pd(v.v);
+	return v;
+}
+
+inline simd_dvector sin(const simd_dvector& a) {
+	simd_dvector v;
+	v.v = _mm256_sin_pd(v.v);
+	return v;
+}
+
+inline simd_dvector cos(const simd_dvector& a) {
+	simd_dvector v;
+	v.v = _mm256_cos_pd(v.v);
+	return v;
+}
+
+inline simd_dvector erf(const simd_dvector& a) {
+	simd_dvector v;
+	v.v = _mm256_erf_pd(v.v);
+	return v;
+}
+
 
 inline simd_dvector fma(const simd_dvector &a, const simd_dvector &b, const simd_dvector &c) {
 	simd_dvector v;
