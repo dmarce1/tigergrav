@@ -152,77 +152,71 @@ inline expansion<T> expansion<T>::operator<<(const vect<T> &dX) const {
 	return you;
 }
 
+
+template<class T>
+struct expansion_factors: public expansion<T> {
+	expansion_factors() {
+		for (int i = 0; i < LP; i++) {
+			(*this)[i] = T(0.0);
+		}
+		(*this)() += T(1);
+		for (int a = 0; a < NDIM; ++a) {
+			(*this)(a) += T(1.0);
+			for (int b = 0; b < NDIM; ++b) {
+				(*this)(a, b) += T(0.5);
+				for (int c = 0; c < NDIM; ++c) {
+					(*this)(a, b, c) += T(1.0 / 6.0);
+					for (int d = 0; d < NDIM; ++d) {
+						(*this)(a, b, c, d) += T(1.0 / 24.0);
+					}
+				}
+			}
+		}
+	}
+};
+
+
 template<class T>
 inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
+	const static expansion_factors<T> factor;
 	expansion<T> &me = *this;
 	for (int a = 0; a < 3; a++) {
 		me() += me(a) * dX[a];
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			me() += me(a, b) * dX[a] * dX[b] * (0.5);
+		for (int b = 0; b <= a; b++) {
+			me() += me(a, b) * dX[a] * dX[b] * factor(a, b);
+			for (int c = 0; c <= b; c++) {
+				me() += me(a, b, c) * dX[a] * dX[b] * dX[c] * factor(a, b, c);
+				for (int d = 0; d <= c; d++) {
+					me() += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * factor(a, b, c, d);
+				}
+			}
 		}
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			me(a) += me(a, b) * dX[b];
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				me() += me(a, b, c) * dX[a] * dX[b] * dX[c] * (1.0 / 6.0);
+			for (int c = 0; c <= b; c++) {
+				me(a) += me(a, b, c) * dX[b] * dX[c] * factor(b, c);
+				for (int d = 0; d <= c; d++) {
+					me(a) += me(a, b, c, d) * dX[b] * dX[c] * dX[d] * factor(b, c, d);
+				}
 			}
 		}
 	}
 	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				me(a) += me(a, b, c) * dX[b] * dX[c] * (0.5);
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = a; c < 3; c++) {
-				me(a, c) += me(a, b, c) * dX[b];
-			}
-		}
-	}
-
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				for (int d = 0; d < 3; d++) {
-					me() += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * (1.0 / 24.0);
+		for (int b = 0; b <= a; b++) {
+			for (int c = 0; c < NDIM; c++) {
+				me(a, b) += me(a, b, c) * dX[c];
+				for (int d = 0; d <= c; d++) {
+					me(a, b) += me(a, b, c, d) * dX[c] * dX[d] * factor(c, d);
 				}
 			}
 		}
 	}
 
 	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				for (int d = 0; d < 3; d++) {
-					me(a) += me(a, b, c, d) * dX[b] * dX[c] * dX[d] * (1.0 / 6.0);
-				}
-			}
-		}
-	}
-
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				for (int d = 0; d < 3; d++) {
-					me(a, b) += me(a, b, c, d) * dX[c] * dX[d] * (0.5);
-				}
-			}
-		}
-	}
-
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
+		for (int b = 0; b <= a; b++) {
+			for (int c = 0; c <= b; c++) {
 				for (int d = 0; d < 3; d++) {
 					me(a, b, c) += me(a, b, c, d) * dX[d];
 				}
@@ -235,51 +229,33 @@ inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
 
 template<class T>
 inline force expansion<T>::translate_L2(const vect<T> &dX) const {
+	const static expansion_factors<T> factor;
+
 	const auto &me = *this;
 	force f;
 	f.phi = (*this)();
 	for (int a = 0; a < 3; a++) {
 		f.phi += me(a) * dX[a];
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			f.phi += me(a, b) * dX[a] * dX[b] * (0.5);
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		f.g[a] = -(*this)(a);
-		for (int b = 0; b < 3; b++) {
-			f.g[a] -= me(a, b) * dX[b];
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				f.phi += me(a, b, c) * dX[a] * dX[b] * dX[c] * (1.0 / 6.0);
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				f.g[a] -= me(a, b, c) * dX[b] * dX[c] * (0.5);
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				for (int d = 0; d < 3; d++) {
-					f.phi += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * (1.0 / 24.0);
+		for (int b = a; b < 3; b++) {
+			f.phi += me(a, b) * dX[a] * dX[b] * factor(a, b);
+			for (int c = b; c < 3; c++) {
+				f.phi += me(a, b, c) * dX[a] * dX[b] * dX[c] * factor(a, b, c);
+				for (int d = c; d < 3; d++) {
+					f.phi += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * factor(a, b, c, d);
 				}
 			}
 		}
 	}
 	for (int a = 0; a < 3; a++) {
+	}
+	for (int a = 0; a < 3; a++) {
+		f.g[a] = -(*this)(a);
 		for (int b = 0; b < 3; b++) {
-			for (int c = 0; c < 3; c++) {
-				for (int d = 0; d < 3; d++) {
-					f.g[a] -= me(a, b, c, d) * dX[b] * dX[c] * dX[d] * (1.0 / 6.0);
+			f.g[a] -= me(a, b) * dX[b];
+			for (int c = b; c < 3; c++) {
+				f.g[a] -= me(a, b, c) * dX[b] * dX[c] * factor(b, c);
+				for (int d = c; d < 3; d++) {
+					f.g[a] -= me(a, b, c, d) * dX[b] * dX[c] * dX[d] * factor(b, c, d);
 				}
 			}
 		}
@@ -512,28 +488,6 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 	}
 	return D;
 }
-
-template<class T>
-struct expansion_factors: public expansion<T> {
-	expansion_factors() {
-		for (int i = 0; i < LP; i++) {
-			(*this)[i] = T(0.0);
-		}
-		(*this)() += T(1);
-		for (int a = 0; a < NDIM; ++a) {
-			(*this)(a) += T(1.0);
-			for (int b = 0; b < NDIM; ++b) {
-				(*this)(a, b) += T(0.5);
-				for (int c = 0; c < NDIM; ++c) {
-					(*this)(a, b, c) += T(1.0 / 6.0);
-					for (int d = 0; d < NDIM; ++d) {
-						(*this)(a, b, c, d) += T(1.0 / 24.0);
-					}
-				}
-			}
-		}
-	}
-};
 
 // 43009,703
 template<class T>
