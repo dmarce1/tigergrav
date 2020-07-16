@@ -189,7 +189,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 							const simd_dvector s = sin(omega);
 							phi += -(1.0 / M_PI) * c0 * c;
 							for (int dim = 0; dim < NDIM; dim++) {
-								g[dim] += 2.0 * h[dim] * c0 * s;
+								g[dim] -= 2.0 * h[dim] * c0 * s;
 							}
 						}
 					}
