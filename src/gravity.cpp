@@ -92,30 +92,34 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 	return 26 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
+template<class SIMD, bool EWALD>
+std::uint64_t gravity_PC(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
+
+	static const auto one = SIMD(1.0);
+	static const auto half = SIMD(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
 	static const bool ewald = opts.ewald;
 	static const auto h2 = h * h;
-	static const simd_float H(h);
-	static const simd_float H2(h2);
-	vect<simd_float> X, Y;
-	multipole<simd_float> M;
-	std::vector<vect<simd_float>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_float> Phi(x.size(), 0.0);
+	static const SIMD H(h);
+	static const SIMD H2(h2);
+	vect<SIMD> X, Y;
+	multipole<SIMD> M;
+	std::vector<vect<SIMD>> G(x.size(), vect<float>(0.0));
+	std::vector<SIMD> Phi(x.size(), 0.0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
+	const auto cnt2 = ((cnt1 - 1 + SIMD::size()) / SIMD::size()) * SIMD::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
 		y[j].x = vect<float>(1.0);
 	}
-	for (int j = 0; j < cnt1; j += simd_float::size()) {
-		for (int k = 0; k < simd_float::size(); k++) {
+	for (int j = 0; j < cnt1; j += SIMD::size()) {
+		for (int k = 0; k < SIMD::size(); k++) {
 			for( int n = 0; n < MP; n++) {
 				M[n][k] = y[j+k].m[n];
 			}
@@ -125,22 +129,22 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_float(x[i][dim]);
+				X[dim] = SIMD(x[i][dim]);
 			}
 
-			vect<simd_float> dX = X - Y;             		// 3 OP
+			vect<SIMD> dX = X - Y;             		// 3 OP
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
 					dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
 				}
 			}
-			auto this_f = multipole_interaction(M, dX);
+			auto this_f = multipole_interaction(M, dX);   // 42826 , 520
 
 			for (int dim = 0; dim < NDIM; dim++) {
-				G[i][dim] += this_f.second[dim];  // 6 OP
+				G[i][dim] += this_f.second[dim];  // 3 OP
 			}
-			Phi[i] += this_f.first;		        // 2 OP
+			Phi[i] += this_f.first;		        // 1 OP
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
@@ -149,28 +153,34 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 		}
 		f[i].phi += Phi[i].sum();
 	}
-	return 26 * cnt1 * x.size();
+	return (EWALD ? 42851 : 545) * cnt1 * x.size();
 }
 
-std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
+	return gravity_PC<simd_real,false>(f,x,y);
+}
+
+
+std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
+	return gravity_PC<simd_double,true>(f,x,y);
+}
+
+
+template<class SIMD, bool EWALD>
+std::uint64_t gravity_CC(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = SIMD(1.0);
+	static const auto half = SIMD(0.5);
+	static const auto ewald = options::get().ewald;
 	std::uint64_t flop = 0;
-	static const auto opts = options::get();
-	static const bool ewald = opts.ewald;
-	static const auto h = opts.soft_len;
-	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	multipole<simd_real> M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
+	vect<SIMD> X, Y;
+	multipole<SIMD> M;
+	expansion<SIMD> Lacc;
+	Lacc = SIMD(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_REAL_LEN) / SIMD_REAL_LEN) * SIMD_REAL_LEN;
+	const auto cnt2 = ((cnt1 - 1 + SIMD::size()) / SIMD::size()) * SIMD::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
@@ -178,10 +188,10 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std:
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
+		X[dim] = SIMD(x[dim]);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_REAL_LEN) {
-		for (int k = 0; k < SIMD_REAL_LEN; k++) {
+	for (int j = 0; j < cnt1; j += SIMD::size()) {
+		for (int k = 0; k < SIMD::size(); k++) {
 			for (int n = 0; n < MP; n++) {
 				M[n][k] = y[j + k].m[n];
 			}
@@ -189,77 +199,96 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std:
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
+		vect<SIMD> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
 				dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
 			}
 		}
-		multipole_interaction(Lacc, M, dX);												// 703 OP
+		multipole_interaction(Lacc, M, dX, EWALD);												// 703 OP
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
-	return 706 * cnt1;
+	return (EWALD ? 43030 : 724) * cnt1;
 }
 
-std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
+
+std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
+	return gravity_CC<simd_real,false>(L,x,y);
+}
+
+std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
+	return gravity_CC<simd_double,true>(L,x,y);
+}
+
+template<class SIMD, bool EWALD>
+std::uint64_t gravity_CP(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = SIMD(1.0);
+	static const auto half = SIMD(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto m = 1.0 / opts.problem_size;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	simd_real M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
+	static const SIMD H(h);
+	static const SIMD H2(h2);
+	vect<SIMD> X, Y;
+	SIMD M;
+	expansion<SIMD> Lacc;
+	Lacc = SIMD(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_REAL_LEN) / SIMD_REAL_LEN) * SIMD_REAL_LEN;
+	const auto cnt2 = ((cnt1 - 1 + SIMD::size()) / SIMD::size()) * SIMD::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j] = vect<ireal>(1.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
+		X[dim] = SIMD(x[dim]);
 	}
 	M = m;
-	for (int j = 0; j < cnt1; j += SIMD_REAL_LEN) {
-		for (int k = 0; k < SIMD_REAL_LEN; k++) {
+	for (int j = 0; j < cnt1; j += SIMD::size()) {
+		for (int k = 0; k < SIMD::size(); k++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k][dim];
 			}
 		}
-		if (j + SIMD_REAL_LEN > cnt1) {
+		if (j + SIMD::size() > cnt1) {
 			for (int k = cnt1; k < cnt2; k++) {
 				M[k - j] = 0.0;
 			}
 		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
+		vect<SIMD> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
 				dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
 			}
 		}
-		multipole_interaction(Lacc, M, dX);												// 401 OP
+		multipole_interaction(Lacc, M, dX, EWALD);												// 401 OP
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
-	return 422 * cnt1;
+	return (EWALD ? 42729 : 422) * cnt1;
 }
+
+std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
+	return gravity_CP<simd_real,false>(L,x,y);
+}
+
+std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
+	return gravity_CP<simd_double,true>(L,x,y);
+}
+
 
 std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
 	if (x.size() == 0) {
@@ -367,177 +396,5 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 		f[i].phi += Phi[i].sum();
 	}
 	return 26 * cnt1 * x.size();
-}
-
-std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
-	if (x.size() == 0) {
-		return 0;
-	}
-	std::uint64_t flop = 0;
-
-	static const auto one = simd_double(1.0);
-	static const auto half = simd_double(0.5);
-	static const auto opts = options::get();
-	static const auto h = opts.soft_len;
-	static const bool ewald = opts.ewald;
-	static const auto h2 = h * h;
-	static const simd_double H(h);
-	static const simd_double H2(h2);
-	vect<simd_double> X, Y;
-	multipole<simd_double> M;
-	std::vector<vect<simd_double>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_double> Phi(x.size(), 0.0);
-	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_double::size()) / simd_double::size()) * simd_double::size();
-	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = vect<float>(1.0);
-	}
-	for (int j = 0; j < cnt1; j += simd_double::size()) {
-		for (int k = 0; k < simd_double::size(); k++) {
-			for( int n = 0; n < MP; n++) {
-				M[n][k] = y[j+k].m[n];
-			}
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k].x[dim];
-			}
-		}
-		for (int i = 0; i < x.size(); i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_double(x[i][dim]);
-			}
-
-			vect<simd_double> dX = X - Y;             		// 3 OP
-			if (ewald) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					const auto absdx = abs(dX[dim]);										// 3 OP
-					dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
-				}
-			}
-			auto this_f = multipole_interaction(M, dX, true);	//42826
-
-			for (int dim = 0; dim < NDIM; dim++) {
-				G[i][dim] += this_f.second[dim];  // 6 OP
-			}
-			Phi[i] += this_f.first;		        // 2 OP
-		}
-	}
-	for (int i = 0; i < x.size(); i++) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] += G[i][dim].sum();
-		}
-		f[i].phi += Phi[i].sum();
-	}
-	return 42875 * cnt1 * x.size();
-}
-
-std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
-	if (y.size() == 0) {
-		return 0;
-	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
-	std::uint64_t flop = 0;
-	static const auto opts = options::get();
-	static const bool ewald = opts.ewald;
-	static const auto h = opts.soft_len;
-	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	multipole<simd_real> M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
-	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_REAL_LEN) / SIMD_REAL_LEN) * SIMD_REAL_LEN;
-	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = vect<ireal>(1.0);
-	}
-
-	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
-	}
-	for (int j = 0; j < cnt1; j += SIMD_REAL_LEN) {
-		for (int k = 0; k < SIMD_REAL_LEN; k++) {
-			for( int n = 0; n < MP; n++) {
-				M[n][k] = y[j+k].m[n];
-			}
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k].x[dim];
-			}
-		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
-		if (ewald) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto absdx = abs(dX[dim]);										// 3 OP
-				dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
-			}
-		}
-		multipole_interaction(Lacc, M, dX, true);												// 43009 OP
-	}
-
-	for (int i = 0; i < LP; i++) {
-		L[i] += Lacc[i].sum();
-	}
-	return 43030 * cnt1;
-}
-
-std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
-	if (y.size() == 0) {
-		return 0;
-	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
-	std::uint64_t flop = 0;
-	static const auto opts = options::get();
-	static const auto m = 1.0 / opts.problem_size;
-	static const bool ewald = opts.ewald;
-	static const auto h = opts.soft_len;
-	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	simd_real M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
-	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_REAL_LEN) / SIMD_REAL_LEN) * SIMD_REAL_LEN;
-	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = vect<ireal>(1.0);
-	}
-
-	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
-	}
-	M = m;
-	for (int j = 0; j < cnt1; j += SIMD_REAL_LEN) {
-		for (int k = 0; k < SIMD_REAL_LEN; k++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim][k] = y[j + k][dim];
-			}
-		}
-		if (j + SIMD_REAL_LEN > cnt1) {
-			for (int k = cnt1; k < cnt2; k++) {
-				M[k - j] = 0.0;
-			}
-		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
-		if (ewald) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto absdx = abs(dX[dim]);										// 3 OP
-				dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
-			}
-		}
-		multipole_interaction(Lacc, M, dX, true);										// 42707 OP
-	}
-
-	for (int i = 0; i < LP; i++) {
-		L[i] += Lacc[i].sum();
-	}
-	return 42728 * cnt1;
 }
 
