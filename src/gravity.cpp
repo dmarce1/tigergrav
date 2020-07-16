@@ -5,7 +5,6 @@
 
 #include <hpx/include/async.hpp>
 
-
 static const auto one = simd_float(1.0);
 static const auto half = simd_float(0.5);
 static const simd_float eps = simd_float(std::numeric_limits<float>::min());
@@ -20,14 +19,25 @@ double ewald_near_separation(const vect<double> x) {
 	return std::sqrt(d);
 }
 
-double ewald_far_separation(const vect<double> x) {
+double ewald_far_separation(const vect<double> x, double r) {
 	double d = 0.0;
+	double maxd = 0.0;
+	vect<double> y;
 	for (int dim = 0; dim < NDIM; dim++) {
 		const double absx = std::abs(x[dim]);
 		const double this_d = std::min(absx, (double) 1.0 - absx);
 		d += this_d * this_d;
+		maxd = std::max(this_d, maxd);
+		y[dim] = this_d;
 	}
-	return std::max(std::sqrt(d), double(0.25));
+	double q;
+	if (maxd > 0.0) {
+		y = y / maxd;
+		q = abs(y);
+	} else {
+		q = 1.0;
+	}
+	return std::max(std::sqrt(d), double(q * 0.5) - 2 * r);
 }
 
 std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
@@ -116,8 +126,8 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 	}
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int k = 0; k < simd_float::size(); k++) {
-			for( int n = 0; n < MP; n++) {
-				M[n][k] = y[j+k].m[n];
+			for (int n = 0; n < MP; n++) {
+				M[n][k] = y[j + k].m[n];
 			}
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k].x[dim];
@@ -396,8 +406,8 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 	}
 	for (int j = 0; j < cnt1; j += simd_double::size()) {
 		for (int k = 0; k < simd_double::size(); k++) {
-			for( int n = 0; n < MP; n++) {
-				M[n][k] = y[j+k].m[n];
+			for (int n = 0; n < MP; n++) {
+				M[n][k] = y[j + k].m[n];
 			}
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k].x[dim];
@@ -462,8 +472,8 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::
 	}
 	for (int j = 0; j < cnt1; j += simd_double::size()) {
 		for (int k = 0; k < simd_double::size(); k++) {
-			for( int n = 0; n < MP; n++) {
-				M[n][k] = y[j+k].m[n];
+			for (int n = 0; n < MP; n++) {
+				M[n][k] = y[j + k].m[n];
 			}
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k].x[dim];

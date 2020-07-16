@@ -268,7 +268,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	if (opts.ewald) {
 		for (auto c : echecklist) {
 			auto other = c.ptr->get_multipole();
-			const auto dx = ewald_far_separation(multi.x - other.x);
+			const auto dx = ewald_far_separation(multi.x - other.x, multi.r + other.r);
 			const bool far = dx > (multi.r + other.r) * theta_inv;
 			if (far) {
 				if (c.opened) {
@@ -290,7 +290,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 	}
-//	printf( "%li\n", esources.size());
 	flop += gravity_CC_direct(L, multi.x, dmulti_srcs);
 	flop += gravity_CP_direct(L, multi.x, dsources);
 	if (opts.ewald) {
@@ -351,7 +350,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			while (!echecklist.empty()) {
 				for (auto c : echecklist) {
 					auto other = c.ptr->get_multipole();
-					const auto dx = ewald_far_separation(multi.x - other.x);
+					const auto dx = ewald_far_separation(multi.x - other.x, multi.r + other.r);
 					const bool far = dx > (multi.r + other.r) * theta_inv;
 					if (c.opened) {
 						const auto pos = c.ptr->get_positions();
@@ -440,7 +439,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 	if (opts.ewald) {
 		for (auto c : echecklist) {
 			auto other = c->get_multipole();
-			const auto dx = ewald_far_separation(multi.x - other.x);
+			const auto dx = ewald_far_separation(multi.x - other.x, multi.r + other.r);
 			if (dx > (multi.r + other.r) * theta_inv) {
 				emulti_srcs.push_back( { other.m, other.x });
 			} else {
