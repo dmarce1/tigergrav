@@ -430,17 +430,17 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 339 OPS
 						hdotdx += X[a] * h[a];
 					}
 					const T omega = 2.0 * M_PI * hdotdx;
-					const T c = cos(omega);
-					const T s = sin(omega);
-					D() += -(1.0 / M_PI) * c0 * c;
+					const T co = cos(omega);
+					const T si = sin(omega);
+					D() += -(1.0 / M_PI) * c0 * co;
 					for (int a = 0; a < NDIM; a++) {
-						D(a) += 2.0 * h[a] * c0 * s;
+						D(a) += 2.0 * h[a] * c0 * si;
 						for (int b = 0; b <= a; b++) {
-							D(a, b) += 4.0 * M_PI * h[a] * h[b] * c0 * c;
+							D(a, b) += 4.0 * M_PI * h[a] * h[b] * c0 * co;
 							for (int c = 0; c <= b; c++) {
-								D(a, b, c) -= 8.0 * M_PI * M_PI * h[a] * h[b] * h[c] * c0 * s;
+								D(a, b, c) -= 8.0 * M_PI * M_PI * h[a] * h[b] * h[c] * c0 * si;
 								for (int d = 0; d <= c; d++) {
-									D(a, b, c, d) -= 16.0 * M_PI * M_PI * M_PI * h[a] * h[b] * h[c] * h[d] * c0 * c;
+									D(a, b, c, d) -= 16.0 * M_PI * M_PI * M_PI * h[a] * h[b] * h[c] * h[d] * c0 * co;
 								}
 							}
 						}
