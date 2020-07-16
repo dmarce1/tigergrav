@@ -170,7 +170,7 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std:
 	expansion<simd_real> Lacc;
 	Lacc = simd_real(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_REAL_LEN) / SIMD_REAL_LEN) * SIMD_REAL_LEN;
+	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
@@ -180,8 +180,8 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std:
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = simd_real(x[dim]);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_REAL_LEN) {
-		for (int k = 0; k < SIMD_REAL_LEN; k++) {
+	for (int j = 0; j < cnt1; j += simd_real::size()) {
+		for (int k = 0; k < simd_real::size(); k++) {
 			for (int n = 0; n < MP; n++) {
 				M[n][k] = y[j + k].m[n];
 			}
@@ -224,7 +224,7 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<ireal> &x, std:
 	expansion<simd_real> Lacc;
 	Lacc = simd_real(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_REAL_LEN) / SIMD_REAL_LEN) * SIMD_REAL_LEN;
+	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j] = vect<ireal>(1.0);
@@ -234,13 +234,13 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<ireal> &x, std:
 		X[dim] = simd_real(x[dim]);
 	}
 	M = m;
-	for (int j = 0; j < cnt1; j += SIMD_REAL_LEN) {
-		for (int k = 0; k < SIMD_REAL_LEN; k++) {
+	for (int j = 0; j < cnt1; j += simd_real::size()) {
+		for (int k = 0; k < simd_real::size(); k++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k][dim];
 			}
 		}
-		if (j + SIMD_REAL_LEN > cnt1) {
+		if (j + simd_real::size() > cnt1) {
 			for (int k = cnt1; k < cnt2; k++) {
 				M[k - j] = 0.0;
 			}
@@ -436,21 +436,21 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = simd_double(1.0);
+	static const auto half = simd_double(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	multipole<simd_real> M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
+	static const simd_double H(h);
+	static const simd_double H2(h2);
+	vect<simd_double> X, Y;
+	multipole<simd_double> M;
+	expansion<simd_double> Lacc;
+	Lacc = simd_double(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_REAL_LEN) / SIMD_REAL_LEN) * SIMD_REAL_LEN;
+	const auto cnt2 = ((cnt1 - 1 + simd_double::size()) / simd_double::size()) * simd_double::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
@@ -458,10 +458,10 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
+		X[dim] = simd_double(x[dim]);
 	}
-	for (int j = 0; j < cnt1; j += SIMD_REAL_LEN) {
-		for (int k = 0; k < SIMD_REAL_LEN; k++) {
+	for (int j = 0; j < cnt1; j += simd_double::size()) {
+		for (int k = 0; k < simd_double::size(); k++) {
 			for( int n = 0; n < MP; n++) {
 				M[n][k] = y[j+k].m[n];
 			}
@@ -469,7 +469,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
+		vect<simd_double> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
@@ -489,43 +489,43 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<ireal> &x, std::
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = simd_double(1.0);
+	static const auto half = simd_double(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto m = 1.0 / opts.problem_size;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	simd_real M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
+	static const simd_double H(h);
+	static const simd_double H2(h2);
+	vect<simd_double> X, Y;
+	simd_double M;
+	expansion<simd_double> Lacc;
+	Lacc = simd_double(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + SIMD_REAL_LEN) / SIMD_REAL_LEN) * SIMD_REAL_LEN;
+	const auto cnt2 = ((cnt1 - 1 + simd_double::size()) / simd_double::size()) * simd_double::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j] = vect<ireal>(1.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
+		X[dim] = simd_double(x[dim]);
 	}
 	M = m;
-	for (int j = 0; j < cnt1; j += SIMD_REAL_LEN) {
-		for (int k = 0; k < SIMD_REAL_LEN; k++) {
+	for (int j = 0; j < cnt1; j += simd_double::size()) {
+		for (int k = 0; k < simd_double::size(); k++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				Y[dim][k] = y[j + k][dim];
 			}
 		}
-		if (j + SIMD_REAL_LEN > cnt1) {
+		if (j + simd_double::size() > cnt1) {
 			for (int k = cnt1; k < cnt2; k++) {
 				M[k - j] = 0.0;
 			}
 		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
+		vect<simd_double> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
