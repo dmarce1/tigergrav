@@ -1,4 +1,4 @@
-/*  
+/*
  Copyright (c) 2016 Dominic C. Marcello
 
  This program is free software: you can redistribute it and/or modify
@@ -21,11 +21,11 @@
 #include <tigergrav/vect.hpp>
 #include <array>
 
-constexpr int MP = 17;
+constexpr int MP = 32;
 
 template<class T>
 class multipole: public std::array<T, MP> {
-private:
+
 public:
 	multipole();
 	T operator ()() const;
@@ -34,6 +34,8 @@ public:
 	T& operator ()(int i, int j);
 	T operator ()(int i, int j, int k) const;
 	T& operator ()(int i, int j, int k);
+	T operator ()(int i, int j, int k, int l) const;
+	T& operator ()(int i, int j, int k, int l);
 	multipole<T>& operator =(const multipole<T> &other);
 	multipole<T>& operator =(T other);
 	multipole operator>>(const vect<T> &dX) const;
@@ -82,6 +84,24 @@ inline T& multipole<T>::operator ()(int i, int j, int k) {
 }
 
 template<class T>
+inline T& multipole<T>::operator ()(int i, int j, int k, int l) {
+	static constexpr size_t map4[3][3][3][3] = { { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7,
+			8 }, { 5, 8, 9 } } }, { { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 3, 6, 7 }, { 6, 10, 11 }, { 7, 11, 12 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8,
+			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
+			{ 9, 13, 14 } } } };
+	return (*this)[17 + map4[i][j][k][l]];
+}
+
+template<class T>
+inline T multipole<T>::operator ()(int i, int j, int k, int l) const {
+	static constexpr size_t map4[3][3][3][3] = { { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7,
+			8 }, { 5, 8, 9 } } }, { { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 3, 6, 7 }, { 6, 10, 11 }, { 7, 11, 12 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8,
+			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
+			{ 9, 13, 14 } } } };
+	return (*this)[17 + map4[i][j][k][l]];
+}
+
+template<class T>
 inline multipole<T>& multipole<T>::operator =(const multipole<T> &other) {
 	for (int i = 0; i < MP; i++) {
 		(*this)[i] = other[i];
@@ -116,19 +136,33 @@ inline multipole<T> multipole<T>::operator +(const multipole<T> &vec) const {
 template<class T>
 inline multipole<T>& multipole<T>::operator>>=(const vect<T> &Y) {
 	multipole<T> &me = *this;
-	for (int p = 0; p < 3; p++) {
-		for (int q = p; q < 3; q++) {
-			for (int l = q; l < 3; l++) {
-				me(p, q, l) += me() * Y[p] * Y[q] * Y[l];
-				me(p, q, l) += me(p, q) * Y[l];
-				me(p, q, l) += me(q, l) * Y[p];
-				me(p, q, l) += me(l, p) * Y[q];
+	multipole<T> A = *this;
+	for (int i = 0; i < 3; i++) {
+		for (int j = i; j < 3; j++) {
+			for (int k = j; k < 3; k++) {
+				me(i, j, k) += A() * Y[i] * Y[j] * Y[k];
+				me(i, j, k) += A(i, j) * Y[k];
+				me(i, j, k) += A(j, k) * Y[i];
+				me(i, j, k) += A(k, i) * Y[j];
+				for (int l = 0; l <= k; l++) {
+					me(i, j, k, l) += A() * Y[i] * Y[j] * Y[k] * Y[l];
+					me(i, j, k, l) += A(i, j) * Y[k] * Y[l];
+					me(i, j, k, l) += A(i, k) * Y[j] * Y[l];
+					me(i, j, k, l) += A(i, l) * Y[j] * Y[k];
+					me(i, j, k, l) += A(j, k) * Y[i] * Y[l];
+					me(i, j, k, l) += A(j, l) * Y[i] * Y[k];
+					me(i, j, k, l) += A(k, l) * Y[i] * Y[j];
+					me(i, j, k, l) += A(j, k, l) * Y[i];
+					me(i, j, k, l) += A(i, k, l) * Y[j];
+					me(i, j, k, l) += A(i, j, l) * Y[k];
+					me(i, j, k, l) += A(i, j, k) * Y[l];
+				}
 			}
 		}
 	}
 	for (int p = 0; p < 3; p++) {
 		for (int q = p; q < 3; q++) {
-			me(p, q) += me() * Y[p] * Y[q];
+			me(p, q) += A() * Y[p] * Y[q];
 		}
 	}
 	return me;
