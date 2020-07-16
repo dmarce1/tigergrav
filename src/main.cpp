@@ -23,7 +23,7 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 				std::vector<vect<float>>(), std::vector<multi_src>(), mrung, do_out);
 	} else if (type == 2) {
 		root_ptr->compute_multipoles(mrung, do_out);
-		expansion<ireal> L;
+		expansion<double> L;
 		L = 0.0;
 		return root_ptr->kick_fmm(std::vector<check_item>(1, { false, root_ptr }), std::vector<check_item>(1, { false, root_ptr }), { { 0.5, 0.5, 0.5 } }, L,
 				mrung, do_out);
@@ -44,9 +44,6 @@ int hpx_main(int argc, char *argv[]) {
 	options opts;
 	opts.process_options(argc, argv);
 	tree::set_theta(opts.theta);
-	if (opts.ewald) {
-		init_ewald();
-	}
 
 	range root_box;
 	for (int dim = 0; dim < NDIM; dim++) {

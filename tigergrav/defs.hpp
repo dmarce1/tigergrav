@@ -8,16 +8,14 @@
 #define ERROR() printf( "ERROR %s %i\n", __FILE__, __LINE__)
 
 //#define INDIRECT_DOUBLE
-#define BALANCED_TREE
 
-#define INDIRECT_DOUBLE
 
 #ifdef INDIRECT_DOUBLE
 using ireal = double;
-#define isimd_vector simd_dvector
-#define ISIMD_LEN SIMD_DLEN
+#define simd_real simd_double
+#define SIMD_REAL_LEN SIMD_DOUBLE_LEN
 #else
 using ireal = float;
-#define isimd_vector  simd_svector
-#define ISIMD_LEN SIMD_SLEN
+#define simd_real  simd_float
+#define SIMD_REAL_LEN SIMD_FLOAT_LEN
 #endif

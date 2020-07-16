@@ -212,7 +212,7 @@ std::pair<const_part_iter, const_part_iter> tree::get_positions() const {
 	return iters;
 }
 
-kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<ireal> L,
+kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out) {
 
 	kick_return rc;
