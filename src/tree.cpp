@@ -291,8 +291,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}
 	}
 //	printf( "%li\n", esources.size());
-	flop += gravity_CC(L, multi.x, dmulti_srcs);
-	flop += gravity_CP(L, multi.x, dsources);
+	flop += gravity_CC_direct(L, multi.x, dmulti_srcs);
+	flop += gravity_CP_direct(L, multi.x, dsources);
 	if (opts.ewald) {
 		flop += gravity_CC_ewald(L, multi.x, emulti_srcs);
 		flop += gravity_CP_ewald(L, multi.x, esources);
@@ -394,8 +394,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 
-		flop += gravity_PP(f, x, dsources);
-		flop += gravity_PC(f, x, dmulti_srcs);
+		flop += gravity_PP_direct(f, x, dsources);
+		flop += gravity_PC_direct(f, x, dmulti_srcs);
 		if (opts.ewald) {
 			flop += gravity_PP_ewald(f, x, esources);
 			flop += gravity_PC_ewald(f, x, emulti_srcs);
@@ -487,8 +487,8 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 				}
 			}
 			std::vector<force> f(x.size(), { 0, vect<double>(0) });
-			flop += gravity_PC(f, x, multi_srcs);
-			flop += gravity_PP(f, x, dsources);
+			flop += gravity_PC_direct(f, x, multi_srcs);
+			flop += gravity_PP_direct(f, x, dsources);
 			if (opts.ewald) {
 				flop += gravity_PP_ewald(f, x, esources);
 				flop += gravity_PC_ewald(f, x, emulti_srcs);
@@ -537,7 +537,7 @@ kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_r
 			}
 		}
 		std::vector<force> f(x.size(), { 0, vect<double>(0) });
-		flop += gravity_PP(f, x, sources);
+		flop += gravity_PP_direct(f, x, sources);
 		if (opts.ewald) {
 			flop += gravity_PP_ewald(f, x, sources);
 		}

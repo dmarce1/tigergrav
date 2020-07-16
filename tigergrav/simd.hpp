@@ -54,6 +54,9 @@ class simd_float {
 private:
 	_simd_float v;
 public:
+	static constexpr std::size_t size() {
+		return SIMD_FLOAT_LEN;
+	}
 	simd_float() = default;
 	inline ~simd_float() = default;
 	simd_float(const simd_float&) = default;
@@ -272,6 +275,9 @@ class simd_double {
 private:
 	_simd_double v;
 public:
+	static constexpr std::size_t size() {
+		return SIMD_DOUBLE_LEN;
+	}
 	simd_double() = default;
 	inline ~simd_double() = default;
 	simd_double(const simd_double&) = default;
