@@ -297,6 +297,7 @@ inline v16sf exp512_ps(v16sf x) {	// 30 OPS
   v16sf tmp = _mm512_setzero_ps(), fx;								// 1
   v16si imm0;
   v16sf one = *(v16sf*)_ps512_1;
+  v16sf zero = *(v16sf*)_ps512_0;
 
   x = _mm512_min_ps(x, *(v16sf*)_ps256_exp_hi);						// 1
   x = _mm512_max_ps(x, *(v16sf*)_ps256_exp_lo);						// 1
@@ -313,8 +314,8 @@ inline v16sf exp512_ps(v16sf x) {	// 30 OPS
 
   /* if greater, substract 1 */
   //v16sf mask = _mm512_cmpgt_ps(tmp, fx);
-  v16sf mask = _mm512_cmp_ps(tmp, fx, _CMP_GT_OS);    				// 1
-  mask = _mm512_and_ps(mask, one);									// 1
+  v16sf mask = _mm256_mask_mov_ps(zero,_mm512_cmp_ps_mask(tmp, fx, _CMP_GT_OS),one);    				// 2
+//  mask = _mm512_and_ps(mask, one);									// 0
   fx = _mm512_sub_ps(tmp, mask);									// 1
 
   tmp = _mm512_mul_ps(fx, *(v16sf*)_ps512_cephes_exp_C1);			// 1
