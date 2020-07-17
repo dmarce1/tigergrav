@@ -386,7 +386,7 @@ struct periodic_parts: public std::vector<expansion<float>> {
 };
 
 template<class T>
-inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
+inline expansion<T> green_ewald(const vect<T> &X) {		// 38982 OPS
 	static const periodic_parts periodic;
 	expansion<T> D;
 	D = 0.0;
@@ -396,7 +396,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 	vect<float> h;
 	static const ewald_indices indices_real(5);
 	static const ewald_indices indices_four(9);
-	for (int i = 0; i < indices_real.size(); i++) {		// 454 X 93 = 422222
+	for (int i = 0; i < indices_real.size(); i++) {		// 424 X 57 = 24168
 		h = indices_real[i];
 		n = h;
 		const vect<T> dx = X - n;                          	// 3
@@ -410,9 +410,10 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 		const T r5inv = r2inv * r3inv;						// 1
 		const T r7inv = r2inv * r5inv;						// 1
 		const T r9inv = r2inv * r7inv;						// 1
-		const T erfc = T(1) - erf(2.0 * r);					// 3
+		T expn4r2;
+		const T erfc = T(1) - erfexp(2.0 * r, &expn4r2);					// 52
 		static const T invsqrtpi = 1.0 / sqrt(M_PI);
-		const T expfactor = 4.0 * r * exp(-4.0 * r2) * invsqrtpi;														// 5
+		const T expfactor = 4.0 * r * expn4r2 * invsqrtpi;														// 3
 		const T d0 = -erfc * rinv;																						// 2
 		const T d1 = (expfactor + erfc) * r3inv;																		// 2
 		const T d2 = -(expfactor * (T(3) + 8.0 * T(r2)) + 3.0 * erfc) * r5inv;											// 7
@@ -444,7 +445,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 			}
 		}
 	}
-	for (int i = 0; i < indices_four.size(); i++) {		// 454 X 93 = 422222
+	for (int i = 0; i < indices_four.size(); i++) {		// 117 X 123 = 14391
 		h = indices_four[i];
 		const auto H = periodic[i];
 		T hdotdx = X[0] * h[0];									// 1
@@ -454,7 +455,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 		static const T twopi = 2.0 * M_PI;
 		const T omega = twopi * hdotdx;							// 1
 		T co, si;
-		sincos(omega, &si, &co);
+		sincos(omega, &si, &co);								// 41
 		D() += H() * co;										// 2
 		for (int a = 0; a < NDIM; a++) {
 			D(a) += H(a) * si;									// 6

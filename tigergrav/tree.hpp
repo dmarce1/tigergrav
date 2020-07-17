@@ -72,7 +72,6 @@ public:
 	tree(range, part_iter, part_iter);
 	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out);
 	multipole_info get_multipole() const;
-	monopole get_monopole() const;
 	bool is_leaf() const;
 	std::array<tree_ptr, NCHILD> get_children() const;
 	std::pair<const_part_iter, const_part_iter> get_positions() const;

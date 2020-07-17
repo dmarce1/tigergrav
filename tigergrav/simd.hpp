@@ -14,10 +14,40 @@
 
 #include <cmath>
 
+
+
+#if defined(__AVX512F__)
+
+#define SIMD_FLOAT_LEN 16
+#define _simd_float                 __m512
+#define _simd_int                   __m512i
+#define _mmx_set_ps(d)              _mm512_set_ps(d, d, d, d, d, d, d, d,d, d, d, d, d, d, d, d)
+#define _mmx_add_ps(a,b)            _mm512_add_ps((a),(b))
+#define _mmx_sub_ps(a,b)            _mm512_sub_ps((a),(b))
+#define _mmx_mul_ps(a,b)            _mm512_mul_ps((a),(b))
+#define _mmx_div_ps(a,b)            _mm512_div_ps((a),(b))
+#define _mmx_sqrt_ps(a)             _mm512_sqrt_ps(a)
+#define _mmx_min_ps(a, b)           _mm512_min_ps((a),(b))
+#define _mmx_max_ps(a, b)           _mm512_max_ps((a),(b))
+#define _mmx_or_ps(a, b)            _mm512_or_ps((a),(b))
+#define _mmx_and_ps(a, b)           _mm512_and_ps((a),(b))
+#define _mmx_andnot_ps(a, b)        _mm512_andnot_ps((a),(b))
+#define _mmx_rsqrt_ps(a)            _mm512_rsqrt23_ps(a)
+#define _mmx_add_epi32(a,b)         _mm512_add_epi32((a),(b))
+#define _mmx_sub_epi32(a,b)         _mm512_sub_epi32((a),(b))
+#define _mmx_mul_epi32(a,b)         _mm512_mullo_epi32((a),(b))
+#define _mmx_cvtps_epi32(a)         _mm512_cvtps_epi32((a))
+#define _mmx_fmadd_ps(a,b,c)        _mm512_fmadd_ps ((a),(b),(c))
+#define _mmx_cmp_ps(a,b,c)        	_mm512_cmp_ps(a,b,c)
+
+#else
+
+
 #if defined(__AVX2__)
 #define SIMD_FLOAT_LEN 8
 #define _simd_float                 __m256
 #define _simd_int                   __m256i
+#define _mmx_set_ps(d)              _mm256_set_ps(d, d, d, d, d, d, d, d)
 #define _mmx_add_ps(a,b)            _mm256_add_ps((a),(b))
 #define _mmx_sub_ps(a,b)            _mm256_sub_ps((a),(b))
 #define _mmx_mul_ps(a,b)            _mm256_mul_ps((a),(b))
@@ -38,6 +68,7 @@
 #else
 #error 'Do not have SIMD instructions for this processor'
 #endif
+#endif
 
 class simd_int;
 
@@ -52,7 +83,7 @@ public:
 	inline ~simd_float() = default;
 	simd_float(const simd_float&) = default;
 	inline simd_float(float d) {
-		v = _mm256_set_ps(d, d, d, d, d, d, d, d);
+		v = _mmx_set_ps(d);
 	}
 	inline float sum() const {
 		float sum = 0.0;
@@ -165,15 +196,11 @@ public:
 	friend simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c);
 
 	friend simd_float exp(const simd_float &a);
-	friend simd_float sin(const simd_float &a);
-	friend simd_float cos(const simd_float &a);
-	friend simd_float erf(const simd_float &a);
-
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
-
+	friend simd_float erfexp(const simd_float &a, simd_float* e);
 	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 
 
+	// 2 OPS
 	simd_float operator<(simd_float other) const {
 			static const simd_float one(1);
 			static const simd_float zero(0);
@@ -183,6 +210,8 @@ public:
 			v.v = rc;
 			return v;
 		}
+
+	// 2 OPS
 	simd_float operator<=(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -193,7 +222,7 @@ public:
 		return v;
 	}
 
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+	// 2 OPS
 	simd_float operator!=(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -204,7 +233,7 @@ public:
 		return v;
 	}
 
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+	// 2 OPS
 	simd_float operator==(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -215,7 +244,7 @@ public:
 		return v;
 	}
 
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+	// 2 OPS
 	simd_float operator>(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -226,8 +255,7 @@ public:
 		return v;
 	}
 
-
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+	// 2 OPS
 	simd_float operator>=(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -243,29 +271,29 @@ public:
 
 };
 
+// 41 OPS
 inline void sincos(simd_float x, simd_float *s, simd_float *c) {
+#if defined(__AVX512F__)
+	sincos512_ps(x.v, &(s->v), &(c->v));
+#else
 	sincos256_ps(x.v, &(s->v), &(c->v));
+#endif
 }
 
+// 30 OPS
 inline simd_float exp(const simd_float &a) {
 	simd_float v;
+
+#if defined(__AVX512F__)
+	v.v = exp512_ps(a.v);
+#else
 	v.v = exp256_ps(a.v);
+#endif
 	return v;
 }
 
-inline simd_float sin(const simd_float &a) {
-	simd_float v;
-	v.v = sin256_ps(a.v);
-	return v;
-}
-
-inline simd_float cos(const simd_float &a) {
-	simd_float v;
-	v.v = cos256_ps(a.v);
-	return v;
-}
-
-inline simd_float erf(const simd_float &x) {
+// 50 OPS
+inline simd_float erfexp(const simd_float &x, simd_float* e) {
 	simd_float v;
 	const simd_float p(0.3275911);
 	const simd_float a1(0.254829592);
@@ -278,7 +306,8 @@ inline simd_float erf(const simd_float &x) {
 	const simd_float t3 = t2 * t1;
 	const simd_float t4 = t2 * t2;
 	const simd_float t5 = t2 * t3;
-	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * exp(-x * x);
+	*e = exp(-x * x);
+	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * *e;
 	return v;
 }
 

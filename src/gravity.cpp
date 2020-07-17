@@ -355,10 +355,10 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 				const simd_real rinv = r / (r2 + tiny);
 				const simd_real r2inv = rinv * rinv;
 				const simd_real r3inv = r2inv * rinv;
-				const simd_real erfc = one - erf(2.0 * r);
+				simd_real expn4r2;
+				const simd_real erfc = one - erfexp(2.0 * r, &expn4r2);
 				const simd_real d0 = -erfc * rinv;
-				const simd_real expfactor = 4.0 * r * exp(-4.0 * r2) / sqrt(M_PI);
-				simd_real tmp = sin(-r2);
+				const simd_real expfactor = 4.0 * r * expn4r2 / sqrt(M_PI);
 				const simd_real d1 = (expfactor + erfc) * r3inv;
 				phi += d0; // 6 OP
 				for (int a = 0; a < NDIM; a++) {
@@ -374,8 +374,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 					hdotdx += dX0[dim] * h[dim];
 				}
 				const simd_real omega = 2.0 * M_PI * hdotdx;
-				const simd_real c = cos(omega);
-				const simd_real s = sin(omega);
+				simd_real c, s;
+				sincos(omega,&s,&c);
 				phi += H() * c;
 				for (int dim = 0; dim < NDIM; dim++) {
 					g[dim] -= H(dim) * s;
@@ -509,13 +509,13 @@ std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 				dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
 			}
 		}
-		multipole_interaction(Lacc, M, dX, true);												// 43009 OP
+		multipole_interaction(Lacc, M, dX, true);												// 38982 OP
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
-	return 43030 * cnt1;
+	return 39003 * cnt1;
 }
 
 std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {

@@ -192,10 +192,6 @@ multipole_info tree::get_multipole() const {
 	return multi;
 }
 
-monopole tree::get_monopole() const {
-	return {(float) multi.m(),multi.x,multi.r};
-}
-
 bool tree::is_leaf() const {
 	static const auto opts = options::get();
 	return (part_end - part_begin) <= opts.parts_per_node;
