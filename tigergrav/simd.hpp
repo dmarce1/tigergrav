@@ -34,20 +34,7 @@
 #define _mmx_mul_epi32(a,b)         _mm256_mullo_epi32((a),(b))
 #define _mmx_cvtps_epi32(a)         _mm256_cvtps_epi32((a))
 #define _mmx_fmadd_ps(a,b,c)        _mm256_fmadd_ps ((a),(b),(c))
-
-#define SIMD_DOUBLE_LEN 4
-#define _simd_double                 __m256d
-#define _mmx_add_pd(a,b)            _mm256_add_pd((a),(b))
-#define _mmx_sub_pd(a,b)            _mm256_sub_pd((a),(b))
-#define _mmx_mul_pd(a,b)            _mm256_mul_pd((a),(b))
-#define _mmx_div_pd(a,b)            _mm256_div_pd((a),(b))
-#define _mmx_sqrt_pd(a)             _mm256_sqrt_pd(a)
-#define _mmx_min_pd(a, b)           _mm256_min_pd((a),(b))
-#define _mmx_max_pd(a, b)           _mm256_max_pd((a),(b))
-#define _mmx_or_pd(a, b)            _mm256_or_pd((a),(b))
-#define _mmx_and_pd(a, b)           _mm256_and_pd((a),(b))
-#define _mmx_andnot_pd(a, b)        _mm256_andnot_pd((a),(b))
-#define _mmx_fmadd_pd(a,b,c)        _mm256_fmadd_pd ((a),(b),(c))
+#define _mmx_cmp_ps(a,b,c)        	_mm256_cmp_ps(a,b,c)
 #else
 #error 'Do not have SIMD instructions for this processor'
 #endif
@@ -184,6 +171,76 @@ public:
 
 	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 
+	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+
+
+	simd_float operator<(simd_float other) const {
+			static const simd_float one(1);
+			static const simd_float zero(0);
+			auto mask = _mmx_cmp_ps(v, other.v, _CMP_LT_OQ);
+			auto rc = _mmx_and_ps(mask, one.v);
+			simd_float v;
+			v.v = rc;
+			return v;
+		}
+	simd_float operator<=(simd_float other) const {
+		static const simd_float one(1);
+		static const simd_float zero(0);
+		auto mask = _mmx_cmp_ps(v, other.v, _CMP_LE_OQ);
+		auto rc = _mmx_and_ps(mask, one.v);
+		simd_float v;
+		v.v = rc;
+		return v;
+	}
+
+	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+	simd_float operator!=(simd_float other) const {
+		static const simd_float one(1);
+		static const simd_float zero(0);
+		auto mask = _mmx_cmp_ps(v, other.v, _CMP_NEQ_OQ);
+		auto rc = _mmx_and_ps(mask, one.v);
+		simd_float v;
+		v.v = rc;
+		return v;
+	}
+
+	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+	simd_float operator==(simd_float other) const {
+		static const simd_float one(1);
+		static const simd_float zero(0);
+		auto mask = _mmx_cmp_ps(v, other.v, _CMP_EQ_OQ);
+		auto rc = _mmx_and_ps(mask, one.v);
+		simd_float v;
+		v.v = rc;
+		return v;
+	}
+
+	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+	simd_float operator>(simd_float other) const {
+		static const simd_float one(1);
+		static const simd_float zero(0);
+		auto mask = _mmx_cmp_ps(v, other.v, _CMP_GT_OQ);
+		auto rc = _mmx_and_ps(mask, one.v);
+		simd_float v;
+		v.v = rc;
+		return v;
+	}
+
+
+	friend void sincos(simd_float x, simd_float *s, simd_float *c);
+	simd_float operator>=(simd_float other) const {
+		static const simd_float one(1);
+		static const simd_float zero(0);
+		auto mask = _mmx_cmp_ps(v, other.v, _CMP_GE_OQ);
+		auto rc = _mmx_and_ps(mask, one.v);
+		simd_float v;
+		v.v = rc;
+		return v;
+	}
+
+
+
+
 };
 
 inline void sincos(simd_float x, simd_float *s, simd_float *c) {
@@ -232,7 +289,7 @@ inline simd_float fma(const simd_float &a, const simd_float &b, const simd_float
 }
 
 inline simd_float copysign(const simd_float &y, const simd_float &x) {
-	// From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
+// From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
 	constexpr float signbit = -0.f;
 	static auto const avx_signbit = simd_float(signbit).v;
 	simd_float v;
