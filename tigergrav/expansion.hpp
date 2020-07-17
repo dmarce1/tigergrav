@@ -451,8 +451,8 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 		}
 		static const T twopi = 2.0 * M_PI;
 		const T omega = twopi * hdotdx;							// 1
-		const T co = cos(omega);								// 1
-		const T si = sin(omega);								// 1
+		T co, si;
+		sincos(omega,&si,&co);
 		D() += H() * co;										// 2
 		for (int a = 0; a < NDIM; a++) {
 			D(a) += H(a) * si;									// 6

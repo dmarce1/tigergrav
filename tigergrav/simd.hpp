@@ -10,6 +10,8 @@
 
 #include <immintrin.h>
 
+#include <tigergrav/avx_mathfun.h>
+
 #include <cmath>
 
 #if defined(__AVX2__)
@@ -175,43 +177,51 @@ public:
 	friend simd_float min(const simd_float &a, const simd_float &b);
 	friend simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c);
 
-	friend simd_float exp(const simd_float& a);
-	friend simd_float sin(const simd_float& a);
-	friend simd_float cos(const simd_float& a);
-	friend simd_float erf(const simd_float& a);
+	friend simd_float exp(const simd_float &a);
+	friend simd_float sin(const simd_float &a);
+	friend simd_float cos(const simd_float &a);
+	friend simd_float erf(const simd_float &a);
+
+	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 
 };
 
+inline void sincos(simd_float x, simd_float *s, simd_float *c) {
+	sincos256_ps(x.v, &(s->v), &(c->v));
+}
 
-inline simd_float exp(const simd_float& a) {
+inline simd_float exp(const simd_float &a) {
 	simd_float v;
-	for( int i = 0; i < simd_float::size(); i++) {
-		v.v[i] = std::exp(a.v[i]);
-	}
+	v.v = exp256_ps(a.v);
 	return v;
 }
 
-inline simd_float sin(const simd_float& a) {
+inline simd_float sin(const simd_float &a) {
 	simd_float v;
-	for( int i = 0; i < simd_float::size(); i++) {
-		v.v[i] = std::sin(a.v[i]);
-	}
+	v.v = sin256_ps(a.v);
 	return v;
 }
 
-inline simd_float cos(const simd_float& a) {
+inline simd_float cos(const simd_float &a) {
 	simd_float v;
-	for( int i = 0; i < simd_float::size(); i++) {
-		v.v[i] = std::cos(a.v[i]);
-	}
+	v.v = cos256_ps(a.v);
 	return v;
 }
 
-inline simd_float erf(const simd_float& a) {
+inline simd_float erf(const simd_float &x) {
 	simd_float v;
-	for( int i = 0; i < simd_float::size(); i++) {
-		v.v[i] = std::erf(a.v[i]);
-	}
+	const simd_float p(0.3275911);
+	const simd_float a1(0.254829592);
+	const simd_float a2(-0.284496736);
+	const simd_float a3(1.421413741);
+	const simd_float a4(-1.453152027);
+	const simd_float a5(1.061405429);
+	const simd_float t1 = simd_float(1) / (simd_float(1) + p * x);
+	const simd_float t2 = t1 * t1;
+	const simd_float t3 = t2 * t1;
+	const simd_float t4 = t2 * t2;
+	const simd_float t5 = t2 * t3;
+	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * exp(-x * x);
 	return v;
 }
 
@@ -277,224 +287,6 @@ inline simd_float min(const simd_float &a, const simd_float &b) {
 }
 
 inline simd_float abs(const simd_float &a) {
-	return max(a, -a);
-}
-
-class simd_double {
-private:
-	_simd_double v;
-public:
-	static constexpr std::size_t size() {
-		return SIMD_DOUBLE_LEN;
-	}
-	simd_double() = default;
-	inline ~simd_double() = default;
-	simd_double(const simd_double&) = default;
-	inline simd_double(double d) {
-		v = _mm256_set_pd(d, d, d, d);
-	}
-	inline double sum() const {
-		double sum = 0.0;
-		for (int i = 0; i < SIMD_DOUBLE_LEN; i++) {
-			sum += (*this)[i];
-		}
-		return sum;
-	}
-	inline simd_double(const simd_int &other);
-	inline simd_int to_int() const;
-	inline simd_double& operator=(const simd_double &other) = default;
-	simd_double& operator=(simd_double &&other) {
-		v = std::move(other.v);
-		return *this;
-	}
-	inline simd_double operator+(const simd_double &other) const {
-		simd_double r;
-		r.v = _mmx_add_pd(v, other.v);
-		return r;
-	}
-	inline simd_double operator-(const simd_double &other) const {
-		simd_double r;
-		r.v = _mmx_sub_pd(v, other.v);
-		return r;
-	}
-	inline simd_double operator*(const simd_double &other) const {
-		simd_double r;
-		r.v = _mmx_mul_pd(v, other.v);
-		return r;
-	}
-	inline simd_double operator/(const simd_double &other) const {
-		simd_double r;
-		r.v = _mmx_div_pd(v, other.v);
-		return r;
-	}
-	inline simd_double operator+() const {
-		return *this;
-	}
-	inline simd_double operator-() const {
-		return simd_double(0.0) - *this;
-	}
-	inline simd_double& operator+=(const simd_double &other) {
-		*this = *this + other;
-		return *this;
-	}
-	inline simd_double& operator-=(const simd_double &other) {
-		*this = *this - other;
-		return *this;
-	}
-	inline simd_double& operator*=(const simd_double &other) {
-		*this = *this * other;
-		return *this;
-	}
-	inline simd_double& operator/=(const simd_double &other) {
-		*this = *this / other;
-		return *this;
-	}
-
-	inline simd_double operator*(double d) const {
-		const simd_double other = d;
-		return other * *this;
-	}
-	inline simd_double operator/(double d) const {
-		const simd_double other = 1.0 / d;
-		return *this * other;
-	}
-
-	inline simd_double operator*=(double d) {
-		*this = *this * d;
-		return *this;
-	}
-	inline simd_double operator/=(double d) {
-		*this = *this * (1.0 / d);
-		return *this;
-	}
-	inline double& operator[](std::size_t i) {
-		double *a = reinterpret_cast<double*>(&v);
-		return a[i];
-	}
-	inline double operator[](std::size_t i) const {
-		const double *a = reinterpret_cast<const double*>(&v);
-		return a[i];
-	}
-
-	double max() const {
-		const double a = std::max((*this)[0], (*this)[1]);
-		const double b = std::max((*this)[2], (*this)[3]);
-		return std::max(a, b);
-	}
-	double min() const {
-		const double a = std::min((*this)[0], (*this)[1]);
-		const double b = std::min((*this)[2], (*this)[3]);
-		return std::min(a, b);
-	}
-	friend simd_double copysign(const simd_double&, const simd_double&);
-	friend simd_double sqrt(const simd_double&);
-	friend simd_double rsqrt(const simd_double&);
-	friend simd_double operator*(double, const simd_double &other);
-	friend simd_double operator/(double, const simd_double &other);
-	friend simd_double max(const simd_double &a, const simd_double &b);
-	friend simd_double min(const simd_double &a, const simd_double &b);
-	friend simd_double fma(const simd_double &a, const simd_double &b, const simd_double &c);
-	friend simd_double exp(const simd_double& a);
-	friend simd_double erf(const simd_double& a);
-	friend simd_double sin(const simd_double& a);
-	friend simd_double cos(const simd_double& a);
-
-};
-
-
-inline simd_double exp(const simd_double& a) {
-	simd_double v;
-	for( int i = 0; i < simd_double::size(); i++) {
-		v.v[i] = std::exp(a.v[i]);
-	}
-	return v;
-}
-
-inline simd_double sin(const simd_double& a) {
-	simd_double v;
-	for( int i = 0; i < simd_double::size(); i++) {
-		v.v[i] = std::sin(a.v[i]);
-	}
-	return v;
-}
-
-inline simd_double cos(const simd_double& a) {
-	simd_double v;
-	for( int i = 0; i < simd_double::size(); i++) {
-		v.v[i] = std::cos(a.v[i]);
-	}
-	return v;
-}
-
-inline simd_double erf(const simd_double& a) {
-	simd_double v;
-	for( int i = 0; i < simd_double::size(); i++) {
-		v.v[i] = std::erf(a.v[i]);
-	}
-	return v;
-}
-
-
-inline simd_double fma(const simd_double &a, const simd_double &b, const simd_double &c) {
-	simd_double v;
-	v.v = _mmx_fmadd_pd(a.v, b.v, c.v);
-	return v;
-}
-
-inline simd_double copysign(const simd_double &y, const simd_double &x) {
-	// From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
-	constexpr double signbit = -0.f;
-	static auto const avx_signbit = simd_double(signbit).v;
-	simd_double v;
-	v.v = _mmx_or_pd(_mmx_and_pd(avx_signbit, x.v), _mmx_andnot_pd(avx_signbit, y.v)); // (avx_signbit & from) | (~avx_signbit & to)
-	return v;
-}
-
-inline simd_double sqrt(const simd_double &vec) {
-	simd_double r;
-	r.v = _mmx_sqrt_pd(vec.v);
-	return r;
-}
-
-inline simd_double rsqrt(const simd_double &vec) {
-	return 1.0 / vec;
-}
-
-inline simd_double operator*(double d, const simd_double &other) {
-	const simd_double a = d;
-	return a * other;
-}
-
-inline simd_double operator/(double d, const simd_double &other) {
-	const simd_double a = d;
-	return a / other;
-}
-
-inline void simd_pack(simd_double *dest, double *src, int src_len, int pos) {
-	for (int i = 0; i != src_len; ++i) {
-		dest[i][pos] = src[i];
-	}
-}
-
-inline void simd_unpack(double *dest, simd_double *src, int src_len, int pos) {
-	for (int i = 0; i != src_len; ++i) {
-		dest[i] = src[i][pos];
-	}
-}
-
-inline simd_double max(const simd_double &a, const simd_double &b) {
-	simd_double r;
-	r.v = _mmx_max_pd(a.v, b.v);
-	return r;
-}
-
-inline simd_double min(const simd_double &a, const simd_double &b) {
-	simd_double r;
-	r.v = _mmx_min_pd(a.v, b.v);
-	return r;
-}
-
-inline simd_double abs(const simd_double &a) {
 	return max(a, -a);
 }
 
