@@ -55,9 +55,16 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 	static const simd_float huge = std::numeric_limits<float>::max() / 10.0;
 	static const simd_float tiny = std::numeric_limits<float>::min() * 10.0;
 	static const simd_float H(h);
+	static const simd_float H2(h * h);
 	static const simd_float Hinv(1.0 / h);
 	static const simd_float H3inv(1.0 / h / h / h);
-	static const simd_float H2(h2);
+	static const simd_float H5inv(1.0 / h / h / h / h / h);
+	static const simd_float H4(h2 * h2);
+	static const auto _15o8 = simd_float(15.0 / 8.0);
+	static const auto _10o8 = simd_float(10.0 / 8.0);
+	static const auto _3o8 = simd_float(3.0 / 8.0);
+	static const auto _2p5 = simd_float(2.5);
+	static const auto _1p5 = simd_float(1.5);
 	vect<simd_float> X, Y;
 	std::vector<vect<simd_float>> G(x.size(), vect<float>(0.0));
 	std::vector<simd_float> Phi(x.size(), 0.0);
@@ -91,12 +98,16 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 			const simd_float rinv3 = rinv * rinv * rinv;   																	// 2 OP
 			const simd_float sw_far = min(max(huge * (min(r, 2 * H) * Hinv - simd_float(1)), simd_float(0)), simd_float(1));// 7 OP
 			const simd_float sw_near = simd_float(1) - sw_far;																// 1 OP
+			const simd_float roverh = min(r * Hinv, 1);																		// 2 OP
+			const simd_float roverh2 = roverh * roverh;																		// 1 OP
+			const simd_float roverh4 = roverh2 * roverh2;																	// 1 OP
+			const simd_float fnear = (_2p5 - _1p5 * roverh2) * H3inv;														// 3 OP
 			for (int dim = 0; dim < NDIM; dim++) {
-				G[i][dim] -= dX[dim] * M * (sw_far * rinv3 + sw_near * H3inv);  											// 18 OP
+				G[i][dim] -= dX[dim] * M * (sw_far * rinv3 + sw_near * fnear);  											// 18 OP
 			}
 			const simd_float kill_zero = r * rinv;  																		// 1 OP
 			const auto tmp = M * kill_zero; 	            																// 1 OP
-			const auto near = simd_float(1.5) * Hinv - simd_float(0.5) * r2 * H3inv;										// 4 OP
+			const auto near = (_15o8 - _10o8 * roverh2 + _3o8 * roverh4) * Hinv;											// 5 OP
 			Phi[i] -= (sw_far * rinv + sw_near * near) * tmp;		        												// 5 OP
 		}
 	}
@@ -106,7 +117,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 		}
 		f[i].phi += Phi[i].sum();
 	}
-	return 64 * cnt1 * x.size();
+	return 72 * cnt1 * x.size();
 }
 
 std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
