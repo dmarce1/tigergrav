@@ -30,7 +30,7 @@
 #define _mmx_or_ps(a, b)            _mm512_or_ps((a),(b))
 #define _mmx_and_ps(a, b)           _mm512_and_ps((a),(b))
 #define _mmx_andnot_ps(a, b)        _mm512_andnot_ps((a),(b))
-#define _mmx_rsqrt_ps(a)            _mm512_rsqrt23_ps(a)
+#define _mmx_rsqrt_ps(a)            _mm512_rsqrt14_ps(a)
 #define _mmx_add_epi32(a,b)         _mm512_add_epi32((a),(b))
 #define _mmx_sub_epi32(a,b)         _mm512_sub_epi32((a),(b))
 #define _mmx_mul_epi32(a,b)         _mm512_mullo_epi32((a),(b))

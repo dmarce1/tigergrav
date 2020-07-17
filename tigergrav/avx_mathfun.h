@@ -297,7 +297,7 @@ inline v16sf exp512_ps(v16sf x) {	// 30 OPS
   v16sf tmp = _mm512_setzero_ps(), fx;								// 1
   v16si imm0;
   v16sf one = *(v16sf*)_ps512_1;
-  v16sf zero = *(v16sf*)_ps512_0;
+  v16sf zero = _mm512_setzero_ps();
 
   x = _mm512_min_ps(x, *(v16sf*)_ps256_exp_hi);						// 1
   x = _mm512_max_ps(x, *(v16sf*)_ps256_exp_lo);						// 1
