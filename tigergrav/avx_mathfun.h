@@ -40,13 +40,6 @@ typedef __m256  v8sf; // vector of 8 float (avx)
 typedef __m256i v8si; // vector of 8 int   (avx)
 typedef __m128i v4si; // vector of 8 int   (avx)
 
-#define _PI32AVX_CONST(Name, Val)                                            \
-  static const ALIGN32_BEG int _pi32avx_##Name[4] ALIGN32_END = { Val, Val, Val, Val }
-
-_PI32AVX_CONST(1, 1);
-_PI32AVX_CONST(inv1, ~1);
-_PI32AVX_CONST(2, 2);
-_PI32AVX_CONST(4, 4);
 
 
 /* declare some AVX constants -- why can't I figure a better way to do that? */
@@ -272,4 +265,126 @@ inline void sincos256_ps(v8sf x, v8sf *s, v8sf *c) {
   *c = _mm256_xor_ps(xmm2, sign_bit_cos);
 }
 
+#ifdef __AVX512F__
+
+
+/* __m128 is ugly to write */
+typedef __m512  v16sf; // vector of 8 float (avx)
+typedef __m512i v16si; // vector of 8 int   (avx)
+
+
+
+/* declare some AVX constants -- why can't I figure a better way to do that? */
+#define _PS512_CONST(Name, Val)                                            \
+  static const ALIGN32_BEG float _ps512_##Name[16] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val,Val, Val, Val, Val, Val, Val, Val, Val, }
+#define _PI32_CONST512(Name, Val)                                            \
+  static const ALIGN32_BEG int _pi32_512_##Name[16] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val,Val, Val, Val, Val, Val, Val, Val, Val, }
+#define _PS512_CONST_TYPE(Name, Type, Val)                                 \
+  static const ALIGN32_BEG Type _ps512_##Name[16] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val,Val, Val, Val, Val, Val, Val, Val, Val, }
+
+_PS512_CONST(1  , 1.0f);
+_PS512_CONST(0p5, 0.5f);
+/* the smallest non denormalized float number */
+_PS512_CONST_TYPE(min_norm_pos, int, 0x00800000);
+_PS512_CONST_TYPE(mant_mask, int, 0x7f800000);
+_PS512_CONST_TYPE(inv_mant_mask, int, ~0x7f800000);
+
+_PS512_CONST_TYPE(sign_mask, unsigned, 0x80000000);
+_PS512_CONST_TYPE(inv_sign_mask, int, ~0x80000000);
+
+_PI32_CONST512(0, 0);
+_PI32_CONST512(1, 1);
+_PI32_CONST512(inv1, ~1);
+_PI32_CONST512(2, 2);
+_PI32_CONST512(4, 4);
+_PI32_CONST512(0x7f, 0x7f);
+
+_PS512_CONST(cephes_SQRTHF, 0.707106781186547524);
+_PS512_CONST(cephes_log_p0, 7.0376836292E-2);
+_PS512_CONST(cephes_log_p1, - 1.1514610310E-1);
+_PS512_CONST(cephes_log_p2, 1.1676998740E-1);
+_PS512_CONST(cephes_log_p3, - 1.2420140846E-1);
+_PS512_CONST(cephes_log_p4, + 1.4249322787E-1);
+_PS512_CONST(cephes_log_p5, - 1.6668057665E-1);
+_PS512_CONST(cephes_log_p6, + 2.0000714765E-1);
+_PS512_CONST(cephes_log_p7, - 2.4999993993E-1);
+_PS512_CONST(cephes_log_p8, + 3.3333331174E-1);
+_PS512_CONST(cephes_log_q1, -2.12194440e-4);
+_PS512_CONST(cephes_log_q2, 0.693359375);
+
+
+
+
+_PS512_CONST(exp_hi,	88.3762626647949f);
+_PS512_CONST(exp_lo,	-88.3762626647949f);
+
+_PS512_CONST(cephes_LOG2EF, 1.44269504088896341);
+_PS512_CONST(cephes_exp_C1, 0.693359375);
+_PS512_CONST(cephes_exp_C2, -2.12194440e-4);
+
+_PS512_CONST(cephes_exp_p0, 1.9875691500E-4);
+_PS512_CONST(cephes_exp_p1, 1.3981999507E-3);
+_PS512_CONST(cephes_exp_p2, 8.3334519073E-3);
+_PS512_CONST(cephes_exp_p3, 4.1665795894E-2);
+_PS512_CONST(cephes_exp_p4, 1.6666665459E-1);
+_PS512_CONST(cephes_exp_p5, 5.0000001201E-1);
+
+inline v16sf exp512_ps(v16sf x) {
+  v16sf tmp = _mm512_setzero_ps(), fx;
+  v16si imm0;
+  v16sf one = *(v16sf*)_ps512_1;
+
+  x = _mm512_min_ps(x, *(v16sf*)_ps512_exp_hi);
+  x = _mm512_max_ps(x, *(v16sf*)_ps512_exp_lo);
+
+  /* express exp(x) as exp(g + n*log(2)) */
+  fx = _mm512_mul_ps(x, *(v16sf*)_ps512_cephes_LOG2EF);
+  fx = _mm512_add_ps(fx, *(v16sf*)_ps512_0p5);
+
+  /* how to perform a floorf with SSE: just below */
+  //imm0 = _mm512_cvttps_epi32(fx);
+  //tmp  = _mm512_cvtepi32_ps(imm0);
+  
+  tmp = _mm512_floor_ps(fx);
+
+  /* if greater, substract 1 */
+  //v16sf mask = _mm512_cmpgt_ps(tmp, fx);    
+  v16sf mask = _mm512_mask_mov_ps(_mm512_setzero_ps(),_mm512_cmp_ps_mask(tmp, fx, _CMP_GT_OS),one);    
+ // mask = _mm512_and_ps(mask, one);
+  fx = _mm512_sub_ps(tmp, mask);
+
+  tmp = _mm512_mul_ps(fx, *(v16sf*)_ps512_cephes_exp_C1);
+  v16sf z = _mm512_mul_ps(fx, *(v16sf*)_ps512_cephes_exp_C2);
+  x = _mm512_sub_ps(x, tmp);
+  x = _mm512_sub_ps(x, z);
+
+  z = _mm512_mul_ps(x,x);
+  
+  v16sf y = *(v16sf*)_ps512_cephes_exp_p0;
+  y = _mm512_mul_ps(y, x);
+  y = _mm512_add_ps(y, *(v16sf*)_ps512_cephes_exp_p1);
+  y = _mm512_mul_ps(y, x);
+  y = _mm512_add_ps(y, *(v16sf*)_ps512_cephes_exp_p2);
+  y = _mm512_mul_ps(y, x);
+  y = _mm512_add_ps(y, *(v16sf*)_ps512_cephes_exp_p3);
+  y = _mm512_mul_ps(y, x);
+  y = _mm512_add_ps(y, *(v16sf*)_ps512_cephes_exp_p4);
+  y = _mm512_mul_ps(y, x);
+  y = _mm512_add_ps(y, *(v16sf*)_ps512_cephes_exp_p5);
+  y = _mm512_mul_ps(y, z);
+  y = _mm512_add_ps(y, x);
+  y = _mm512_add_ps(y, one);
+
+  /* build 2^n */
+  imm0 = _mm512_cvttps_epi32(fx);
+  // another two AVX2 instructions
+  imm0 = _mm512_add_epi32(imm0, *(v16si*)_pi32_512_0x7f);
+  imm0 = _mm512_slli_epi32(imm0, 23);
+  v16sf pow2n = _mm512_castsi512_ps(imm0);
+  y = _mm512_mul_ps(y, pow2n);
+  return y;
+}
+
+
+#endif
 

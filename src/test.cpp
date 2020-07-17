@@ -1,4 +1,4 @@
-/*
+	/*
  * test.cpp
  *
  *  Created on: Jul 14, 2020
@@ -12,7 +12,7 @@
 
 
 int hpx_main(int argc, char *argv[]) {
-	v8sf x;
+	v16sf x;
 	x[0] = 0.125;
 	x[1] = 0.250;
 	x[2] = 0.321;
@@ -21,8 +21,16 @@ int hpx_main(int argc, char *argv[]) {
 	x[5] = -10.342;
 	x[6] = +0.00;
 	x[7] = -0.01;
-	auto y = exp256_ps(x);
-	for( int i = 0; i < 8; i++) {
+	x[8] = 0.125;
+	x[9] = 0.250;
+	x[10] = 0.321;
+	x[11] = -.412;
+	x[12] = 2.341;
+	x[13] = -10.342;
+	x[14] = +0.00;
+	x[15] = -0.01;
+	auto y = exp512_ps(x);
+	for( int i = 0; i < 16; i++) {
 		printf( "%e %e %e %e\n", x[i], std::exp(x[i]), y[i], std::exp(x[i])- y[i]);
 	}
 
