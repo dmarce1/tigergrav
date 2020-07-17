@@ -8,7 +8,7 @@
 
 #include <fenv.h>
 
-float timer(void) {
+double timer(void) {
 	return std::chrono::duration_cast < std::chrono::milliseconds > (std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
@@ -59,7 +59,7 @@ int hpx_main(int argc, char *argv[]) {
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
 		printf("%13s %13s %13s %13s %13s %13s %13s %13s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
-		for (float theta = 1.0; theta >= 0.17; theta -= 0.1) {
+		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
 			parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
 			root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 			tree::set_theta(theta);
@@ -80,9 +80,9 @@ int hpx_main(int argc, char *argv[]) {
 		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		printf("Done forming tree\n");
 
-		float t = 0.0;
+		double t = 0.0;
 		int iter = 0;
-		float dt;
+		double dt;
 		kick_return kr;
 		time_type itime = 0;
 
@@ -141,7 +141,7 @@ int hpx_main(int argc, char *argv[]) {
 			if (do_out) {
 				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
 			}
-			t = time_to_float(itime);
+			t = time_to_double(itime);
 			dt = rung_to_dt(kr.rung);
 			iter++;
 		}
