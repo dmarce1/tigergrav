@@ -395,10 +395,10 @@ inline void sincos512_ps(v16sf x, v16sf *s, v16sf *c)  {// 41 OPS
 
   /* get the polynom selection mask for the sine*/
   imm2 = _mm512_and_si512(imm2, *(v16si*)_pi32_512_2);
-  imm2 = _mm512_mask_set1_epi32(*(v16si*)_pi32_512_0, _mm512_cmpeq_epi32_mask(imm2, *(v16si*)_pi32_512_0), 0xFFFFFFFF);
+  auto tmp = _mm512_mask_set1_epi32(*(v16si*)_pi32_512_0, _mm512_cmpeq_epi32_mask(imm2, *(v16si*)_pi32_512_0), 0xFFFFFFFF);
   //v16sf poly_mask = _mm512_castsi512_ps(imm2);
   v16sf swap_sign_bit_sin = _mm512_castsi512_ps(imm0);							// 1
-  v16sf poly_mask = _mm512_castsi512_ps(imm2);									// 1
+  v16sf poly_mask = tmp;									// 1
 
   /* The magic pass: "Extended precision modular arithmetic"
      x = ((x - y * DP1) - y * DP2) - y * DP3; */
