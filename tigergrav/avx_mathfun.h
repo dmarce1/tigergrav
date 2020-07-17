@@ -256,11 +256,11 @@ typedef __m512i v16si; // vector of 8 int   (avx)
 
 /* declare some AVX constants -- why can't I figure a better way to do that? */
 #define _PS512_CONST(Name, Val)                                            \
-  static const ALIGN32_BEG float _ps512_##Name[8] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val,Val, Val, Val, Val, Val, Val, Val, Val, }
+  static const ALIGN32_BEG float _ps512_##Name[16] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val,Val, Val, Val, Val, Val, Val, Val, Val, }
 #define _PI32_CONST512(Name, Val)                                            \
-  static const ALIGN32_BEG int _pi32_512_##Name[8] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, }
+  static const ALIGN32_BEG int _pi32_512_##Name[16] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, }
 #define _PS512_CONST_TYPE(Name, Type, Val)                                 \
-  static const ALIGN32_BEG Type _ps512_##Name[8] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, }
+  static const ALIGN32_BEG Type _ps512_##Name[16] ALIGN32_END = { Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, Val, }
 
 _PS512_CONST(1  , 1.0f);
 _PS512_CONST(0p5, 0.5f);
