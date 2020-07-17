@@ -293,7 +293,7 @@ template<class T>
 inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 
 	static const T H = options::get().soft_len;
-	const double tiny = std::numeric_limits<float>::min() * 10.0;
+	const float tiny = std::numeric_limits<float>::min() * 10.0;
 
 	const T r2 = dX.dot(dX);						// 6
 	const T r = sqrt(r2);
@@ -336,11 +336,11 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 	return D;
 }
 
-struct ewald_indices: public std::vector<vect<double>> {
+struct ewald_indices: public std::vector<vect<float>> {
 	ewald_indices() {
 		constexpr int nmax = 2;
 		constexpr int hmax = 2;
-		vect<double> h;
+		vect<float> h;
 		for (int i = -nmax; i <= nmax; i++) {
 			for (int j = -nmax; j <= nmax; j++) {
 				for (int k = -nmax; k <= nmax; k++) {
@@ -356,17 +356,17 @@ struct ewald_indices: public std::vector<vect<double>> {
 	}
 };
 
-struct periodic_parts: public std::vector<expansion<double>> {
+struct periodic_parts: public std::vector<expansion<float>> {
 	periodic_parts() {
 		static const ewald_indices indices;
 		for (auto i : indices) {
-			vect<double> h = i;
-			const double h2 = h.dot(h);                     // 5 OP
-			expansion<double> D;
+			vect<float> h = i;
+			const float h2 = h.dot(h);                     // 5 OP
+			expansion<float> D;
 			D = 0.0;
 			if (h2 > 0) {
-				const double hinv = 1.0 / h2;                  // 1 OP
-				const double c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
+				const float hinv = 1.0 / h2;                  // 1 OP
+				const float c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
 				D() = -(1.0 / M_PI) * c0;
 				for (int a = 0; a < NDIM; a++) {
 					D(a) = 2.0 * h[a] * c0;
@@ -393,10 +393,10 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 	static const periodic_parts periodic;
 	expansion<T> D;
 	D = 0.0;
-	const double huge = std::numeric_limits<float>::max() / 100.0;
-	const double tiny = std::numeric_limits<float>::min() * 10.0;
+	const float huge = std::numeric_limits<float>::max() / 100.0;
+	const float tiny = std::numeric_limits<float>::min() * 10.0;
 	vect<T> n;
-	vect<double> h;
+	vect<float> h;
 	for (int i = 0; i < indices.size(); i++) {		// 454 X 93 = 422222
 		h = indices[i];
 		n = h;

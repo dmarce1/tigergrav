@@ -20,13 +20,13 @@ using tree_ptr = std::shared_ptr<tree>;
 using mutex_type = hpx::lcos::local::spinlock;
 
 struct statistics {
-	vect<double> g;
-	vect<double> p;
-	double pot;
-	double kin;
+	vect<float> g;
+	vect<float> p;
+	float pot;
+	float kin;
 	void zero() {
 		pot = kin = 0.0;
-		g = p = vect<double>(0);
+		g = p = vect<float>(0);
 	}
 	statistics operator+(const statistics &other) const {
 		statistics C;
@@ -61,11 +61,11 @@ class tree {
 	part_iter part_begin;
 	part_iter part_end;
 	std::array<tree_ptr, NCHILD> children;
-	static double theta_inv;
+	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;
 
 public:
-	static void set_theta(double);
+	static void set_theta(float);
 	static std::uint64_t get_flop();
 	static void reset_flop();
 	static tree_ptr new_(range, part_iter, part_iter);
@@ -76,12 +76,12 @@ public:
 	bool is_leaf() const;
 	std::array<tree_ptr, NCHILD> get_children() const;
 	std::pair<const_part_iter, const_part_iter> get_positions() const;
-	void drift(double);
-//	void output(double,int) const;
+	void drift(float);
+//	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
 	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs,
 			std::vector<tree_ptr> echecklist, std::vector<vect<float>> esources, std::vector<multi_src> emulti_srcs, rung_type min_rung, bool do_output);
-	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
+	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output);
 	kick_return kick_direct(std::vector<vect<float>> &sources, rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);

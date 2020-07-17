@@ -8,7 +8,7 @@
 
 #include <fenv.h>
 
-double timer(void) {
+float timer(void) {
 	return std::chrono::duration_cast < std::chrono::milliseconds > (std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
@@ -23,7 +23,7 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 				std::vector<vect<float>>(), std::vector<multi_src>(), mrung, do_out);
 	} else if (type == 2) {
 		root_ptr->compute_multipoles(mrung, do_out);
-		expansion<double> L;
+		expansion<float> L;
 		L = 0.0;
 		return root_ptr->kick_fmm(std::vector<check_item>(1, { false, root_ptr }), std::vector<check_item>(1, { false, root_ptr }), { { 0.5, 0.5, 0.5 } }, L,
 				mrung, do_out);
@@ -59,7 +59,7 @@ int hpx_main(int argc, char *argv[]) {
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
 		printf("%13s %13s %13s %13s %13s %13s %13s %13s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
-		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
+		for (float theta = 1.0; theta >= 0.17; theta -= 0.1) {
 			parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
 			root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 			tree::set_theta(theta);
@@ -80,9 +80,9 @@ int hpx_main(int argc, char *argv[]) {
 		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end());
 		printf("Done forming tree\n");
 
-		double t = 0.0;
+		float t = 0.0;
 		int iter = 0;
-		double dt;
+		float dt;
 		kick_return kr;
 		time_type itime = 0;
 
@@ -141,7 +141,7 @@ int hpx_main(int argc, char *argv[]) {
 			if (do_out) {
 				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
 			}
-			t = time_to_double(itime);
+			t = time_to_float(itime);
 			dt = rung_to_dt(kr.rung);
 			iter++;
 		}

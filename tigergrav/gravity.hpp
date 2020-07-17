@@ -19,14 +19,14 @@ struct multi_src {
 
 std::uint64_t gravity_PP_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_PC_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_CC_direct(expansion<double>&, const vect<ireal> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y);
+std::uint64_t gravity_CC_direct(expansion<float>&, const vect<ireal> &x, std::vector<multi_src> &y);
+std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_PP_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_PC_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_CC_ewald(expansion<double>&, const vect<ireal> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y);
+std::uint64_t gravity_CC_ewald(expansion<float>&, const vect<ireal> &x, std::vector<multi_src> &y);
+std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<ireal> &x, std::vector<vect<float>> &y);
 
 
-double ewald_near_separation(const vect<double> x);
-double ewald_far_separation(const vect<double> x, double r);
+float ewald_near_separation(const vect<float> x);
+float ewald_far_separation(const vect<float> x, float r);
 void init_ewald();

@@ -8,7 +8,7 @@
 #include <atomic>
 
 std::atomic<std::uint64_t> tree::flop(0);
-double tree::theta_inv;
+float tree::theta_inv;
 
 static std::atomic<int> num_threads(1);
 static bool inc_thread();
@@ -42,7 +42,7 @@ auto thread_if_avail(F &&f) {
 	}
 }
 
-void tree::set_theta(double t) {
+void tree::set_theta(float t) {
 	theta_inv = 1.0 / t;
 }
 
@@ -55,7 +55,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 	part_begin = b;
 	part_end = e;
 	if (e - b > opts.parts_per_node) {
-		double max_span = 0.0;
+		float max_span = 0.0;
 		range prange;
 		for (int dim = 0; dim < NDIM; dim++) {
 			prange.max[dim] = 0.0;
@@ -78,7 +78,7 @@ tree::tree(range box, part_iter b, part_iter e) {
 		}
 		range boxl = box;
 		range boxr = box;
-		double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
+		float mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		decltype(b) mid_iter;
 		if (e - b < 64 * opts.parts_per_node) {
@@ -109,7 +109,7 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 	multi.m = 0.0;
 	range prange;
 	if (is_leaf()) {
-		multi.x = vect<double>(0.0);
+		multi.x = vect<float>(0.0);
 		for (auto i = part_begin; i != part_end; i++) {
 			multi.m() += m;
 			multi.x += pos_to_double(i->x) * m;
@@ -212,7 +212,7 @@ std::pair<const_part_iter, const_part_iter> tree::get_positions() const {
 	return iters;
 }
 
-kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
+kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_out) {
 
 	kick_return rc;
@@ -485,7 +485,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 					x.push_back(pos_to_double(i->x));
 				}
 			}
-			std::vector<force> f(x.size(), { 0, vect<double>(0) });
+			std::vector<force> f(x.size(), { 0, vect<float>(0) });
 			flop += gravity_PC_direct(f, x, multi_srcs);
 			flop += gravity_PP_direct(f, x, dsources);
 			if (opts.ewald) {
@@ -535,7 +535,7 @@ kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_r
 				x.push_back(pos_to_double(i->x));
 			}
 		}
-		std::vector<force> f(x.size(), { 0, vect<double>(0) });
+		std::vector<force> f(x.size(), { 0, vect<float>(0) });
 		flop += gravity_PP_direct(f, x, sources);
 		if (opts.ewald) {
 			flop += gravity_PP_ewald(f, x, sources);
@@ -547,8 +547,8 @@ kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_r
 
 kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool do_out) {
 	static const auto opts = options::get();
-	static const double eps = 10.0 * std::numeric_limits<double>::min();
-	static const double m = 1.0 / opts.problem_size;
+	static const float eps = 10.0 * std::numeric_limits<float>::min();
+	static const float m = 1.0 / opts.problem_size;
 	kick_return rc;
 	rc.rung = 0;
 	int j = 0;
@@ -559,11 +559,11 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 		if (i->rung >= min_rung || do_out) {
 			if (i->rung >= min_rung) {
 				if (i->rung != 0) {
-					const double dt = rung_to_dt(i->rung);
+					const float dt = rung_to_dt(i->rung);
 					i->v = i->v + f[j].g * (0.5 * dt);
 				}
-				const double a = abs(f[j].g);
-				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
+				const float a = abs(f[j].g);
+				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
 				rung_type rung = dt_to_rung(dt);
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
@@ -592,10 +592,10 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 	return rc;
 }
 
-void tree::drift(double dt) {
+void tree::drift(float dt) {
 	if (is_leaf()) {
 		for (auto i = part_begin; i != part_end; i++) {
-			const vect<double> dx = i->v * dt;
+			const vect<float> dx = i->v * dt;
 			const vect<pos_type> dxi = double_to_pos(dx);
 			i->x = i->x + dxi;
 		}

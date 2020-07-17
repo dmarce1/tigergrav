@@ -8,7 +8,9 @@
 #ifndef TIGERGRAV_SIMD_HPP_
 #define TIGERGRAV_SIMD_HPP_
 
-#include <icc/immintrin.h>
+#include <immintrin.h>
+
+#include <cmath>
 
 #if defined(__AVX2__)
 #define SIMD_FLOAT_LEN 8
@@ -181,28 +183,35 @@ public:
 };
 
 
-
 inline simd_float exp(const simd_float& a) {
 	simd_float v;
-	v.v = _mm256_exp_ps(a.v);
+	for( int i = 0; i < simd_float::size(); i++) {
+		v.v[i] = std::exp(a.v[i]);
+	}
 	return v;
 }
 
 inline simd_float sin(const simd_float& a) {
 	simd_float v;
-	v.v = _mm256_sin_ps(a.v);
+	for( int i = 0; i < simd_float::size(); i++) {
+		v.v[i] = std::sin(a.v[i]);
+	}
 	return v;
 }
 
 inline simd_float cos(const simd_float& a) {
 	simd_float v;
-	v.v = _mm256_cos_ps(a.v);
+	for( int i = 0; i < simd_float::size(); i++) {
+		v.v[i] = std::cos(a.v[i]);
+	}
 	return v;
 }
 
 inline simd_float erf(const simd_float& a) {
 	simd_float v;
-	v.v = _mm256_erf_ps(a.v);
+	for( int i = 0; i < simd_float::size(); i++) {
+		v.v[i] = std::erf(a.v[i]);
+	}
 	return v;
 }
 
@@ -395,25 +404,33 @@ public:
 
 inline simd_double exp(const simd_double& a) {
 	simd_double v;
-	v.v = _mm256_exp_pd(a.v);
+	for( int i = 0; i < simd_double::size(); i++) {
+		v.v[i] = std::exp(a.v[i]);
+	}
 	return v;
 }
 
 inline simd_double sin(const simd_double& a) {
 	simd_double v;
-	v.v = _mm256_sin_pd(a.v);
+	for( int i = 0; i < simd_double::size(); i++) {
+		v.v[i] = std::sin(a.v[i]);
+	}
 	return v;
 }
 
 inline simd_double cos(const simd_double& a) {
 	simd_double v;
-	v.v = _mm256_cos_pd(a.v);
+	for( int i = 0; i < simd_double::size(); i++) {
+		v.v[i] = std::cos(a.v[i]);
+	}
 	return v;
 }
 
 inline simd_double erf(const simd_double& a) {
 	simd_double v;
-	v.v = _mm256_erf_pd(a.v);
+	for( int i = 0; i < simd_double::size(); i++) {
+		v.v[i] = std::erf(a.v[i]);
+	}
 	return v;
 }
 
