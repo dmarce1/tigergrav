@@ -14,8 +14,6 @@
 
 #include <cmath>
 
-
-
 #if defined(__AVX512F__)
 
 #define SIMD_FLOAT_LEN 16
@@ -38,10 +36,9 @@
 #define _mmx_mul_epi32(a,b)         _mm512_mullo_epi32((a),(b))
 #define _mmx_cvtps_epi32(a)         _mm512_cvtps_epi32((a))
 #define _mmx_fmadd_ps(a,b,c)        _mm512_fmadd_ps ((a),(b),(c))
-#define _mmx_cmp_ps(a,b,c)        	_mm512_cmp_ps(a,b,c)
+#define _mmx_cmp_ps(a,b,c)        	_mm512_cmp_ps_mask(a,b,c)
 
 #else
-
 
 #if defined(__AVX2__)
 #define SIMD_FLOAT_LEN 8
@@ -196,78 +193,35 @@ public:
 	friend simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c);
 
 	friend simd_float exp(const simd_float &a);
-	friend simd_float erfexp(const simd_float &a, simd_float* e);
+	friend simd_float erfexp(const simd_float &a, simd_float *e);
 	friend void sincos(simd_float x, simd_float *s, simd_float *c);
-
-
-	// 2 OPS
-	simd_float operator<(simd_float other) const {
-			static const simd_float one(1);
-			static const simd_float zero(0);
-			auto mask = _mmx_cmp_ps(v, other.v, _CMP_LT_OQ);
-			auto rc = _mmx_and_ps(mask, one.v);
-			simd_float v;
-			v.v = rc;
-			return v;
-		}
-
-	// 2 OPS
-	simd_float operator<=(simd_float other) const {
-		static const simd_float one(1);
-		static const simd_float zero(0);
-		auto mask = _mmx_cmp_ps(v, other.v, _CMP_LE_OQ);
-		auto rc = _mmx_and_ps(mask, one.v);
-		simd_float v;
-		v.v = rc;
-		return v;
-	}
-
-	// 2 OPS
-	simd_float operator!=(simd_float other) const {
-		static const simd_float one(1);
-		static const simd_float zero(0);
-		auto mask = _mmx_cmp_ps(v, other.v, _CMP_NEQ_OQ);
-		auto rc = _mmx_and_ps(mask, one.v);
-		simd_float v;
-		v.v = rc;
-		return v;
-	}
-
-	// 2 OPS
-	simd_float operator==(simd_float other) const {
-		static const simd_float one(1);
-		static const simd_float zero(0);
-		auto mask = _mmx_cmp_ps(v, other.v, _CMP_EQ_OQ);
-		auto rc = _mmx_and_ps(mask, one.v);
-		simd_float v;
-		v.v = rc;
-		return v;
-	}
 
 	// 2 OPS
 	simd_float operator>(simd_float other) const {
+		simd_float v;
 		static const simd_float one(1);
 		static const simd_float zero(0);
-		auto mask = _mmx_cmp_ps(v, other.v, _CMP_GT_OQ);
-		auto rc = _mmx_and_ps(mask, one.v);
-		simd_float v;
-		v.v = rc;
+		auto mask = _mmx_cmp_ps(v.v, other.v, _CMP_GT_OQ);
+#if defined(__AVX512F__)
+			v.v = _mm512_mask_mov_ps(zero.v,mask,one.v);
+#else
+		v.v = _mmx_and_ps(mask, one.v);
+#endif
 		return v;
 	}
 
-	// 2 OPS
-	simd_float operator>=(simd_float other) const {
+	simd_float operator<(simd_float other) const {
+		simd_float v;
 		static const simd_float one(1);
 		static const simd_float zero(0);
-		auto mask = _mmx_cmp_ps(v, other.v, _CMP_GE_OQ);
-		auto rc = _mmx_and_ps(mask, one.v);
-		simd_float v;
-		v.v = rc;
+		auto mask = _mmx_cmp_ps(v.v, other.v, _CMP_LT_OQ);
+#if defined(__AVX512F__)
+			v.v = _mm512_mask_mov_ps(zero.v,mask,one.v);
+#else
+		v.v = _mmx_and_ps(mask, one.v);
+#endif
 		return v;
 	}
-
-
-
 
 };
 
@@ -293,7 +247,7 @@ inline simd_float exp(const simd_float &a) {
 }
 
 // 50 OPS
-inline simd_float erfexp(const simd_float &x, simd_float* e) {
+inline simd_float erfexp(const simd_float &x, simd_float *e) {
 	simd_float v;
 	const simd_float p(0.3275911);
 	const simd_float a1(0.254829592);
