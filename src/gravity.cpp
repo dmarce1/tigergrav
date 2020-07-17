@@ -52,11 +52,15 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
+	static const simd_float huge = std::numeric_limits<float>::max() / 10.0;
+	static const simd_float tiny = std::numeric_limits<float>::min() * 10.0;
 	static const simd_float H(h);
+	static const simd_float Hinv(1.0 / h);
+	static const simd_float H3inv(1.0 / h / h / h);
 	static const simd_float H2(h2);
 	vect<simd_float> X, Y;
-	std::vector<vect<simd_float>> nG(x.size(), vect<float>(0.0));
-	std::vector<simd_float> nPhi(x.size(), 0.0);
+	std::vector<vect<simd_float>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_float> Phi(x.size(), 0.0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -74,34 +78,35 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 				X[dim] = simd_float(x[i][dim]);
 			}
 
-			vect<simd_float> dX = X - Y;             		// 3 OP
+			vect<simd_float> dX = X - Y;             																		// 3 OP
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					const auto absdx = abs(dX[dim]);										// 3 OP
-					dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
+					const auto absdx = abs(dX[dim]);																		// 3 OP
+					dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  								// 15 OP
 				}
 			}
-			simd_float r2 = dX[0] * dX[0];					// 1 OP
-			r2 = fma(dX[1], dX[1], r2);						// 2 OP
-			r2 = fma(dX[2], dX[2], r2);                     // 2 OP
-			const simd_float rinv = rsqrt(r2 + H2);        // 2 OP
-			const simd_float rinv3 = rinv * rinv * rinv;   // 2 OP
+			const simd_float r2 = dX.dot(dX);																				// 1 OP
+			const simd_float r = sqrt(r2);																					// 1 OP
+			const simd_float rinv = r / (r2 + tiny);       																	// 2 OP
+			const simd_float rinv3 = rinv * rinv * rinv;   																	// 2 OP
+			const simd_float sw_far = min(max(huge * (min(r, 2 * H) * Hinv - simd_float(1)), simd_float(0)), simd_float(1));// 7 OP
+			const simd_float sw_near = simd_float(1) - sw_far;																// 1 OP
 			for (int dim = 0; dim < NDIM; dim++) {
-				const auto tmp = M * rinv3;					// 3 OP
-				nG[i][dim] = fma(dX[dim], tmp, nG[i][dim]);  // 6 OP
+				G[i][dim] -= dX[dim] * M * (sw_far * rinv3 + sw_near * H3inv);  											// 18 OP
 			}
-			const simd_float kill_zero = r2 / (r2 + eps);  // 2 OP
-			const auto tmp = M * kill_zero; 	            // 1 OP
-			nPhi[i] = fma(rinv, tmp, nPhi[i]);		        // 2 OP
+			const simd_float kill_zero = r * rinv;  																		// 1 OP
+			const auto tmp = M * kill_zero; 	            																// 1 OP
+			const auto near = simd_float(1.5) * Hinv - simd_float(0.5) * r2 * H3inv;										// 4 OP
+			Phi[i] -= (sw_far * rinv + sw_near * near) * tmp;		        												// 5 OP
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] += -nG[i][dim].sum();
+			f[i].g[dim] += G[i][dim].sum();
 		}
-		f[i].phi += -nPhi[i].sum();
+		f[i].phi += Phi[i].sum();
 	}
-	return 26 * cnt1 * x.size();
+	return 64 * cnt1 * x.size();
 }
 
 std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {

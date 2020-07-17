@@ -290,12 +290,12 @@ inline void expansion<T>::invert() {
 template<class T>
 inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 
-	static const T H = options::get().soft_len;
+//	static const T H = options::get().soft_len;
 	const float tiny = std::numeric_limits<float>::min() * 10.0;
 
 	const T r2 = dX.dot(dX);						// 6
 	const T r = sqrt(r2);
-	const T rinv = r / (r * r + H * H + tiny);
+	const T rinv = r / (r * r + tiny);
 	const T r2inv = rinv * rinv;
 	const T d0 = -rinv;								// 2
 	const T d1 = -d0 * r2inv;								// 2
