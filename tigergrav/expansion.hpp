@@ -152,7 +152,6 @@ inline expansion<T> expansion<T>::operator<<(const vect<T> &dX) const {
 	return you;
 }
 
-
 template<class T>
 struct expansion_factors: public expansion<T> {
 	expansion_factors() {
@@ -174,7 +173,6 @@ struct expansion_factors: public expansion<T> {
 		}
 	}
 };
-
 
 template<class T>
 inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
@@ -337,14 +335,13 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 339 OPS
 }
 
 struct ewald_indices: public std::vector<vect<float>> {
-	ewald_indices() {
-		constexpr int nmax = 2;
-		constexpr int hmax = 2;
+	ewald_indices(int n2max) {
+		const int nmax = sqrt(n2max) + 1;
 		vect<float> h;
 		for (int i = -nmax; i <= nmax; i++) {
 			for (int j = -nmax; j <= nmax; j++) {
 				for (int k = -nmax; k <= nmax; k++) {
-					if (i * i + j * j + k * k <= 6) {
+					if (i * i + j * j + k * k <= n2max) {
 						h[0] = i;
 						h[1] = j;
 						h[2] = k;
@@ -353,13 +350,13 @@ struct ewald_indices: public std::vector<vect<float>> {
 				}
 			}
 		}
-		printf( "%i ewald indices\n'", this->size());
+		printf("%i ewald indices\n'", this->size());
 	}
 };
 
 struct periodic_parts: public std::vector<expansion<float>> {
 	periodic_parts() {
-		static const ewald_indices indices;
+		static const ewald_indices indices(9);
 		for (auto i : indices) {
 			vect<float> h = i;
 			const float h2 = h.dot(h);                     // 5 OP
@@ -390,7 +387,6 @@ struct periodic_parts: public std::vector<expansion<float>> {
 
 template<class T>
 inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
-	static const ewald_indices indices; // size is 93
 	static const periodic_parts periodic;
 	expansion<T> D;
 	D = 0.0;
@@ -398,8 +394,10 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 	const float tiny = std::numeric_limits<float>::min() * 10.0;
 	vect<T> n;
 	vect<float> h;
-	for (int i = 0; i < indices.size(); i++) {		// 454 X 93 = 422222
-		h = indices[i];
+	static const ewald_indices indices_real(5);
+	static const ewald_indices indices_four(9);
+	for (int i = 0; i < indices_real.size(); i++) {		// 454 X 93 = 422222
+		h = indices_real[i];
 		n = h;
 		const vect<T> dx = X - n;                          	// 3
 		const T r2 = dx.dot(dx);							// 5
@@ -445,6 +443,9 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 				}
 			}
 		}
+	}
+	for (int i = 0; i < indices_four.size(); i++) {		// 454 X 93 = 422222
+		h = indices_four[i];
 		const auto H = periodic[i];
 		T hdotdx = X[0] * h[0];									// 1
 		for (int a = 1; a < NDIM; a++) {
@@ -453,7 +454,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 		static const T twopi = 2.0 * M_PI;
 		const T omega = twopi * hdotdx;							// 1
 		T co, si;
-		sincos(omega,&si,&co);
+		sincos(omega, &si, &co);
 		D() += H() * co;										// 2
 		for (int a = 0; a < NDIM; a++) {
 			D(a) += H(a) * si;									// 6

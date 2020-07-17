@@ -288,7 +288,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const ewald_indices indices; // size is 93
+	static const ewald_indices indices_real(5);
+	static const ewald_indices indices_four(9);
 	static const periodic_parts periodic;
 	vect<simd_real> X, Y;
 	std::vector<vect<simd_real>> G(x.size(), vect<float>(0.0));
@@ -328,9 +329,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 			simd_real phi = 0.0;
 			vect<simd_real> g;
 			g = simd_real(0);
-			for (int i = 0; i < indices.size(); i++) {
-				h = indices[i];
-				const expansion<float> &H = periodic[i];
+			for (int i = 0; i < indices_real.size(); i++) {
+				h = indices_real[i];
 				n = h;
 				const vect<simd_real> dx = dX0 - n;                          // 3 OP
 				const simd_real r2 = dx.dot(dx);
@@ -347,6 +347,10 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 				for (int a = 0; a < NDIM; a++) {
 					g[a] -= (dX0[a] - n[a]) * d1;
 				}
+			}
+			for (int i = 0; i < indices_four.size(); i++) {
+				const expansion<float> &H = periodic[i];
+				h = indices_four[i];
 				const float h2 = h.dot(h);                     // 5 OP
 				simd_real hdotdx = simd_real(0);
 				for (int dim = 0; dim < NDIM; dim++) {
