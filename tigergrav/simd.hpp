@@ -165,11 +165,7 @@ public:
 	friend simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c);
 
 	friend simd_float exp(const simd_float &a);
-	friend simd_float sin(const simd_float &a);
-	friend simd_float cos(const simd_float &a);
 	friend simd_float erf(const simd_float &a);
-
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 
 	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 
@@ -192,8 +188,6 @@ public:
 		v.v = rc;
 		return v;
 	}
-
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 	simd_float operator!=(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -204,7 +198,6 @@ public:
 		return v;
 	}
 
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 	simd_float operator==(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -214,8 +207,6 @@ public:
 		v.v = rc;
 		return v;
 	}
-
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 	simd_float operator>(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -226,8 +217,6 @@ public:
 		return v;
 	}
 
-
-	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 	simd_float operator>=(simd_float other) const {
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -250,18 +239,6 @@ inline void sincos(simd_float x, simd_float *s, simd_float *c) {
 inline simd_float exp(const simd_float &a) {
 	simd_float v;
 	v.v = exp256_ps(a.v);
-	return v;
-}
-
-inline simd_float sin(const simd_float &a) {
-	simd_float v;
-	v.v = sin256_ps(a.v);
-	return v;
-}
-
-inline simd_float cos(const simd_float &a) {
-	simd_float v;
-	v.v = cos256_ps(a.v);
 	return v;
 }
 
