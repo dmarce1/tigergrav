@@ -344,7 +344,7 @@ struct ewald_indices: public std::vector<vect<float>> {
 		for (int i = -nmax; i <= nmax; i++) {
 			for (int j = -nmax; j <= nmax; j++) {
 				for (int k = -nmax; k <= nmax; k++) {
-					if (i * i + j * j + k * k <= 8) {
+					if (i * i + j * j + k * k <= 6) {
 						h[0] = i;
 						h[1] = j;
 						h[2] = k;
@@ -353,6 +353,7 @@ struct ewald_indices: public std::vector<vect<float>> {
 				}
 			}
 		}
+		printf( "%i ewald indices\n'", this->size());
 	}
 };
 
