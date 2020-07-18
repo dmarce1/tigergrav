@@ -11,6 +11,7 @@
 #include <immintrin.h>
 
 #include <tigergrav/avx_mathfun.h>
+#include <tigergrav/math.hpp>
 
 #include <cmath>
 
@@ -163,6 +164,7 @@ public:
 	friend simd_float max(const simd_float &a, const simd_float &b);
 	friend simd_float min(const simd_float &a, const simd_float &b);
 	friend simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c);
+	friend simd_float round(const simd_float);
 
 	friend simd_float exp(const simd_float &a);
 	friend simd_float erf(const simd_float &a);
@@ -232,8 +234,47 @@ public:
 
 };
 
+
+inline simd_float round(const simd_float a) {
+	simd_float v;
+	v.v = _mm256_round_ps(a.v,_MM_FROUND_TO_NEAREST_INT);
+	return v;
+}
+
+
+inline simd_float sin(simd_float x) {
+	// From : http://mooooo.ooo/chebyshev-sine-approximation/
+	simd_float coeffs[] = { simd_float(-0.10132118),          // x
+	simd_float(0.0066208798),        // x^3
+	simd_float(-0.00017350505),       // x^5
+	simd_float(0.0000025222919),     // x^7
+	simd_float(-0.000000023317787),   // x^9
+	simd_float(0.00000000013291342), // x^11
+			};
+	simd_float pi_major(3.1415927);
+	simd_float pi_minor(-0.00000008742278);
+	x = x - round(x * (1.0 / (2.0 * M_PI))) * (2.0 * M_PI);
+	simd_float x2 = x * x;
+	simd_float p11 = coeffs[5];
+	simd_float p9 = fma(p11, x2, coeffs[4]);
+	simd_float p7 = fma(p9, x2, coeffs[3]);
+	simd_float p5 = fma(p7, x2, coeffs[2]);
+	simd_float p3 = fma(p5, x2, coeffs[1]);
+	simd_float p1 = fma(p3, x2, coeffs[0]);
+	return (x - pi_major - pi_minor) * (x + pi_major + pi_minor) * p1 * x;
+}
+
+inline simd_float cos(simd_float x) {
+	return sin(x + simd_float(M_PI/2.0));
+}
+
+
 inline void sincos(simd_float x, simd_float *s, simd_float *c) {
-	sincos256_ps(x.v, &(s->v), &(c->v));
+//	sincos256_ps(x.v, &(s->v), &(c->v));
+//	static const math_sincos sc;
+//	sc(x.v, &(s->v), &(c->v));
+	*s = sin(x);
+	*c = cos(x);
 }
 
 inline simd_float exp(const simd_float &a) {
@@ -258,6 +299,7 @@ inline simd_float erf(const simd_float &x) {
 	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * exp(-x * x);
 	return v;
 }
+
 
 inline simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c) {
 	simd_float v;
