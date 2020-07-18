@@ -595,9 +595,18 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 void tree::drift(float dt) {
 	if (is_leaf()) {
 		for (auto i = part_begin; i != part_end; i++) {
-			const vect<float> dx = i->v * dt;
-			const vect<pos_type> dxi = double_to_pos(dx);
-			i->x = i->x + dxi;
+			const vect<double> dx = i->v * dt;
+			vect<double> x = pos_to_double(i->x);
+			x += dx;
+			for (int dim = 0; dim < NDIM; dim++) {
+				while (x[dim] >= 1.0) {
+					x[dim] -= 1.0;
+				}
+				while (x[dim] < 0.0) {
+					x[dim] += 1.0;
+				}
+			}
+			i->x = double_to_pos(x);
 		}
 	} else {
 		auto rcl = thread_if_avail([=]() {
