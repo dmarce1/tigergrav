@@ -15,7 +15,7 @@
 #include <fenv.h>
 
 double timer(void) {
-	return std::chrono::duration_cast < std::chrono::milliseconds > (std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
+	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
 kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_out) {
@@ -42,7 +42,7 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 #ifdef USE_HPX
 int hpx_main(int argc, char *argv[]) {
 #else
-int main( int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
 #endif
 	printf("sizeof(particle) = %li\n", sizeof(particle));
 	printf("sizeof(tree)     = %li\n", sizeof(tree));
@@ -110,6 +110,7 @@ int main( int argc, char* argv[]) {
 		};
 		bool do_out = true;
 		const auto show = [&]() {
+			interaction_statistics istats = root_ptr->get_istats();
 			if (iter % 25 == 0) {
 				printf("%4s %13s %13s %9s %9s %9s %13s ", "i", "t", "dt", "itime", "max rung", "min act.", "GFLOP");
 				printf(" %13s %13s %13s %13s %13s %13s %13s %13s %13s\n", "gx", "gy", "gz", "px", "py", "pz", "epot", "ekin", "etot");
@@ -130,6 +131,8 @@ int main( int argc, char* argv[]) {
 				}
 				printf("%13.6e %13.6e %13.6e ", kr.stats.pot, kr.stats.kin, kr.stats.pot + kr.stats.kin);
 			}
+//			printf("%f/%f %f/%f %f/%f %f/%f", istats.CC_direct_pct, istats.CC_ewald_pct, istats.CP_direct_pct, istats.CP_ewald_pct, istats.PC_direct_pct,
+//					istats.PC_ewald_pct, istats.PP_direct_pct, istats.PP_ewald_pct);
 			printf("\n");
 		};
 		int oi = 1;

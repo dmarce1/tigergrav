@@ -21,7 +21,7 @@ class general_vect {
 #ifdef __CUDA_ARCH__
 	T v[N];
 #else
-	std::array<T, N> __attribute__((aligned(64))) v;
+	std::array<T, N> v;
 #endif
 public:
 	CUDA_EXPORT general_vect() {
@@ -56,7 +56,7 @@ public:
 		a & v;
 	}
 
-} __attribute__((aligned(64)));
+};
 
 template<class T, int N>
 template<class U>

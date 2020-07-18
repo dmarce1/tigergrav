@@ -354,7 +354,8 @@ inline simd_float sin(const simd_float& x0) {
 	p = fma(p, x2, simd_float(-0.10132118));
 	const auto x1 = (x - pi_major - pi_minor);
 	const auto x3= (x + pi_major + pi_minor);
-	return x1 * x3 * p * x;
+	auto res = x1 * x3 * p * x;
+	return res;
 }
 
 inline simd_float cos(const simd_float& x) {

@@ -39,6 +39,25 @@ using future_type = std::future<T>;
 
 #endif
 
+struct interaction_statistics {
+	std::uint64_t PP_direct;
+	std::uint64_t PC_direct;
+	std::uint64_t CP_direct;
+	std::uint64_t CC_direct;
+	std::uint64_t PP_ewald;
+	std::uint64_t PC_ewald;
+	std::uint64_t CP_ewald;
+	std::uint64_t CC_ewald;
+	double PP_direct_pct;
+	double CC_direct_pct;
+	double PC_direct_pct;
+	double CP_direct_pct;
+	double PP_ewald_pct;
+	double CC_ewald_pct;
+	double PC_ewald_pct;
+	double CP_ewald_pct;
+};
+
 struct statistics {
 	vect<float> g;
 	vect<float> p;
@@ -83,9 +102,11 @@ class tree {
 	std::array<tree_ptr, NCHILD> children;
 	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;
+	static interaction_statistics istats;
 	int level;
 
 public:
+	static interaction_statistics get_istats();
 	static void set_theta(float);
 	static std::uint64_t get_flop();
 	static void reset_flop();

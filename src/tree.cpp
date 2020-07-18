@@ -11,6 +11,21 @@ float tree::theta_inv;
 static std::atomic<int> num_threads(1);
 static bool inc_thread();
 static void dec_thread();
+interaction_statistics tree::istats;
+
+interaction_statistics tree::get_istats() {
+	interaction_statistics i = istats;
+	const double total = i.PP_direct + i.PC_direct + i.CP_direct + i.CC_direct + i.PP_ewald + i.PC_ewald + i.CP_ewald + i.CC_ewald;
+	i.PP_direct_pct = i.PP_direct / total;
+	i.PC_direct_pct = i.PC_direct / total;
+	i.CP_direct_pct = i.CP_direct / total;
+	i.CC_direct_pct = i.CC_direct / total;
+	i.PP_ewald_pct = i.PP_ewald / total;
+	i.PC_ewald_pct = i.PC_ewald / total;
+	i.CP_ewald_pct = i.CP_ewald / total;
+	i.CC_ewald_pct = i.CC_ewald / total;
+	return i;
+}
 
 bool inc_thread() {
 #ifdef USE_HPX
@@ -31,12 +46,12 @@ void dec_thread() {
 }
 
 template<class F>
-auto thread_if_avail(F &&f, int level, bool left=false) {
+auto thread_if_avail(F &&f, int level, bool left = false) {
 	bool thread;
 	if (level % 8 == 0) {
 		thread = true;
 		num_threads++;
-	} else if (left){
+	} else if (left) {
 		thread = inc_thread();
 	}
 	if (thread) {
@@ -184,7 +199,7 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		std::pair<multipole_info, range> ml, mr;
 		auto rcl = thread_if_avail([=]() {
 			return children[0]->compute_multipoles(mrung, do_out);
-		}, level,true);
+		}, level, true);
 		auto rcr = thread_if_avail([=]() {
 			return children[1]->compute_multipoles(mrung, do_out);
 		}, level);
@@ -318,9 +333,13 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 	}
+	istats.CC_direct += dmulti_srcs.size();
+	istats.CP_direct += dsources.size();
 	flop += gravity_CC_direct(L, multi.x, dmulti_srcs);
 	flop += gravity_CP_direct(L, multi.x, dsources);
 	if (opts.ewald) {
+		istats.CC_ewald += emulti_srcs.size();
+		istats.CP_ewald += esources.size();
 		flop += gravity_CC_ewald(L, multi.x, emulti_srcs);
 		flop += gravity_CP_ewald(L, multi.x, esources);
 	}
@@ -424,9 +443,13 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 
+		istats.PC_direct += x.size() * dmulti_srcs.size();
+		istats.PP_direct += x.size() * dsources.size();
 		flop += gravity_PP_direct(f, x, dsources);
 		flop += gravity_PC_direct(f, x, dmulti_srcs);
 		if (opts.ewald) {
+			istats.PC_ewald += x.size() * emulti_srcs.size();
+			istats.PP_ewald += x.size() * esources.size();
 			flop += gravity_PP_ewald(f, x, esources);
 			flop += gravity_PC_ewald(f, x, emulti_srcs);
 		}
@@ -493,7 +516,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 				[=]() {
 					return children[0]->kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources),
 							std::move(emulti_srcs), min_rung, do_out);
-				}, level,true);
+				}, level, true);
 		auto rc_r_fut = thread_if_avail(
 				[=]() {
 					return children[1]->kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources),
@@ -552,7 +575,7 @@ kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_r
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([&]() {
 			return children[0]->kick_direct(sources, min_rung, do_out);
-		}, level,true);
+		}, level, true);
 		auto rc_r_fut = thread_if_avail([&]() {
 			return children[1]->kick_direct(sources, min_rung, do_out);
 		}, level);
