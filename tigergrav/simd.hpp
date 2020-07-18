@@ -167,7 +167,7 @@ public:
 	friend simd_float round(const simd_float);
 
 	friend simd_float exp(const simd_float &a);
-	friend simd_float erf(const simd_float &a);
+	friend simd_float erfexp(const simd_float &a, simd_float* );
 
 	friend void sincos(simd_float x, simd_float *s, simd_float *c);
 
@@ -283,7 +283,7 @@ inline simd_float exp(const simd_float &a) {
 	return v;
 }
 
-inline simd_float erf(const simd_float &x) {
+inline simd_float erfexp(const simd_float &x, simd_float* e) {
 	simd_float v;
 	const simd_float p(0.3275911);
 	const simd_float a1(0.254829592);
@@ -296,7 +296,8 @@ inline simd_float erf(const simd_float &x) {
 	const simd_float t3 = t2 * t1;
 	const simd_float t4 = t2 * t2;
 	const simd_float t5 = t2 * t3;
-	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * exp(-x * x);
+	*e = exp(-x * x);
+	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * *e;
 	return v;
 }
 

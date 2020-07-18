@@ -410,9 +410,10 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 		const T r5inv = r2inv * r3inv;						// 1
 		const T r7inv = r2inv * r5inv;						// 1
 		const T r9inv = r2inv * r7inv;						// 1
-		const T erfc = T(1) - erf(2.0 * r);					// 3
+		T expfac;
+		const T erfc = T(1) - erfexp(2.0 * r, &expfac);					// 3
 		static const T invsqrtpi = 1.0 / sqrt(M_PI);
-		const T expfactor = 4.0 * r * exp(-4.0 * r2) * invsqrtpi;														// 5
+		const T expfactor = 4.0 * r * expfac * invsqrtpi;														// 5
 		const T d0 = -erfc * rinv;																						// 2
 		const T d1 = (expfactor + erfc) * r3inv;																		// 2
 		const T d2 = -(expfactor * (T(3) + 8.0 * T(r2)) + 3.0 * erfc) * r5inv;											// 7

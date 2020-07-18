@@ -355,9 +355,10 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 				const simd_real rinv = r / (r2 + tiny);
 				const simd_real r2inv = rinv * rinv;
 				const simd_real r3inv = r2inv * rinv;
-				const simd_real erfc = one - erf(2.0 * r);
+				simd_float expfac;
+				const simd_real erfc = one - erfexp(2.0 * r, &expfac);
 				const simd_real d0 = -erfc * rinv;
-				const simd_real expfactor = 4.0 * r * exp(-4.0 * r2) / sqrt(M_PI);
+				const simd_real expfactor = 4.0 * r * expfac / sqrt(M_PI);
 				const simd_real d1 = (expfactor + erfc) * r3inv;
 				phi += d0; // 6 OP
 				for (int a = 0; a < NDIM; a++) {
