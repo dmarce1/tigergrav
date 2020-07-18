@@ -59,16 +59,16 @@ set(tigergrav_header_files
 )
 
 
-add_executable( tigergrav_single ${tigergrav_source_files}  ${Silo_LIBRARY} )
-target_include_directories(tigergrav_single PUBLIC ${PROJECT_SOURCE_DIR} ~/local/boost/include ~/local/silo/include)
-target_compile_options(tigergrav_single PUBLIC "-march=native")
+#add_executable( tigergrav_single ${tigergrav_source_files}  ${Silo_LIBRARY} )
+#target_include_directories(tigergrav_single PUBLIC ${PROJECT_SOURCE_DIR} ~/local/boost/include ~/local/silo/include)
+#target_compile_options(tigergrav_single PUBLIC "-march=native")
 #target_compile_options(tigergrav_single PUBLIC "-std=c++17")
-target_link_libraries( tigergrav_single /home/dmarce1/local/boost/lib/libboost_program_options.a )
-target_link_libraries( tigergrav_single /home/dmarce1/local/silo/lib/libsiloh5.a )
-target_link_libraries( tigergrav_single /home/dmarce1/local/hdf5/lib/libhdf5.a )
-target_link_libraries( tigergrav_single z)
-target_link_libraries( tigergrav_single dl)
-target_link_libraries( tigergrav_single pthread)
+#target_link_libraries( tigergrav_single /home/dmarce1/local/boost/lib/libboost_program_options.a )
+#target_link_libraries( tigergrav_single /home/dmarce1/local/silo/lib/libsiloh5.a )
+#target_link_libraries( tigergrav_single /home/dmarce1/local/hdf5/lib/libhdf5.a )
+#target_link_libraries( tigergrav_single z)
+#target_link_libraries( tigergrav_single dl)
+#target_link_libraries( tigergrav_single pthread)
 
 
 
