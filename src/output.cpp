@@ -63,7 +63,7 @@ void output_particles(const std::vector<output> &parts, const std::string filena
 		rung.push_back(i->rung);
 		phi.push_back(i->phi);
 	}
-	DBfile *db = DBCreateReal(filename.c_str(), DB_CLOBBER, DB_LOCAL, "Meshless", DB_HDF5);
+	DBfile *db = DBCreateReal(filename.c_str(), DB_CLOBBER, DB_LOCAL, "Meshless", DB_PDB);
 	const int nparts = phi.size();
 	double *coords[NDIM] = { x[0].data(), x[1].data(), x[2].data() };
 	DBPutPointmesh(db, "points", NDIM, coords, nparts, DB_DOUBLE, NULL);
