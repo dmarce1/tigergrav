@@ -221,6 +221,7 @@ public:
 #else
 		auto rc = _mmx_and_ps(mask, one.v);
 #endif
+		v.v = rc;
 		return v;
 	}
 
