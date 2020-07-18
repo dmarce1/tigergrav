@@ -9,6 +9,13 @@
 
 //#define INDIRECT_DOUBLE
 
+//#define USE_AVX512
+
+#ifdef USE_AVX512
+#ifndef __AVX512F__
+#error 'AVX512 not available'
+#endif
+#endif
 
 #ifdef INDIRECT_DOUBLE
 using ireal = double;

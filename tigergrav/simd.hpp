@@ -8,13 +8,15 @@
 #ifndef TIGERGRAV_SIMD_HPP_
 #define TIGERGRAV_SIMD_HPP_
 
+#include <tigergrav/defs.hpp>
+
 #include <immintrin.h>
 
 #include <tigergrav/avx_mathfun.h>
 
 #include <cmath>
 
-#ifdef __AVX512F__
+#ifdef USE_AVX512
 #define SIMD_FLOAT_LEN 16
 #define _simd_float                 __m512
 #define _simd_int                   __m512i
@@ -75,7 +77,7 @@ public:
 	inline ~simd_float() = default;
 	simd_float(const simd_float&) = default;
 	inline simd_float(float d) {
-#ifdef __AVX512F__
+#ifdef USE_AVX512
         v = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
 #else
         v = _mm256_set_ps(d, d, d, d, d, d, d, d);
@@ -202,7 +204,7 @@ public:
 		static const simd_float zero(0);
 		auto mask = _mmx_cmp_ps(v, other.v, _CMP_LT_OQ);
 		simd_float v;
-#ifdef __AVX512F__
+#ifdef USE_AVX512
 		auto rc = _mm512_mask_mov_ps(zero.v,mask,one.v);
 #else
 		auto rc = _mmx_and_ps(mask, one.v);
@@ -216,7 +218,7 @@ public:
 		static const simd_float zero(0);
 		auto mask = _mmx_cmp_ps(v, other.v, _CMP_GT_OQ);
 		simd_float v;
-#ifdef __AVX512F__
+#ifdef USE_AVX512
 		auto rc = _mm512_mask_mov_ps(zero.v,mask,one.v);
 #else
 		auto rc = _mmx_and_ps(mask, one.v);
@@ -229,7 +231,7 @@ public:
 
 inline simd_float round(const simd_float a) {
 	simd_float v;
-#ifdef __AVX512F__
+#ifdef USE_AVX512
         v.v = _mm512_roundscale_ps(a.v, 0);
 #else
         v.v = _mm256_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
@@ -273,7 +275,7 @@ inline void sincos(simd_float x, simd_float *s, simd_float *c) {
 
 inline simd_float exp(const simd_float &a) {
 	simd_float v;
-#ifdef __AVX512F__
+#ifdef USE_AVX512
 	v.v = exp512_ps(a.v);
 #else
 	v.v = exp256_ps(a.v);
