@@ -341,23 +341,16 @@ inline simd_float round(const simd_float a) {
 inline simd_float sin(simd_float x) {
 	assert_align(x.v);
 	// From : http://mooooo.ooo/chebyshev-sine-approximation/
-	static const simd_float coeffs[] = {simd_float(-0.10132118),          // x
-		simd_float(0.0066208798),// x^3
-		simd_float(-0.00017350505),// x^5
-		simd_float(0.0000025222919),// x^7
-		simd_float(-0.000000023317787),// x^9
-		simd_float(0.00000000013291342),// x^11
-	};
 	static const simd_float pi_major(3.1415927);
 	static const simd_float pi_minor(-0.00000008742278);
 	x = x - round(x * (1.0 / (2.0 * M_PI))) * (2.0 * M_PI);
 	const simd_float x2 = x * x;
-	simd_float p = coeffs[5];
-	p = fma(p, x2, coeffs[4]);
-	p = fma(p, x2, coeffs[3]);
-	p = fma(p, x2, coeffs[2]);
-	p = fma(p, x2, coeffs[1]);
-	p = fma(p, x2, coeffs[0]);
+	simd_float p = simd_float(0.00000000013291342);
+	p = fma(p, x2, simd_float(-0.000000023317787));
+	p = fma(p, x2, simd_float(0.0000025222919));
+	p = fma(p, x2, simd_float(-0.00017350505));
+	p = fma(p, x2, simd_float(0.0066208798));
+	p = fma(p, x2, simd_float(-0.10132118));
 	return (x - pi_major - pi_minor) * (x + pi_major + pi_minor) * p * x;
 }
 
@@ -370,12 +363,12 @@ inline void sincos(simd_float x, simd_float *s, simd_float *c) {
 	assert_align(x.v);
 	assert_align(s->v);
 	assert_align(c->v);
-#ifdef __AVX512F__
-	*s = _mm512_sincos_ps(&(c->v),x.v);
-#else
+//#ifdef __AVX512F__
+//	s->v = _mm512_sincos_ps(&(c->v),x.v);
+//#else
 	*s = sin(x);
 	*c = cos(x);
-#endif
+//#endif
 }
 
 inline simd_float exp(const simd_float &a) {
