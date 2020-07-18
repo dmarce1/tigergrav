@@ -68,14 +68,14 @@ int main( int argc, char* argv[]) {
 	if (opts.solver_test) {
 		printf("Computing direct solution first\n");
 		auto parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
-		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end());
+		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
 		auto kr = solve_gravity(root_ptr, 0, min_rung(0), true);
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
 		printf("%13s %13s %13s %13s %13s %13s %13s %13s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
 			parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
-			root_ptr = tree::new_(root_box, parts.begin(), parts.end());
+			root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
 			tree::set_theta(theta);
 			tree::reset_flop();
 			auto start = timer();
@@ -91,7 +91,7 @@ int main( int argc, char* argv[]) {
 		auto parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
 
 		printf("Forming tree\n");
-		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end());
+		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
 		printf("Done forming tree\n");
 
 		double t = 0.0;
@@ -149,7 +149,7 @@ int main( int argc, char* argv[]) {
 				do_out = false;
 			}
 			root_ptr->drift(dt);
-			root_ptr = tree::new_(root_box, parts.begin(), parts.end());
+			root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
 			itime = inc(itime, kr.rung);
 			kr = solve_gravity(root_ptr, opts.solver_type, min_rung(itime), do_out);
 			if (do_out) {

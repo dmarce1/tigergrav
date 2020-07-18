@@ -83,13 +83,14 @@ class tree {
 	std::array<tree_ptr, NCHILD> children;
 	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;
+	int level;
 
 public:
 	static void set_theta(float);
 	static std::uint64_t get_flop();
 	static void reset_flop();
-	static tree_ptr new_(range, part_iter, part_iter);
-	tree(range, part_iter, part_iter);
+	static tree_ptr new_(range, part_iter, part_iter, int);
+	tree(range, part_iter, part_iter, int level);
 	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out);
 	multipole_info get_multipole() const;
 	monopole get_monopole() const;

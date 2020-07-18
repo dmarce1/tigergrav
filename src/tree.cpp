@@ -31,8 +31,15 @@ void dec_thread() {
 }
 
 template<class F>
-auto thread_if_avail(F &&f) {
-	if (inc_thread()) {
+auto thread_if_avail(F &&f, int level, bool left=false) {
+	bool thread;
+	if (level % 8 == 0) {
+		thread = true;
+		num_threads++;
+	} else if (left){
+		thread = inc_thread();
+	}
+	if (thread) {
 #ifdef USE_HPX
 		auto rc = hpx::async([](F &&f) {
 #else
@@ -60,11 +67,12 @@ void tree::set_theta(float t) {
 	theta_inv = 1.0 / t;
 }
 
-tree_ptr tree::new_(range r, part_iter b, part_iter e) {
-	return std::make_shared<tree>(r, b, e);
+tree_ptr tree::new_(range r, part_iter b, part_iter e, int level) {
+	return std::make_shared<tree>(r, b, e, level);
 }
 
-tree::tree(range box, part_iter b, part_iter e) {
+tree::tree(range box, part_iter b, part_iter e, int level_) {
+	level = level_;
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
@@ -110,9 +118,12 @@ tree::tree(range box, part_iter b, part_iter e) {
 			}
 		}
 		auto rcl = thread_if_avail([=]() {
-			return new_(boxl, b, mid_iter);
-		});
-		children[1] = new_(boxr, mid_iter, e);
+			return new_(boxl, b, mid_iter, level + 1);
+		}, level, true);
+		auto rcr = thread_if_avail([=]() {
+			return new_(boxr, mid_iter, e, level + 1);
+		}, level);
+		children[1] = rcr.get();
 		children[0] = rcl.get();
 	}
 }
@@ -173,8 +184,11 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		std::pair<multipole_info, range> ml, mr;
 		auto rcl = thread_if_avail([=]() {
 			return children[0]->compute_multipoles(mrung, do_out);
-		});
-		mr = children[1]->compute_multipoles(mrung, do_out);
+		}, level,true);
+		auto rcr = thread_if_avail([=]() {
+			return children[1]->compute_multipoles(mrung, do_out);
+		}, level);
+		mr = rcr.get();
 		ml = rcl.get();
 		multi.m() = ml.first.m() + mr.first.m();
 		if (multi.m() != 0.0) {
@@ -321,8 +335,11 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=]() {
 			return children[0]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
-		});
-		const auto rc_r = children[1]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
+		}, level, true);
+		auto rc_r_fut = thread_if_avail([=]() {
+			return children[1]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
+		}, level);
+		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_out) {
@@ -476,9 +493,13 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 				[=]() {
 					return children[0]->kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources),
 							std::move(emulti_srcs), min_rung, do_out);
-				});
-		const auto rc_r = children[1]->kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources),
-				std::move(emulti_srcs), min_rung, do_out);
+				}, level,true);
+		auto rc_r_fut = thread_if_avail(
+				[=]() {
+					return children[1]->kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources),
+							std::move(emulti_srcs), min_rung, do_out);
+				}, level);
+		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_out) {
@@ -531,8 +552,11 @@ kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_r
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([&]() {
 			return children[0]->kick_direct(sources, min_rung, do_out);
-		});
-		const auto rc_r = children[1]->kick_direct(sources, min_rung, do_out);
+		}, level,true);
+		auto rc_r_fut = thread_if_avail([&]() {
+			return children[1]->kick_direct(sources, min_rung, do_out);
+		}, level);
+		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
 		if (do_out) {
@@ -626,9 +650,13 @@ void tree::drift(float dt) {
 		auto rcl = thread_if_avail([=]() {
 			children[0]->drift(dt);
 			return 1;
-		});
-		children[1]->drift(dt);
+		}, level, true);
+		auto rcr = thread_if_avail([=]() {
+			children[1]->drift(dt);
+			return 1;
+		}, level);
 		rcl.get();
+		rcr.get();
 	}
 }
 
