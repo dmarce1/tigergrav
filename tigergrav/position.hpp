@@ -11,6 +11,7 @@
 #include <tigergrav/vect.hpp>
 
 using pos_type = std::uint32_t;
+using spos_type = std::int32_t;
 
 
 
@@ -27,12 +28,12 @@ inline vect<double> pos_to_double(vect<pos_type> x) {
 	return f;
 }
 
-inline pos_type double_to_pos(double x) {
+inline spos_type double_to_pos(double x) {
 	return x * ((double) std::numeric_limits<pos_type>::max() + (double) 1.0) + 0.5;
 }
 
 inline vect<pos_type> double_to_pos(vect<double> d) {
-	vect<pos_type> x;
+	vect<spos_type> x;
 	for (int dim = 0; dim < NDIM; dim++) {
 		x[dim] = double_to_pos(d[dim]);
 	}
