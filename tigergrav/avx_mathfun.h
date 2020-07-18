@@ -437,7 +437,7 @@ inline void sincos512_ps(v16sf x, v16sf *s, v16sf *c) {
   imm2 = _mm512_and_si512(imm2, *(v16si*)_pi32_512_2);
   imm2 = _mm512_mask_mov_epi16(*(v16si*)_pi32_512_1, _mm512_cmpeq_epi32_mask(imm2, *(v16si*)_pi32_512_0),  *(v16si*)_pu32_512_0xffffffff);
   //v16sf poly_mask = _mm512_castsi512_ps(imm2);
-printf( "%x %x %x %x %x %x %x %x\n", imm2[0], imm2[1], imm2[2], imm2[3], imm2[4], imm2[5], imm2[6], imm2[7]);
+//printf( "%x %x %x %x %x %x %x %x\n", imm2[0], imm2[1], imm2[2], imm2[3], imm2[4], imm2[5], imm2[6], imm2[7]);
   v16sf swap_sign_bit_sin = _mm512_castsi512_ps(imm0);
   v16sf poly_mask = _mm512_castsi512_ps(imm2);
 

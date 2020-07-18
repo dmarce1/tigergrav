@@ -367,12 +367,12 @@ inline void sincos(const simd_float& x, simd_float *s, simd_float *c) {
 	assert_align(x.v);
 	assert_align(s->v);
 	assert_align(c->v);
-//#ifdef __AVX512F__
-//	s->v = _mm512_sincos_ps(&(c->v),x.v);
-//#else
+#ifdef USE_AVX512
+	sincos512_ps(x.v, &s->v, &c->v);
+#else
 	*s = sin(x);
 	*c = cos(x);
-//#endif
+#endif
 }
 
 inline simd_float exp(const simd_float &a) {
