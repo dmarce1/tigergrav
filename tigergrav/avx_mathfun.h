@@ -33,7 +33,7 @@
 
 /* yes I know, the top of this file is quite ugly */
 # define ALIGN32_BEG
-# define ALIGN32_END __attribute__((aligned(32)))
+# define ALIGN32_END __attribute__((aligned(64)))
 
 /* __m128 is ugly to write */
 typedef __m256  v8sf; // vector of 8 float (avx)
