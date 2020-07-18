@@ -75,10 +75,10 @@ public:
 	inline ~simd_float() = default;
 	simd_float(const simd_float&) = default;
 	inline simd_float(float d) {
-#ifdef __AVX512f__
-                v = _mm256_set_ps(d, d, d, d, d, d, d, d);
+#ifdef __AVX512F__
+        v = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
 #else
-                v = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+        v = _mm256_set_ps(d, d, d, d, d, d, d, d);
 #endif
 	}
 	inline float sum() const {
