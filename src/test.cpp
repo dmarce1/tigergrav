@@ -1,6 +1,5 @@
 #include <hpx/hpx_init.hpp>
 #include <immintrin.h>
-#include <tigergrav/math.hpp>
 #include <tigergrav/simd.hpp>
 
 float mysin(float x) {

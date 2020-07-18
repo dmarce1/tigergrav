@@ -11,7 +11,6 @@
 #include <immintrin.h>
 
 #include <tigergrav/avx_mathfun.h>
-#include <tigergrav/math.hpp>
 
 #include <cmath>
 
