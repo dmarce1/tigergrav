@@ -2,10 +2,8 @@
 #include <tigergrav/time.hpp>
 #include <tigergrav/tree.hpp>
 
-#include <hpx/include/async.hpp>
-#include <hpx/include/threads.hpp>
-
 #include <atomic>
+#include <algorithm>
 
 std::atomic<std::uint64_t> tree::flop(0);
 float tree::theta_inv;
@@ -15,7 +13,11 @@ static bool inc_thread();
 static void dec_thread();
 
 bool inc_thread() {
+#ifdef USE_HPX
 	static const int nmax = 4 * hpx::threads::hardware_concurrency();
+#else
+	static const int nmax = 4 * std::thread::hardware_concurrency();
+#endif
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
@@ -31,14 +33,26 @@ void dec_thread() {
 template<class F>
 auto thread_if_avail(F &&f) {
 	if (inc_thread()) {
+#ifdef USE_HPX
 		auto rc = hpx::async([](F &&f) {
+#else
+		auto rc = std::async(std::launch::async, [](F &&f) {
+#endif
 			auto rc = f();
 			dec_thread();
 			return rc;
 		},std::forward<F>(f));
 		return rc;
 	} else {
+#ifdef USE_HPX
 		return hpx::make_ready_future(f());
+#else
+		auto rc = f();
+		using T = decltype(rc);
+		std::promise<T> prms;
+		prms.set_value(std::move(rc));
+		return prms.get_future();
+#endif
 	}
 }
 

@@ -6,8 +6,6 @@
 #include <tigergrav/multipole.hpp>
 #include <tigergrav/particle.hpp>
 
-#include <hpx/lcos/promise.hpp>
-
 #include <memory>
 #include <map>
 

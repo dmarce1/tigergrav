@@ -350,7 +350,6 @@ struct ewald_indices: public std::vector<vect<float>> {
 				}
 			}
 		}
-		printf("%i ewald indices\n'", this->size());
 	}
 };
 

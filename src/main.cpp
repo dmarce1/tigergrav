@@ -1,10 +1,16 @@
+#include <tigergrav/defs.hpp>
+
+#ifdef USE_HPX
 #include <hpx/hpx_init.hpp>
+#endif
 
 #include <tigergrav/initialize.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/particle.hpp>
 #include <tigergrav/gravity.hpp>
 #include <tigergrav/tree.hpp>
+
+#include <algorithm>
 
 #include <fenv.h>
 
@@ -33,10 +39,18 @@ kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_
 	}
 }
 
+#ifdef USE_HPX
 int hpx_main(int argc, char *argv[]) {
-
+#else
+int main( int argc, char* argv[]) {
+#endif
 	printf("sizeof(particle) = %li\n", sizeof(particle));
 	printf("sizeof(tree)     = %li\n", sizeof(tree));
+#ifdef USE_HPX
+	printf("Hardware concurrency = %li\n", hpx::threads::hardware_concurrency());
+#else
+	printf("Hardware concurrency = %li\n", std::thread::hardware_concurrency());
+#endif
 	feenableexcept(FE_DIVBYZERO);
 	feenableexcept(FE_INVALID);
 	feenableexcept(FE_OVERFLOW);
@@ -148,9 +162,14 @@ int hpx_main(int argc, char *argv[]) {
 		show();
 //	root_ptr->output(t, oi);
 	}
+#ifdef USE_HPX
 	return hpx::finalize();
+#else
+	return 0;
+#endif
 }
 
+#ifdef USE_HPX
 int main(int argc, char *argv[]) {
 
 	std::vector<std::string> cfg = { "hpx.commandline.allow_unknown=1" };
@@ -158,3 +177,4 @@ int main(int argc, char *argv[]) {
 	hpx::init(argc, argv, cfg);
 }
 
+#endif

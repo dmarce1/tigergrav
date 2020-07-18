@@ -3,8 +3,6 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
 
-#include <hpx/include/async.hpp>
-
 static const auto one = simd_float(1.0);
 static const auto half = simd_float(0.5);
 static const simd_float eps = simd_float(std::numeric_limits<float>::min());
@@ -67,8 +65,12 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 	static const auto _1p5 = simd_float(1.5);
 	static const auto zero = simd_float(0);
 	vect<simd_float> X, Y;
-	std::vector<vect<simd_float>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_float> Phi(x.size(), 0.0);
+	std::vector<vect<simd_float>> G(x.size());
+	std::vector<simd_float> Phi(x.size());
+	for( int i = 0; i < x.size(); i++) {
+		G[i] = vect<simd_float>(0.0);
+		Phi[i] = 0.0;
+	}
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -134,8 +136,8 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 	static const simd_float H2(h2);
 	vect<simd_float> X, Y;
 	multipole<simd_float> M;
-	std::vector<vect<simd_float>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_float> Phi(x.size(), 0.0);
+	std::vector<vect<simd_float>> G(x.size(), vect<simd_float>(simd_float(0)));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -309,8 +311,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 	static const ewald_indices indices_four(9);
 	static const periodic_parts periodic;
 	vect<simd_real> X, Y;
-	std::vector<vect<simd_real>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_real> Phi(x.size(), 0.0);
+	std::vector<vect<simd_real>> G(x.size(), vect<simd_float>(simd_float(0)));
+	std::vector<simd_real> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
 	y.resize(cnt2);
@@ -419,7 +421,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 	vect<simd_real> X, Y;
 	multipole<simd_real> M;
 	std::vector<vect<simd_real>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_real> Phi(x.size(), 0.0);
+	std::vector<simd_real> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
 	y.resize(cnt2);

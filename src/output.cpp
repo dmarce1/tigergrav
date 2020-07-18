@@ -7,9 +7,6 @@
 
 #include <tigergrav/options.hpp>
 #include <tigergrav/output.hpp>
-
-#include <hpx/hpx_init.hpp>
-
 #include <silo.h>
 
 #include <set>

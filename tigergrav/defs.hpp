@@ -8,14 +8,15 @@
 #define ERROR() printf( "ERROR %s %i\n", __FILE__, __LINE__)
 
 //#define INDIRECT_DOUBLE
-
-//#define USE_AVX512
-
-#ifdef USE_AVX512
-#ifndef __AVX512F__
-#error 'AVX512 not available'
+#ifdef __AVX512F__
+#define USE_AVX512
+#warning 'compiling for AVX512'
+#else
+#define USE_AVX2
 #endif
-#endif
+
+
+
 
 #ifdef INDIRECT_DOUBLE
 using ireal = double;

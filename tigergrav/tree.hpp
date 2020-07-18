@@ -11,13 +11,33 @@
 #include <atomic>
 #include <memory>
 
+#ifdef USE_HPX
 #include <hpx/synchronization/spinlock.hpp>
+#include <hpx/include/async.hpp>
+#include <hpx/include/threads.hpp>
+#else
+#include <thread>
+#include <mutex>
+#include <future>
+#endif
 
 class tree;
 
 using tree_ptr = std::shared_ptr<tree>;
 
+#ifdef USE_HPX
+
 using mutex_type = hpx::lcos::local::spinlock;
+template<class T>
+using future_type = hpx::future<T>;
+
+#else
+
+using mutex_type = std::mutex;
+template<class T>
+using future_type = std::future<T>;
+
+#endif
 
 struct statistics {
 	vect<float> g;

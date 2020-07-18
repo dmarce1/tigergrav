@@ -24,7 +24,6 @@ cmake -DCMAKE_PREFIX_PATH="$HOME/local/$1/hpx" \
       -DCMAKE_BUILD_TYPE=$1                                                                                                                            \
       -DBOOST_ROOT=$HOME/local/boost \
       -DHDF5_ROOT=$HOME/local/hdf5 \
-      -DSilo_LIBRARY=$HOME/local/silo/lib/libsilo.a \
       -DSilo_DIR=$HOME/local/silo \
       ..
 
