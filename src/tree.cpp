@@ -574,9 +574,10 @@ kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_r
 			}
 		}
 		std::vector<force> f(x.size(), { 0, vect<float>(0) });
+		auto esources = sources;
 		flop += gravity_PP_direct(f, x, sources);
 		if (opts.ewald) {
-			flop += gravity_PP_ewald(f, x, sources);
+			flop += gravity_PP_ewald(f, x, esources);
 		}
 		rc = do_kick(f, min_rung, do_out);
 	}
