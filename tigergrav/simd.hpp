@@ -34,7 +34,7 @@
 #define _mmx_mul_epi32(a,b)         _mm512_mullo_epi32((a),(b))
 #define _mmx_cvtps_epi32(a)         _mm512_cvtps_epi32((a))
 #define _mmx_fmadd_ps(a,b,c)        _mm512_fmadd_ps ((a),(b),(c))
-#define _mmx_cmp_ps(a,b,c)        	_mm512_cmp_ps_cast(a,b,c)
+#define _mmx_cmp_ps(a,b,c)       _mm512_cmp_ps_mask(a,b,c)
 #else
 #if defined(__AVX2__)
 #define SIMD_FLOAT_LEN 8
@@ -75,7 +75,11 @@ public:
 	inline ~simd_float() = default;
 	simd_float(const simd_float&) = default;
 	inline simd_float(float d) {
-		v = _mm256_set_ps(d, d, d, d, d, d, d, d);
+#ifdef __AVX512f__
+                v = _mm256_set_ps(d, d, d, d, d, d, d, d);
+#else
+                v = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+#endif
 	}
 	inline float sum() const {
 		float sum = 0.0;
@@ -199,7 +203,7 @@ public:
 		auto mask = _mmx_cmp_ps(v, other.v, _CMP_LT_OQ);
 		simd_float v;
 #ifdef __AVX512F__
-		auto rc = _mm512_mask_mov(zero.v,mask,one.v);
+		auto rc = _mm512_mask_mov_ps(zero.v,mask,one.v);
 #else
 		auto rc = _mmx_and_ps(mask, one.v);
 #endif
@@ -213,7 +217,7 @@ public:
 		auto mask = _mmx_cmp_ps(v, other.v, _CMP_GT_OQ);
 		simd_float v;
 #ifdef __AVX512F__
-		auto rc = _mm512_mask_mov(zero.v,mask,one.v);
+		auto rc = _mm512_mask_mov_ps(zero.v,mask,one.v);
 #else
 		auto rc = _mmx_and_ps(mask, one.v);
 #endif
@@ -224,7 +228,11 @@ public:
 
 inline simd_float round(const simd_float a) {
 	simd_float v;
-	v.v = _mm256_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
+#ifdef __AVX512F__
+        v.v = _mm512_roundscale_ps(a.v, 0);
+#else
+        v.v = _mm256_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
+#endif
 	return v;
 }
 
