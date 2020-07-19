@@ -474,7 +474,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 42645 OPS
 
 // 43009,703
 template<class T>
-inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect<T> dX, bool ewald = false) { // 701
+inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<T> dX, bool ewald = false) { // 701
 	static const expansion_factors<T> expansion_factor;
 	expansion<T> D;
 	if (ewald) {
@@ -483,40 +483,40 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		D = green_direct(dX);          // 339
 	}
 
-	L1() += M2() * D();																	// 2
+	L() = fmadd(M2(), D(), L());																	// 2
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L1() += M2(a, b) * D(a, b) * expansion_factor(a, b);						// 18
+			L() = fmadd(M2(a, b) * D(a, b), expansion_factor(a, b), L());						// 18
 		}
 	}
 	for (int a = 0; a < 3; a++) {
-		L1(a) += M2() * D(a);
+		L(a) += M2() * D(a);
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				L1(a) += M2(c, b) * D(a, b, c) * expansion_factor(c, b);				// 54
+				L(a) = fmadd(M2(c, b) * D(a, b, c), expansion_factor(c, b), L(a));				// 54
 			}
 		}
 	}
 
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L1(a, b) += M2() * D(a, b);													// 12
+			L(a, b) = fmadd(M2(), D(a, b), L(a, b));													// 12
 		}
 	}
 
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				L1(a, b, c) += M2() * D(a, b, c);										// 20
+				L(a, b, c) = fmadd(M2(), D(a, b, c), L(a, b, c));										// 20
 			}
 		}
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				L1() -= M2(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 30
+				L() -= M2(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 30
 			}
 		}
 	}
@@ -524,7 +524,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					L1(a) -= M2(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	// 90
+					L(a) -= M2(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	// 90
 				}
 			}
 		}
@@ -533,7 +533,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		for (int b = a; b < 3; b++) {
 			for (int c = 0; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					L1(a, b) += M2(c, d) * D(a, b, c, d) * expansion_factor(c, d);		// 108
+					L(a, b) = fmadd(M2(c, d), D(a, b, c, d) * expansion_factor(c, d), L(a, b));		// 108
 				}
 			}
 		}
@@ -542,7 +542,7 @@ inline void multipole_interaction(expansion<T> &L1, const multipole<T> &M2, vect
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					L1(a, b, c, d) += M2() * D(a, b, c, d);								// 30
+					L(a, b, c, d) = fmadd(M2(), D(a, b, c, d), L(a, b, c, d));								// 30
 				}
 			}
 		}
@@ -560,15 +560,15 @@ inline void multipole_interaction(expansion<T> &L1, const T &M, vect<T> dX, bool
 		D = green_direct(dX);          // 339
 	}
 
-	L1() += M * D();
+	L1() = fmadd(M, D(), L1());
 	for (int a = 0; a < 3; a++) {
-		L1(a) += M * D(a);
+		L1(a) = fmadd(M, D(a), L1(a));
 		for (int b = a; b < 3; b++) {
-			L1(a, b) += M * D(a, b);													// 12
+			L1(a, b) = fmadd(M, D(a, b), L1(a, b));													// 12
 			for (int c = b; c < 3; c++) {
-				L1(a, b, c) += M * D(a, b, c);										// 20
+				L1(a, b, c) = fmadd(M, D(a, b, c), L1(a, b, c));										// 20
 				for (int d = c; d < 3; d++) {
-					L1(a, b, c, d) += M * D(a, b, c, d);								// 30
+					L1(a, b, c, d) = fmadd(M, D(a, b, c, d), L1(a, b, c, d));								// 30
 				}
 			}
 		}
@@ -588,10 +588,10 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 
 	std::pair<T, vect<T>> f;
 	f.first = 0.0;
-	f.first += M() * D();															// 1
+	f.first = fmadd(M(), D(), f.first);															// 1
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			f.first += M(a, b) * D(a, b) * expansion_factor(a, b);					// 18
+			f.first = fmadd(M(a, b) * D(a, b), expansion_factor(a, b), f.first);					// 18
 		}
 	}
 	for (int a = 0; a < 3; a++) {
@@ -616,7 +616,7 @@ inline std::pair<T, vect<T>> multipole_interaction(const multipole<T> &M, vect<T
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					f.second[a] += M(c, b, d) * D(a, b, c, d) * expansion_factor(b, c, d); // 90
+					f.second[a] = fmadd(M(c, b, d) * D(a, b, c, d), expansion_factor(b, c, d), f.second[a]); // 90
 				}
 			}
 		}
