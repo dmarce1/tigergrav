@@ -16,7 +16,7 @@
 
 #include <cmath>
 
-#define NCHUNK 2
+#define NCHUNK 1
 
 #ifdef USE_AVX512
 #define SIMDALIGN                  __attribute__((aligned(64)))
