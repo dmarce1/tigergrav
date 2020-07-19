@@ -117,7 +117,7 @@ public:
 	inline simd_float(const simd_int &other);
 	inline simd_int to_int() const;
 	inline simd_float& operator=(const simd_float &other) = default;
-	simd_float& operator=(simd_float &&other) =default;
+	simd_float& operator=(simd_float &&other) = default;
 	inline simd_float operator+(const simd_float &other) const {
 		simd_float r;
 		for (int i = 0; i < NCHUNK; i++) {
@@ -216,38 +216,30 @@ public:
 		simd_float rc;
 		static const simd_float one(1);
 		static const simd_float zero(0);
-		simd_float mask;
 		for (int i = 0; i < NCHUNK; i++) {
-			mask.v[i] = _mmx_cmp_ps(v[i], other.v[i], _CMP_LT_OQ);
-		}
-		for (int i = 0; i < NCHUNK; i++) {
+			auto mask = _mmx_cmp_ps(v[i], other.v[i], _CMP_LT_OQ);
 #ifdef USE_AVX512
-				rc.v[i] = _mm512_mask_mov_ps(zero.v[i],mask.v[i],one.v[i]);
+			rc.v[i] = _mm512_mask_mov_ps(zero.v[i],mask,one.v[i]);
 #else
-			rc.v[i] = _mmx_and_ps(mask.v[i], one.v[i]);
+			rc.v[i] = _mmx_and_ps(mask, one.v[i]);
 #endif
 		}
 		return rc;
 	}
-
 	simd_float operator>(simd_float other) const {
 		simd_float rc;
 		static const simd_float one(1);
 		static const simd_float zero(0);
-		simd_float mask;
 		for (int i = 0; i < NCHUNK; i++) {
-			mask.v[i] = _mmx_cmp_ps(v[i], other.v[i], _CMP_GT_OQ);
-		}
-		for (int i = 0; i < NCHUNK; i++) {
+			auto mask = _mmx_cmp_ps(v[i], other.v[i], _CMP_GT_OQ);
 #ifdef USE_AVX512
-			rc.v[i] = _mm512_mask_mov_ps(zero.v[i],mask.v[i],one.v[i]);
+			rc.v[i] = _mm512_mask_mov_ps(zero.v[i],mask,one.v[i]);
 #else
-			rc.v[i] = _mmx_and_ps(mask.v[i], one.v[i]);
+			rc.v[i] = _mmx_and_ps(mask, one.v[i]);
 #endif
 		}
 		return rc;
 	}
-
 }
 SIMDALIGN;
 
