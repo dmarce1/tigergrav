@@ -15,13 +15,12 @@
 #include <tigergrav/avx_mathfun.h>
 
 #include <cmath>
-//#define CHECK_ALIGN
 
 #define NCHUNK 2
 
 #ifdef USE_AVX512
 #define SIMDALIGN                  __attribute__((aligned(64)))
-#define SIMD_FLOAT_LEN 16
+#define SIMD_VLEN 16
 #define _simd_float                 __m512
 #define _simd_int                   __m512i
 #define _mmx_add_ps(a,b)            _mm512_add_ps((a),(b))
@@ -44,7 +43,7 @@
 #else
 #ifdef USE_AVX2
 #define SIMDALIGN                  __attribute__((aligned(32)))
-#define SIMD_FLOAT_LEN 8
+#define SIMD_VLEN 8
 #define _simd_float                 __m256
 #define _simd_int                   __m256i
 #define _mmx_add_ps(a,b)            _mm256_add_ps((a),(b))
@@ -70,278 +69,205 @@
 #endif
 
 #endif
-	class simd_int;
-	class simd_float;
+class simd_int;
+class simd_float;
 
-#ifdef CHECK_ALIGN
-#ifdef __AVX512__
-	inline void assert_align(const _simd_float& v) {
-		if (reinterpret_cast<std::size_t>(&(v)) % 64 != 0) {
-			printf("Alignment failure %s %i\n", __FILE__, __LINE__);
-			abort();
-		}
-	}
-#else
-	inline void assert_align(const _simd_float& v) {
-		if (reinterpret_cast<std::size_t>(&(v)) % 32 != 0) {
-			printf("Alignment failure %s %i\n", __FILE__, __LINE__);
-			abort();
-		}
-	}
-#endif
-#else
-#define assert_align(a)
-#endif
-
-	class simd_float {
-	private:
+class simd_float {
+private:
 #ifdef NOSIMD
 	float v;
 #else
-		_simd_float v;
+	_simd_float v[NCHUNK];
 #endif
-	public:
-		static constexpr std::size_t size() {
+public:
+	static constexpr std::size_t size() {
 #ifdef NOSIMD
 		return 1;
 #else
-			return SIMD_FLOAT_LEN;
+		return NCHUNK * SIMD_VLEN;
 #endif
-		}
-		simd_float() = default;
-		inline ~simd_float() = default;
-		simd_float(const simd_float&) = default;
-		inline simd_float(float d) {
-			assert_align(v);
+	}
+	simd_float() = default;
+	inline ~simd_float() = default;
+	simd_float(const simd_float&) = default;
+	inline simd_float(float d) {
+		for (int i = 0; i < NCHUNK; i++) {
 #ifdef NOSIMD
-		v = d;
+		v[i] = d;
 #else
 #ifdef USE_AVX512
-        v = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+        v[i] = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
 #else
-			v = _mm256_set_ps(d, d, d, d, d, d, d, d);
+			v[i] = _mm256_set_ps(d, d, d, d, d, d, d, d);
 #endif
 #endif
 		}
-		inline float sum() const {
-			assert_align(v);
+	}
+	inline float sum() const {
 #ifdef NOSIMD
 		return v;
 #else
-			float sum = 0.0;
-			for (int i = 0; i < SIMD_FLOAT_LEN; i++) {
-				sum += (*this)[i];
-			}
-			return sum;
+		float sum = 0.0;
+		for (int i = 0; i < NCHUNK * SIMD_VLEN; i++) {
+			sum += (*this)[i];
+		}
+		return sum;
 #endif
+	}
+	inline simd_float(const simd_int &other);
+	inline simd_int to_int() const;
+	inline simd_float& operator=(const simd_float &other) = default;
+	simd_float& operator=(simd_float &&other) =default;
+	inline simd_float operator+(const simd_float &other) const {
+		simd_float r;
+		for (int i = 0; i < NCHUNK; i++) {
+			r.v[i] = _mmx_add_ps(v[i], other.v[i]);
 		}
-		inline simd_float(const simd_int &other);
-		inline simd_int to_int() const;
-		inline simd_float& operator=(const simd_float &other) = default;
-		simd_float& operator=(simd_float &&other) {
-			assert_align(v);
-			v = std::move(other.v);
-			return *this;
+		return r;
+	}
+	inline simd_float operator-(const simd_float &other) const {
+		simd_float r;
+		for (int i = 0; i < NCHUNK; i++) {
+			r.v[i] = _mmx_sub_ps(v[i], other.v[i]);
 		}
-		inline simd_float operator+(const simd_float &other) const {
-#ifdef NOSIMD
-		return v + other.v;
-#else
-			assert_align(v);
-			assert_align(other.v);
-			simd_float r;
-			r.v = _mmx_add_ps(v, other.v);
-			return r;
-#endif
+		return r;
+	}
+	inline simd_float operator*(const simd_float &other) const {
+		simd_float r;
+		for (int i = 0; i < NCHUNK; i++) {
+			r.v[i] = _mmx_mul_ps(v[i], other.v[i]);
 		}
-		inline simd_float operator-(const simd_float &other) const {
-#ifdef NOSIMD
-		return v - other.v;
-#else
-			assert_align(v);
-			assert_align(other.v);
-			simd_float r;
-			r.v = _mmx_sub_ps(v, other.v);
-			return r;
-#endif
+		return r;
+	}
+	inline simd_float operator/(const simd_float &other) const {
+		simd_float r;
+		for (int i = 0; i < NCHUNK; i++) {
+			r.v[i] = _mmx_div_ps(v[i], other.v[i]);
 		}
-		inline simd_float operator*(const simd_float &other) const {
-#ifdef NOSIMD
-		return v * other.v;
-#else
-			assert_align(v);
-			assert_align(other.v);
-			simd_float r;
-			r.v = _mmx_mul_ps(v, other.v);
-			return r;
-#endif
-		}
-		inline simd_float operator/(const simd_float &other) const {
-#ifdef NOSIMD
-		return v / other.v;
-#else
-			assert_align(v);
-			assert_align(other.v);
-			simd_float r;
-			r.v = _mmx_div_ps(v, other.v);
-			return r;
-#endif
-		}
-		inline simd_float operator+() const {
-			assert_align(v);
-			return *this;
-		}
-		inline simd_float operator-() const {
-			assert_align(v);
-			return simd_float(0.0) - *this;
-		}
-		inline simd_float& operator+=(const simd_float &other) {
-			assert_align(v);
-			assert_align(other.v);
-			*this = *this + other;
-			return *this;
-		}
-		inline simd_float& operator-=(const simd_float &other) {
-			assert_align(v);
-			assert_align(other.v);
-			*this = *this - other;
-			return *this;
-		}
-		inline simd_float& operator*=(const simd_float &other) {
-			assert_align(v);
-			assert_align(other.v);
-			*this = *this * other;
-			return *this;
-		}
-		inline simd_float& operator/=(const simd_float &other) {
-			assert_align(v);
-			assert_align(other.v);
-			*this = *this / other;
-			return *this;
-		}
+		return r;
+	}
+	inline simd_float operator+() const {
+		return *this;
+	}
+	inline simd_float operator-() const {
+		return simd_float(0.0) - *this;
+	}
+	inline simd_float& operator+=(const simd_float &other) {
+		*this = *this + other;
+		return *this;
+	}
+	inline simd_float& operator-=(const simd_float &other) {
+		*this = *this - other;
+		return *this;
+	}
+	inline simd_float& operator*=(const simd_float &other) {
+		*this = *this * other;
+		return *this;
+	}
+	inline simd_float& operator/=(const simd_float &other) {
+		*this = *this / other;
+		return *this;
+	}
 
-		inline simd_float operator*(float d) const {
-			const simd_float other = d;
-			assert_align(v);
-			assert_align(other.v);
-			return other * *this;
-		}
-		inline simd_float operator/(float d) const {
-			const simd_float other = 1.0 / d;
-			assert_align(v);
-			assert_align(other.v);
-			return *this * other;
-		}
+	inline simd_float operator*(float d) const {
+		const simd_float other = d;
+		return other * *this;
+	}
+	inline simd_float operator/(float d) const {
+		const simd_float other = 1.0 / d;
+		return *this * other;
+	}
 
-		inline simd_float operator*=(float d) {
-			assert_align(v);
-			*this = *this * d;
-			return *this;
-		}
-		inline simd_float operator/=(float d) {
-			assert_align(v);
-			*this = *this * (1.0 / d);
-			return *this;
-		}
-		inline float& operator[](std::size_t i) {
-			assert_align(v);
-#ifdef NOSIMD
-		return v;
-#else
-			float *a = reinterpret_cast<float*>(&v);
-			return a[i];
-#endif
-		}
-		inline float operator[](std::size_t i) const {
-			assert_align(v);
-#ifdef NOSIMD
-		return v;
-#else
-			const float *a = reinterpret_cast<const float*>(&v);
-			return a[i];
-#endif
-		}
+	inline simd_float operator*=(float d) {
+		*this = *this * d;
+		return *this;
+	}
+	inline simd_float operator/=(float d) {
+		*this = *this * (1.0 / d);
+		return *this;
+	}
+	inline float& operator[](std::size_t i) {
+		float *a = reinterpret_cast<float*>(&v[i / SIMD_VLEN]);
+		return a[i % SIMD_VLEN];
+	}
+	inline float operator[](std::size_t i) const {
+		const float *a = reinterpret_cast<const float*>(&v[i / SIMD_VLEN]);
+		return a[i % SIMD_VLEN];
+	}
 
-		friend simd_float copysign(const simd_float&, const simd_float&);
-		friend simd_float sqrt(const simd_float&);
-		friend simd_float rsqrt(const simd_float&);
-		friend simd_float operator*(float, const simd_float &other);
-		friend simd_float operator/(float, const simd_float &other);
-		friend simd_float max(const simd_float &a, const simd_float &b);
-		friend simd_float min(const simd_float &a, const simd_float &b);
-		friend simd_float fmadd(const simd_float &a, const simd_float &b, const simd_float &c);
-		friend simd_float round(const simd_float);
+	friend simd_float copysign(const simd_float&, const simd_float&);
+	friend simd_float sqrt(const simd_float&);
+	friend simd_float rsqrt(const simd_float&);
+	friend simd_float operator*(float, const simd_float &other);
+	friend simd_float operator/(float, const simd_float &other);
+	friend simd_float max(const simd_float &a, const simd_float &b);
+	friend simd_float min(const simd_float &a, const simd_float &b);
+	friend simd_float fmadd(const simd_float &a, const simd_float &b, const simd_float &c);
+	friend simd_float round(const simd_float);
 
-		friend simd_float exp(const simd_float &a);
-		friend simd_float sin(const simd_float& a);
-		friend simd_float cos(const simd_float& a);
-		friend simd_float abs(const simd_float&a);
-		friend simd_float erfexp(const simd_float &a, simd_float*);
+	friend simd_float exp(const simd_float &a);
+	friend simd_float sin(const simd_float &a);
+	friend simd_float cos(const simd_float &a);
+	friend simd_float abs(const simd_float &a);
+	friend simd_float erfexp(const simd_float &a, simd_float*);
 
-		friend void sincos(const simd_float& x, simd_float *s, simd_float *c);
-#ifdef CHECK_ALIGN
-		friend void assert_align(void*);
-#endif
-
-		simd_float operator<(simd_float other) const {
-#ifdef NOSIMD
-		return v < other.v ? 1.0 : 0.0;
-#else
-			assert_align(v);
-			assert_align(other.v);
-			static const simd_float one(1);
-			static const simd_float zero(0);
-			auto mask = _mmx_cmp_ps(v, other.v, _CMP_LT_OQ);
-			simd_float v;
+	friend void sincos(const simd_float &x, simd_float *s, simd_float *c);
+	simd_float operator<(simd_float other) const {
+		simd_float rc;
+		static const simd_float one(1);
+		static const simd_float zero(0);
+		simd_float mask;
+		for (int i = 0; i < NCHUNK; i++) {
+			mask.v[i] = _mmx_cmp_ps(v[i], other.v[i], _CMP_LT_OQ);
+		}
+		for (int i = 0; i < NCHUNK; i++) {
 #ifdef USE_AVX512
-		auto rc = _mm512_mask_mov_ps(zero.v,mask,one.v);
+				rc.v[i] = _mm512_mask_mov_ps(zero.v[i],mask.v[i],one.v[i]);
 #else
-			auto rc = _mmx_and_ps(mask, one.v);
-#endif
-			v.v = rc;
-			return v;
+			rc.v[i] = _mmx_and_ps(mask.v[i], one.v[i]);
 #endif
 		}
+		return rc;
+	}
 
-		simd_float operator>(simd_float other) const {
-#ifdef NOSIMD
-		return v > other.v ? 1.0 : 0.0;
-#else
-			assert_align(v);
-			assert_align(other.v);
-			static const simd_float one(1);
-			static const simd_float zero(0);
-			auto mask = _mmx_cmp_ps(v, other.v, _CMP_GT_OQ);
-			simd_float v;
+	simd_float operator>(simd_float other) const {
+		simd_float rc;
+		static const simd_float one(1);
+		static const simd_float zero(0);
+		simd_float mask;
+		for (int i = 0; i < NCHUNK; i++) {
+			mask.v[i] = _mmx_cmp_ps(v[i], other.v[i], _CMP_GT_OQ);
+		}
+		for (int i = 0; i < NCHUNK; i++) {
 #ifdef USE_AVX512
-		auto rc = _mm512_mask_mov_ps(zero.v,mask,one.v);
+			rc.v[i] = _mm512_mask_mov_ps(zero.v[i],mask.v[i],one.v[i]);
 #else
-			auto rc = _mmx_and_ps(mask, one.v);
-#endif
-			v.v = rc;
-			return v;
+			rc.v[i] = _mmx_and_ps(mask.v[i], one.v[i]);
 #endif
 		}
+		return rc;
+	}
 
-	} SIMDALIGN;
+}
+SIMDALIGN;
 
 inline simd_float round(const simd_float a) {
 	simd_float v;
+	for (int i = 0; i < NCHUNK; i++) {
 #ifdef NOSIMD
-	return std::round(a.v);
+		v.v[i] = std::round(a.v[i]);
 #else
-	assert_align(a.v);
 #ifdef USE_AVX512
-	v.v = _mm512_roundscale_ps(a.v, 0);
+		v.v[i] = _mm512_roundscale_ps(a.v[i], 0);
 #else
-	v.v = _mm256_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
+		v.v[i] = _mm256_round_ps(a.v[i], _MM_FROUND_TO_NEAREST_INT);
 #endif
+	}
 	return v;
 #endif
 }
 
-inline simd_float sin(const simd_float& x0) {
-	assert_align(x0.v);
+inline simd_float sin(const simd_float &x0) {
 	auto x = x0;
 	// From : http://mooooo.ooo/chebyshev-sine-approximation/
 	static const simd_float pi_major(3.1415927);
@@ -355,20 +281,16 @@ inline simd_float sin(const simd_float& x0) {
 	p = fmadd(p, x2, simd_float(0.0066208798));
 	p = fmadd(p, x2, simd_float(-0.10132118));
 	const auto x1 = (x - pi_major - pi_minor);
-	const auto x3= (x + pi_major + pi_minor);
+	const auto x3 = (x + pi_major + pi_minor);
 	auto res = x1 * x3 * p * x;
 	return res;
 }
 
-inline simd_float cos(const simd_float& x) {
-	assert_align(x.v);
+inline simd_float cos(const simd_float &x) {
 	return sin(x + simd_float(M_PI / 2.0));
 }
 
-inline void sincos(const simd_float& x, simd_float *s, simd_float *c) {
-	assert_align(x.v);
-	assert_align(s->v);
-	assert_align(c->v);
+inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {
 //#ifdef __AVX512F__
 //	s->v = _mm512_sincos_ps(&(c->v),x.v);
 //#else
@@ -379,22 +301,17 @@ inline void sincos(const simd_float& x, simd_float *s, simd_float *c) {
 
 inline simd_float exp(const simd_float &a) {
 	simd_float v;
-	assert_align(a.v);
-#ifdef NOSIMD
-	return std::exp(a.v);
-#else
+	for (int i = 0; i < NCHUNK; i++) {
 #ifdef USE_AVX512
-	v.v = exp512_ps(a.v);
+		v.v[i] = exp512_ps(a.v[i]);
 #else
-	v.v = exp256_ps(a.v);
+		v.v[i] = exp256_ps(a.v[i]);
 #endif
+	}
 	return v;
-#endif
 }
 
 inline simd_float erfexp(const simd_float &x, simd_float *e) {
-	assert_align(x.v);
-	assert_align(e->v);
 	simd_float v;
 	const simd_float p(0.3275911);
 	const simd_float a1(0.254829592);
@@ -413,96 +330,70 @@ inline simd_float erfexp(const simd_float &x, simd_float *e) {
 }
 
 inline simd_float fmadd(const simd_float &a, const simd_float &b, const simd_float &c) {
-	assert_align(a.v);
-	assert_align(b.v);
-	assert_align(c.v);
-#ifdef NOSIMD
-	return a.v * b.v + c.v;
-#else
+
 	simd_float v;
-	v.v = _mmx_fmadd_ps(a.v, b.v, c.v);
+	for (int i = 0; i < NCHUNK; i++) {
+		v.v[i] = _mmx_fmadd_ps(a.v[i], b.v[i], c.v[i]);
+	}
 	return v;
-#endif
 }
 
 inline simd_float copysign(const simd_float &y, const simd_float &x) {
 // From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
-	assert_align(x.v);
-	assert_align(y.v);
 
-#ifdef NOSIMD
-	return std::copysign(y.v, x.v);
-#else
-
-	constexpr float signbit = -0.f;
-	static auto const avx_signbit = simd_float(signbit).v;
 	simd_float v;
-	v.v = _mmx_or_ps(_mmx_and_ps(avx_signbit, x.v), _mmx_andnot_ps(avx_signbit, y.v)); // (avx_signbit & from) | (~avx_signbit & to)
+	for (int i = 0; i < NCHUNK; i++) {
+		constexpr float signbit = -0.f;
+		static simd_float const avx_signbit = simd_float(signbit);
+		v.v[i] = _mmx_or_ps(_mmx_and_ps(avx_signbit.v[i], x.v[i]), _mmx_andnot_ps(avx_signbit.v[i], y.v[i])); // (avx_signbit & from) | (~avx_signbit & to)
+	}
 	return v;
-#endif
 }
 
 inline simd_float sqrt(const simd_float &vec) {
-	assert_align(vec.v);
-
-#ifdef NOSIMD
-	return std::sqrt(vec.v);
-#else
 	simd_float r;
-	r.v = _mmx_sqrt_ps(vec.v);
+	for (int i = 0; i < NCHUNK; i++) {
+		r.v[i] = _mmx_sqrt_ps(vec.v[i]);
+	}
 	return r;
-#endif
+
 }
 
 inline simd_float rsqrt(const simd_float &vec) {
-	assert_align(vec.v);
-#ifdef NOSIMD
-	return 1.0 / std::sqrt(vec.v);
-#else
 	simd_float r;
-	r.v = _mmx_rsqrt_ps(vec.v);
+	for (int i = 0; i < NCHUNK; i++) {
+		r.v[i] = _mmx_rsqrt_ps(vec.v[i]);
+	}
 	return r;
-#endif
 }
 
 inline simd_float operator*(float d, const simd_float &other) {
-	assert_align(other.v);
 	const simd_float a = d;
 	return a * other;
 }
 
 inline simd_float operator/(float d, const simd_float &other) {
-	assert_align(other.v);
 	const simd_float a = d;
 	return a / other;
 }
 
 inline simd_float max(const simd_float &a, const simd_float &b) {
-	assert_align(a.v);
-	assert_align(b.v);
-#ifdef NOSIMD
-	return std::max(a.v, b.v);
-#else
 	simd_float r;
-	r.v = _mmx_max_ps(a.v, b.v);
+	for (int i = 0; i < NCHUNK; i++) {
+		r.v[i] = _mmx_max_ps(a.v[i], b.v[i]);
+	}
 	return r;
-#endif
 }
 
 inline simd_float min(const simd_float &a, const simd_float &b) {
-	assert_align(a.v);
-	assert_align(b.v);
-#ifdef NOSIMD
-	return std::min(a.v, b.v);
-#else
 	simd_float r;
-	r.v = _mmx_min_ps(a.v, b.v);
+	for (int i = 0; i < NCHUNK; i++) {
+		r.v[i] = _mmx_min_ps(a.v[i], b.v[i]);
+	}
 	return r;
-#endif
 }
 
 inline simd_float abs(const simd_float &a) {
-	assert_align(a.v);
 	return max(a, -a);
 }
 

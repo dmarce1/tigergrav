@@ -120,6 +120,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 		}
 		f[i].phi += Phi[i].sum();
 	}
+	y.resize(cnt1);
 	return 66 * cnt1 * x.size();
 }
 
@@ -180,6 +181,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 		}
 		f[i].phi += Phi[i].sum();
 	}
+	y.resize(cnt1);
 	return 26 * cnt1 * x.size();
 }
 
@@ -233,6 +235,7 @@ std::uint64_t gravity_CC_direct(expansion<float> &L, const vect<ireal> &x, std::
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
+	y.resize(cnt1);
 	return 706 * cnt1;
 }
 
@@ -289,6 +292,7 @@ std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
+	y.resize(cnt1);
 	return 422 * cnt1;
 }
 
@@ -401,6 +405,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 		}
 		f[i].phi += Phi[i].sum();
 	}
+	y.resize(cnt1);
 	return 26 * cnt1 * x.size();
 }
 
@@ -464,6 +469,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 		}
 		f[i].phi += Phi[i].sum();
 	}
+	y.resize(cnt1);
 	return 42875 * cnt1 * x.size();
 }
 
@@ -517,6 +523,7 @@ std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
+	y.resize(cnt1);
 	return 43030 * cnt1;
 }
 
@@ -573,6 +580,7 @@ std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
+	y.resize(cnt1);
 	return 42728 * cnt1;
 }
 

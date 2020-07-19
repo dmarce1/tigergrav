@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 		};
 		bool do_out = true;
 		const auto show = [&]() {
-			interaction_statistics istats = root_ptr->get_istats();
+//			interaction_statistics istats = root_ptr->get_istats();
 			if (iter % 25 == 0) {
 				printf("%4s %13s %13s %9s %9s %9s %13s ", "i", "t", "dt", "itime", "max rung", "min act.", "GFLOP");
 				printf(" %13s %13s %13s %13s %13s %13s %13s %13s %13s\n", "gx", "gy", "gz", "px", "py", "pz", "epot", "ekin", "etot");

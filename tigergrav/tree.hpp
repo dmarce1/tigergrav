@@ -125,7 +125,7 @@ public:
 			std::vector<tree_ptr> echecklist, std::vector<vect<float>> esources, std::vector<multi_src> emulti_srcs, rung_type min_rung, bool do_output);
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output);
-	kick_return kick_direct(std::vector<vect<float>> &sources, rung_type min_rung, bool do_output);
+	kick_return kick_direct(std::vector<vect<float>> sources, rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
 
 };

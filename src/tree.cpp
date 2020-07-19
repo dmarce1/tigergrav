@@ -556,7 +556,7 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 	return rc;
 }
 
-kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_rung, bool do_out) {
+kick_return tree::kick_direct(std::vector<vect<float>> sources, rung_type min_rung, bool do_out) {
 
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
@@ -597,7 +597,7 @@ kick_return tree::kick_direct(std::vector<vect<float>> &sources, rung_type min_r
 			}
 		}
 		std::vector<force> f(x.size(), { 0, vect<float>(0) });
-		auto esources = sources;
+		std::vector<vect<float>> esources = sources;
 		flop += gravity_PP_direct(f, x, sources);
 		if (opts.ewald) {
 			flop += gravity_PP_ewald(f, x, esources);
