@@ -254,7 +254,11 @@ inline simd_float two_pow(const simd_float &r) {
 	static const simd_float c7 = simd_float((1.0 / 5040.0) * std::pow(std::log(2), 7));
 	static const simd_float c8 = simd_float((1.0 / 40320.0) * std::pow(std::log(2), 8));
 	simd_float r0;
+#ifdef USE_AVX512
+        __m512i n[NCHUNK];
+#else
 	__m256i n[NCHUNK];
+#endif
 	for (int i = 0; i < NCHUNK; i++) {
 #ifdef USE_AVX512
 		r0.v[i] = _mm512_roundscale_ps(r.v[i], _MM_FROUND_TO_NEAREST_INT);
@@ -278,9 +282,9 @@ inline simd_float two_pow(const simd_float &r) {
 	y = fmadd(y, x, one);
 	for (int i = 0; i < NCHUNK; i++) {
 #ifdef USE_AVX512
-		auto imm0 = _mm512_add_epi32(n[i], _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
+		auto imm0 = _mm512_add_epi32(n[i], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
 		imm0 = _mm512_slli_epi32(imm0, 23);
-		r0.v[i] = _mm512_castsi256_ps(imm0);
+		r0.v[i] = _mm512_castsi512_ps(imm0);
 #else
 		auto imm0 = _mm256_add_epi32(n[i], _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
 		imm0 = _mm256_slli_epi32(imm0, 23);
