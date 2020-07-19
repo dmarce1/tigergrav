@@ -355,7 +355,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		auto rc_l_fut = thread_if_avail([=]() {
 			return children[0]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
 		}, level, true);
-		auto rc_r_fut = thread_if_avail([=]() {
+		auto rc_r_fut = thread_if_avail([&]() {
 			return children[1]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
 		}, level);
 		const auto rc_r = rc_r_fut.get();
