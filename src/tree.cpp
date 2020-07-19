@@ -426,13 +426,14 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 		static thread_local std::vector<vect<float>> x;
+		static thread_local std::vector<force> f;
 		x.resize(0);
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || do_out) {
 				x.push_back(pos_to_double(i->x));
 			}
 		}
-		std::vector<force> f(x.size());
+		f.resize(x.size());
 		int j = 0;
 		for (auto i = part_begin; i != part_end; i++) {
 			if (i->rung >= min_rung || do_out) {
@@ -442,7 +443,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				j++;
 			}
 		}
-
 		istats.PC_direct += x.size() * dmulti_srcs.size();
 		istats.PP_direct += x.size() * dsources.size();
 		flop += gravity_PP_direct(f, x, dsources);
