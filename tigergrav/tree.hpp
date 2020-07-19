@@ -24,7 +24,7 @@
 class tree;
 
 using tree_ptr = std::shared_ptr<tree>;
-using raw_tree_ptr = tree*;
+using raw_tree_ptr = const tree*;
 
 #ifdef USE_HPX
 
