@@ -17,6 +17,8 @@
 #include <cmath>
 //#define CHECK_ALIGN
 
+#define NCHUNK 2
+
 #ifdef USE_AVX512
 #define SIMDALIGN                  __attribute__((aligned(64)))
 #define SIMD_FLOAT_LEN 16
@@ -267,7 +269,7 @@
 		friend simd_float operator/(float, const simd_float &other);
 		friend simd_float max(const simd_float &a, const simd_float &b);
 		friend simd_float min(const simd_float &a, const simd_float &b);
-		friend simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c);
+		friend simd_float fmadd(const simd_float &a, const simd_float &b, const simd_float &c);
 		friend simd_float round(const simd_float);
 
 		friend simd_float exp(const simd_float &a);
@@ -347,11 +349,11 @@ inline simd_float sin(const simd_float& x0) {
 	x = x - round(x * (1.0 / (2.0 * M_PI))) * (2.0 * M_PI);
 	const simd_float x2 = x * x;
 	simd_float p = simd_float(0.00000000013291342);
-	p = fma(p, x2, simd_float(-0.000000023317787));
-	p = fma(p, x2, simd_float(0.0000025222919));
-	p = fma(p, x2, simd_float(-0.00017350505));
-	p = fma(p, x2, simd_float(0.0066208798));
-	p = fma(p, x2, simd_float(-0.10132118));
+	p = fmadd(p, x2, simd_float(-0.000000023317787));
+	p = fmadd(p, x2, simd_float(0.0000025222919));
+	p = fmadd(p, x2, simd_float(-0.00017350505));
+	p = fmadd(p, x2, simd_float(0.0066208798));
+	p = fmadd(p, x2, simd_float(-0.10132118));
 	const auto x1 = (x - pi_major - pi_minor);
 	const auto x3= (x + pi_major + pi_minor);
 	auto res = x1 * x3 * p * x;
@@ -410,7 +412,7 @@ inline simd_float erfexp(const simd_float &x, simd_float *e) {
 	return v;
 }
 
-inline simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c) {
+inline simd_float fmadd(const simd_float &a, const simd_float &b, const simd_float &c) {
 	assert_align(a.v);
 	assert_align(b.v);
 	assert_align(c.v);
