@@ -244,8 +244,8 @@ bool tree::is_leaf() const {
 	return (part_end - part_begin) <= opts.parts_per_node;
 }
 
-std::array<tree_ptr, NCHILD> tree::get_children() const {
-	return children;
+std::array<raw_tree_ptr, NCHILD> tree::get_children() const {
+	return {&(*children[0]),&(*children[1])};
 }
 
 std::pair<const_part_iter, const_part_iter> tree::get_positions() const {
@@ -458,8 +458,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	return rc;
 }
 
-kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs,
-		std::vector<tree_ptr> echecklist, std::vector<vect<float>> esources, std::vector<multi_src> emulti_srcs, rung_type min_rung, bool do_out) {
+kick_return tree::kick_bh(std::vector<raw_tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs,
+		std::vector<raw_tree_ptr> echecklist, std::vector<vect<float>> esources, std::vector<multi_src> emulti_srcs, rung_type min_rung, bool do_out) {
 
 	kick_return rc;
 	if (!multi.has_active && !do_out) {
@@ -467,8 +467,8 @@ kick_return tree::kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<flo
 		return rc;
 	}
 
-	std::vector<tree_ptr> next_dchecklist;
-	std::vector<tree_ptr> next_echecklist;
+	std::vector<raw_tree_ptr> next_dchecklist;
+	std::vector<raw_tree_ptr> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 	for (auto c : dchecklist) {

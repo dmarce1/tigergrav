@@ -24,6 +24,7 @@
 class tree;
 
 using tree_ptr = std::shared_ptr<tree>;
+using raw_tree_ptr = tree*;
 
 #ifdef USE_HPX
 
@@ -85,7 +86,7 @@ struct kick_return {
 
 struct check_item {
 	bool opened;
-	tree_ptr ptr;
+	raw_tree_ptr ptr;
 };
 
 struct multipole_info {
@@ -116,13 +117,13 @@ public:
 	multipole_info get_multipole() const;
 	monopole get_monopole() const;
 	bool is_leaf() const;
-	std::array<tree_ptr, NCHILD> get_children() const;
+	std::array<raw_tree_ptr, NCHILD> get_children() const;
 	std::pair<const_part_iter, const_part_iter> get_positions() const;
 	void drift(float);
 //	void output(float,int) const;
 	bool active_particles(int rung, bool do_out);
-	kick_return kick_bh(std::vector<tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs,
-			std::vector<tree_ptr> echecklist, std::vector<vect<float>> esources, std::vector<multi_src> emulti_srcs, rung_type min_rung, bool do_output);
+	kick_return kick_bh(std::vector<raw_tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs,
+			std::vector<raw_tree_ptr> echecklist, std::vector<vect<float>> esources, std::vector<multi_src> emulti_srcs, rung_type min_rung, bool do_output);
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output);
 	kick_return kick_direct(std::vector<vect<float>> sources, rung_type min_rung, bool do_output);
