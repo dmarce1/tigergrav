@@ -118,12 +118,12 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 		float mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		decltype(b) mid_iter;
-		if (e - b < 64 * opts.parts_per_node) {
-			std::sort(b, e, [max_dim](const particle &p1, const particle &p2) {
-				return p1.x[max_dim] < p2.x[max_dim];
-			});
-			mid_iter = b + (e - b) / 2;
-		} else {
+//		if (e - b < 64 * opts.parts_per_node) {
+//			std::sort(b, e, [max_dim](const particle &p1, const particle &p2) {
+//				return p1.x[max_dim] < p2.x[max_dim];
+//			});
+//			mid_iter = b + (e - b) / 2;
+//		} else {
 			if (e - b == 0) {
 				mid_iter = e;
 			} else {
@@ -131,7 +131,7 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 					return pos_to_double(p.x[max_dim]) < mid;
 				});
 			}
-		}
+//		}
 		auto rcl = thread_if_avail([=]() {
 			return new_(boxl, b, mid_iter, level + 1);
 		}, level, true);
