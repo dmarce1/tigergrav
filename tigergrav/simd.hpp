@@ -12,8 +12,6 @@
 
 #include <immintrin.h>
 
-#include <tigergrav/avx_mathfun.h>
-
 #include <cmath>
 
 #define NCHUNK 1
@@ -211,6 +209,7 @@ public:
 	friend simd_float abs(const simd_float &a);
 	friend simd_float erfexp(const simd_float &a, simd_float*);
 
+	friend simd_float two_pow(const simd_float &r);
 	friend void sincos(const simd_float &x, simd_float *s, simd_float *c);
 	simd_float operator<(simd_float other) const {
 		simd_float rc;
@@ -242,6 +241,55 @@ public:
 	}
 }
 SIMDALIGN;
+
+inline simd_float two_pow(const simd_float &r) {
+	static const simd_float zero = simd_float(0.0);
+	static const simd_float one = simd_float(1.0);
+	static const simd_float c1 = simd_float(std::log(2));
+	static const simd_float c2 = simd_float((0.5) * std::pow(std::log(2), 2));
+	static const simd_float c3 = simd_float((1.0 / 6.0) * std::pow(std::log(2), 3));
+	static const simd_float c4 = simd_float((1.0 / 24.0) * std::pow(std::log(2), 4));
+	static const simd_float c5 = simd_float((1.0 / 120.0) * std::pow(std::log(2), 5));
+	static const simd_float c6 = simd_float((1.0 / 720.0) * std::pow(std::log(2), 6));
+	static const simd_float c7 = simd_float((1.0 / 5040.0) * std::pow(std::log(2), 7));
+	static const simd_float c8 = simd_float((1.0 / 40320.0) * std::pow(std::log(2), 8));
+	simd_float r0;
+	__m256i n[NCHUNK];
+	for (int i = 0; i < NCHUNK; i++) {
+#ifdef USE_AVX512
+		r0.v[i] = _mm512_roundscale_ps(r.v[i], _MM_FROUND_TO_NEAREST_INT);
+		n[i] = _mm512_cvtps_epi32(r0.v[i]);
+		r0.v[i] = _mm512_cvtepi32_ps(n[i]);
+#else
+		r0.v[i] = _mm256_round_ps(r.v[i], _MM_FROUND_TO_NEAREST_INT);
+		n[i] = _mm256_cvtps_epi32(r0.v[i]);
+		r0.v[i] = _mm256_cvtepi32_ps(n[i]);
+#endif
+	}
+	auto x = r - r0;
+	auto y = c8;
+	y = fmadd(y, x, c7);
+	y = fmadd(y, x, c6);
+	y = fmadd(y, x, c5);
+	y = fmadd(y, x, c4);
+	y = fmadd(y, x, c3);
+	y = fmadd(y, x, c2);
+	y = fmadd(y, x, c1);
+	y = fmadd(y, x, one);
+	for (int i = 0; i < NCHUNK; i++) {
+#ifdef USE_AVX512
+		auto imm0 = _mm512_add_epi32(n[i], _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
+		imm0 = _mm512_slli_epi32(imm0, 23);
+		r0.v[i] = _mm512_castsi256_ps(imm0);
+#else
+		auto imm0 = _mm256_add_epi32(n[i], _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
+		imm0 = _mm256_slli_epi32(imm0, 23);
+		r0.v[i] = _mm256_castsi256_ps(imm0);
+#endif
+	}
+	auto res = y * r0;
+	return res;
+}
 
 inline simd_float round(const simd_float a) {
 	simd_float v;
@@ -292,15 +340,17 @@ inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {
 }
 
 inline simd_float exp(const simd_float &a) {
-	simd_float v;
-	for (int i = 0; i < NCHUNK; i++) {
-#ifdef USE_AVX512
-		v.v[i] = exp512_ps(a.v[i]);
-#else
-		v.v[i] = exp256_ps(a.v[i]);
-#endif
-	}
-	return v;
+	static const simd_float c0 = 1.0 / std::log(2);
+	return two_pow(a * c0);
+//	simd_float v;
+//	for (int i = 0; i < NCHUNK; i++) {
+//#ifdef USE_AVX512
+//		v.v[i] = exp512_ps(a.v[i]);
+//#else
+//		v.v[i] = exp256_ps(a.v[i]);
+//#endif
+//	}
+//	return v;
 }
 
 inline simd_float erfexp(const simd_float &x, simd_float *e) {
