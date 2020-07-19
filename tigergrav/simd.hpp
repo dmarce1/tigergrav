@@ -14,7 +14,11 @@
 
 #include <cmath>
 
+#ifdef DOUBLE_SIMD
+#define NCHUNK 2
+#else
 #define NCHUNK 1
+#endif
 
 #ifdef USE_AVX512
 #define SIMDALIGN                  __attribute__((aligned(64)))
@@ -63,7 +67,7 @@
 #define _mmx_cmp_ps(a,b,c)        	_mm256_cmp_ps(a,b,c)
 #else
 #define NOSIMD
-#warning 'Warning - Compiling without SIMD support!'
+#error 'Error - Compiling without SIMD support!'
 #endif
 
 #endif
@@ -72,45 +76,56 @@ class simd_float;
 
 class simd_float {
 private:
-#ifdef NOSIMD
-	float v;
-#else
 	_simd_float v[NCHUNK];
-#endif
 public:
 	static constexpr std::size_t size() {
-#ifdef NOSIMD
-		return 1;
-#else
 		return NCHUNK * SIMD_VLEN;
-#endif
 	}
 	simd_float() = default;
 	inline ~simd_float() = default;
 	simd_float(const simd_float&) = default;
 	inline simd_float(float d) {
 		for (int i = 0; i < NCHUNK; i++) {
-#ifdef NOSIMD
-		v[i] = d;
-#else
 #ifdef USE_AVX512
         v[i] = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
 #else
 			v[i] = _mm256_set_ps(d, d, d, d, d, d, d, d);
 #endif
-#endif
 		}
 	}
-	inline float sum() const {
-#ifdef NOSIMD
-		return v;
+	union union_mm {
+#ifdef USE_AVX512
+		__m512 m16[1];
+		__m256 m8[2];
+		__m128 m4[4];
+		float m1[16];
 #else
-		float sum = 0.0;
-		for (int i = 0; i < NCHUNK * SIMD_VLEN; i++) {
-			sum += (*this)[i];
-		}
-		return sum;
+		__m256 m8[1];
+		__m128 m4[2];
+		float m1[8];
 #endif
+	};
+	inline float sum() const {
+		union_mm s;
+#ifdef USE_AVX512
+#ifdef DOUBLE_SIMD
+		s.m16[0] = _mm512_add_ps(v[0],v[1]);
+#else
+		s.m16[0] = v[0];
+#endif
+		s.m8[0] = _mm256_add_ps(s.m8[0],s.m8[1]);
+#else
+#ifdef DOUBLE_SIMD
+		s.m8[0] = _mm256_add_ps(v[0],v[1]);
+#else
+		s.m8[0] = v[0];
+#endif
+#endif
+		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
+		s.m1[4] = s.m1[2];
+		s.m1[5] = s.m1[3];
+		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
+		return s.m1[0] + s.m1[1];
 	}
 	inline simd_float(const simd_int &other);
 	inline simd_int to_int() const;
@@ -298,9 +313,6 @@ inline simd_float two_pow(const simd_float &r) {
 inline simd_float round(const simd_float a) {
 	simd_float v;
 	for (int i = 0; i < NCHUNK; i++) {
-#ifdef NOSIMD
-		v.v[i] = std::round(a.v[i]);
-#else
 #ifdef USE_AVX512
 		v.v[i] = _mm512_roundscale_ps(a.v[i], 0);
 #else
@@ -308,7 +320,6 @@ inline simd_float round(const simd_float a) {
 #endif
 	}
 	return v;
-#endif
 }
 
 inline simd_float sin(const simd_float &x0) {
