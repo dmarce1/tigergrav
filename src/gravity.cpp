@@ -67,7 +67,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 	vect<simd_float> X, Y;
 	std::vector<vect<simd_float>> G(x.size());
 	std::vector<simd_float> Phi(x.size());
-	for( int i = 0; i < x.size(); i++) {
+	for (int i = 0; i < x.size(); i++) {
 		G[i] = vect<simd_float>(0.0);
 		Phi[i] = 0.0;
 	}
@@ -78,8 +78,8 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 		y[j] = vect<float>(1.0e+10);
 	}
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
-		for (int k = 0; k < simd_float::size(); k++) {
-			for (int dim = 0; dim < NDIM; dim++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				Y[dim][k] = y[j + k][dim];
 			}
 		}
@@ -147,11 +147,13 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 		y[j].x = vect<float>(1.0);
 	}
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
-		for (int k = 0; k < simd_float::size(); k++) {
-			for (int n = 0; n < MP; n++) {
+		for (int n = 0; n < MP; n++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				M[n][k] = y[j + k].m[n];
 			}
-			for (int dim = 0; dim < NDIM; dim++) {
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
@@ -214,11 +216,13 @@ std::uint64_t gravity_CC_direct(expansion<float> &L, const vect<ireal> &x, std::
 		X[dim] = simd_real(x[dim]);
 	}
 	for (int j = 0; j < cnt1; j += simd_real::size()) {
-		for (int k = 0; k < simd_real::size(); k++) {
-			for (int n = 0; n < MP; n++) {
+		for (int n = 0; n < MP; n++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				M[n][k] = y[j + k].m[n];
 			}
-			for (int dim = 0; dim < NDIM; dim++) {
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
@@ -269,8 +273,8 @@ std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::
 	}
 	M = m;
 	for (int j = 0; j < cnt1; j += simd_real::size()) {
-		for (int k = 0; k < simd_real::size(); k++) {
-			for (int dim = 0; dim < NDIM; dim++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				Y[dim][k] = y[j + k][dim];
 			}
 		}
@@ -324,8 +328,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 		y[j] = vect<float>(0.0);
 	}
 	for (int J = 0; J < cnt1; J += simd_real::size()) {
-		for (int k = 0; k < simd_real::size(); k++) {
-			for (int dim = 0; dim < NDIM; dim++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				Y[dim][k] = y[J + k][dim];
 			}
 		}
@@ -435,11 +439,13 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 		y[j].x = vect<float>(1.0);
 	}
 	for (int j = 0; j < cnt1; j += simd_real::size()) {
-		for (int k = 0; k < simd_real::size(); k++) {
-			for (int n = 0; n < MP; n++) {
+		for (int n = 0; n < MP; n++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				M[n][k] = y[j + k].m[n];
 			}
-			for (int dim = 0; dim < NDIM; dim++) {
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
@@ -502,11 +508,13 @@ std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 		X[dim] = simd_real(x[dim]);
 	}
 	for (int j = 0; j < cnt1; j += simd_real::size()) {
-		for (int k = 0; k < simd_real::size(); k++) {
-			for (int n = 0; n < MP; n++) {
+		for (int n = 0; n < MP; n++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				M[n][k] = y[j + k].m[n];
 			}
-			for (int dim = 0; dim < NDIM; dim++) {
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
@@ -557,8 +565,8 @@ std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 	}
 	M = m;
 	for (int j = 0; j < cnt1; j += simd_real::size()) {
-		for (int k = 0; k < simd_real::size(); k++) {
-			for (int dim = 0; dim < NDIM; dim++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_real::size(); k++) {
 				Y[dim][k] = y[j + k][dim];
 			}
 		}

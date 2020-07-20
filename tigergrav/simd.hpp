@@ -223,6 +223,7 @@ public:
 	friend simd_float cos(const simd_float &a);
 	friend simd_float abs(const simd_float &a);
 	friend simd_float erfexp(const simd_float &a, simd_float*);
+	friend simd_float gather(void*, int, int);
 
 	friend simd_float two_pow(const simd_float &r);
 	friend void sincos(const simd_float &x, simd_float *s, simd_float *c);
@@ -256,6 +257,21 @@ public:
 	}
 }
 SIMDALIGN;
+
+inline simd_float gather(void *base, int s, int o) {
+	simd_float v;
+	const static __m256i i0 = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+	__m256i j0 = _mm256_mul_epi32(i0, _mm256_set_epi32(s, s, s, s, s, s, s, s));
+	j0 = _mm256_add_epi32(j0, _mm256_set_epi32(o, o, o, o, o, o, o, o));
+	v.v[0] = _mm256_i32gather_ps((const float*)base, j0, 1);
+#ifdef DOUBLE_SIMD
+	const static __m256i i1 = _mm256_set_epi32(8, 9, 10, 11, 12, 13, 14, 15);
+	__m256i j0 = _mm256_mul_epi32(i0, _mm256_set_epi32(s, s, s, s, s, s, s, s));
+	j0 = _mm256_add_epi32(j0, _mm256_set_epi32(o, o, o, o, o, o, o, o));
+	v.v[1] = _mm256_i32gather_ps(base, j0, 1);
+#endif
+	return v;
+}
 
 inline simd_float two_pow(const simd_float &r) {
 	static const simd_float zero = simd_float(0.0);
