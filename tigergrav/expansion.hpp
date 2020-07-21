@@ -339,16 +339,18 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 336 OPS
 
 //	static const T H = options::get().soft_len;
 	const float tiny = std::numeric_limits<float>::min() * 10.0;
-
+	static const T nthree(-3.0);
+	static const T nfive(-5.0);
+	static const T nseven(-7.0);
 	const T r2 = dX.dot(dX);			// 5
 	const T r = sqrt(r2);				// 1
 	const T rinv = r / (r * r + tiny);	// 3
 	const T r2inv = rinv * rinv;		// 1
 	const T d0 = -rinv;					// 1
 	const T d1 = -d0 * r2inv;			// 2
-	const T d2 = -3.0 * d1 * r2inv;		// 3
-	const T d3 = -5.0 * d2 * r2inv;		// 3
-	const T d4 = -7.0 * d3 * r2inv;		// 3
+	const T d2 = nthree * d1 * r2inv;		// 2
+	const T d3 = nfive * d2 * r2inv;		// 2
+	const T d4 = nseven * d3 * r2inv;		// 2
 	expansion<T> D;
 	D = 0.0;
 	green_deriv(D, d0, d1, d2, d3, d4, dX); // 314
@@ -416,6 +418,15 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
 	vect<float> h;
 	static const ewald_indices indices_real(5);
 	static const ewald_indices indices_four(9);
+	static const T three(3.0);
+	static const T fouroversqrtpi(4.0 / sqrt(M_PI));
+	static const T eight(8.0);
+	static const T fifteen(15.0);
+	static const T thirtyfive(35.0);
+	static const T fourty(40.0);
+	static const T fiftysix(56.0);
+	static const T sixtyfour(64.0);
+	static const T onehundredfive(105.0);
 	for (int i = 0; i < indices_real.size(); i++) {		// 416 X 93 = 38688
 		h = indices_real[i];
 		n = h;
@@ -432,13 +443,12 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
 		const T r9inv = r2inv * r7inv;			// 1
 		T expfac;
 		const T erfc = T(1) - erfexp(2.0 * r, &expfac);			// 50
-		static const T invsqrtpi = 1.0 / sqrt(M_PI);
-		const T expfactor = 4.0 * r * expfac * invsqrtpi;		// 3
+		const T expfactor = fouroversqrtpi * r * expfac;		// 2
 		const T d0 = -erfc * rinv;								// 2
 		const T d1 = (expfactor + erfc) * r3inv;		// 2
-		const T d2 = -fmadd(expfactor, fmadd(T(8), T(r2), T(3)), 3.0 * erfc) * r5inv;		// 7
-		const T d3 = fmadd(expfactor, (T(15) + fmadd(40.0, T(r2), 64.0 * T(r4))), 15.0 * erfc) * r7inv;		// 8
-		const T d4 = -fmadd(expfactor, fmadd(8.0 * T(r2), (T(35) + fmadd(56.0, r2, 64.0 * r4)), T(105)), 105.0 * erfc) * r9inv;		// 12
+		const T d2 = -fmadd(expfactor, fmadd(eight, T(r2), three), three * erfc) * r5inv;		// 7
+		const T d3 = fmadd(expfactor, (fifteen + fmadd(fourty, T(r2), sixtyfour * T(r4))), fifteen * erfc) * r7inv;		// 8
+		const T d4 = -fmadd(expfactor, fmadd(eight * T(r2), (thirtyfive + fmadd(fiftysix, r2, sixtyfour * r4)), onehundredfive), onehundredfive * erfc) * r9inv;// 12
 		green_deriv(D, d0, d1, d2, d3, d4, dx);			// 314
 	}
 	for (int i = 0; i < indices_four.size(); i++) {		// 50 x 123 = 6150
