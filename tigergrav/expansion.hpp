@@ -289,29 +289,45 @@ inline void expansion<T>::invert() {
 
 template<class T>
 void green_deriv(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3, const T &d4, const vect<T> &dx) {  // 314
+	static const T two(2.0);
 	D() += d0;																		// 1
 	for (int a = 0; a < NDIM; a++) {
-		D(a) = fmadd(dx[a], d1, D(a));												// 6
-		D(a, a) += d1;																// 3
-		D(a, a, a) = fmadd(dx[a], d2, D(a, a, a));									// 6
-		D(a, a, a, a) = fmadd(dx[a] * dx[a], d3, D(a, a, a, a));					// 9
-		D(a, a, a, a) = fmadd(2.0, d2, D(a, a, a, a));								// 6
+		auto &Da = D(a);
+		auto &Daa = D(a, a);
+		auto &Daaa = D(a, a, a);
+		auto &Daaaa = D(a, a, a, a);
+		Da = fmadd(dx[a], d1, Da);												// 6
+		Daa += d1;																// 3
+		Daaa = fmadd(dx[a], d2, Daaa);									// 6
+		Daaaa = fmadd(dx[a] * dx[a], d3, Daaaa);					// 9
+		Daaaa = fmadd(two, d2, Daaaa);								// 6
 		for (int b = 0; b <= a; b++) {
+			auto &Dab = D(a, b);
+			auto &Daab = D(a, a, b);
+			auto &Dabb = D(a, b, b);
+			auto &Daaab = D(a, a, a, b);
+			auto &Daabb = D(a, a, b, b);
+			auto &Dabbb = D(a, b, b, b);
 			const auto dxadxb = dx[a] * dx[b];										// 6
-			D(a, b) = fmadd(dxadxb, d2, D(a, b));									// 18
-			D(a, a, b) = fmadd(dx[b], d2, D(a, a, b));								// 12
-			D(a, b, b) = fmadd(dx[a], d2, D(a, b, b));								// 12
-			D(a, a, a, b) = fmadd(dxadxb, d3, D(a, a, a, b));						// 12
-			D(a, b, b, b) = fmadd(dxadxb, d3, D(a, b, b, b));						// 12
-			D(a, a, b, b) += d2;													// 6
+			Dab = fmadd(dxadxb, d2, Dab);									// 18
+			Daab = fmadd(dx[b], d2, Daab);								// 12
+			Dabb = fmadd(dx[a], d2, Dabb);								// 12
+			Daaab = fmadd(dxadxb, d3, Daaab);						// 12
+			Dabbb = fmadd(dxadxb, d3, Dabbb);						// 12
+			Daabb += d2;													// 6
 			for (int c = 0; c <= b; c++) {
+				auto &Dabc = D(a, b, c);
+				auto &Daabc = D(a, a, b, c);
+				auto &Dabcc = D(a, b, c, c);
+				auto &Dabbc = D(a, b, b, c);
 				const auto dxadxbdxc = dxadxb * dx[c];
-				D(a, b, c) = fmadd(dxadxbdxc, d3, D(a, b, c));						// 40
-				D(a, a, b, c) = fmadd(dx[b] * dx[c], d3, D(a, a, b, c));			// 30
-				D(a, b, c, c) = fmadd(dxadxb, d3, D(a, b, c, c));					// 30
-				D(a, b, b, c) = fmadd(dx[a] * dx[c], d3, D(a, b, b, c));			// 30
+				Dabc = fmadd(dxadxbdxc, d3, Dabc);						// 40
+				Daabc = fmadd(dx[b] * dx[c], d3, Daabc);			// 30
+				Dabcc = fmadd(dxadxb, d3, Dabcc);					// 30
+				Dabbc = fmadd(dx[a] * dx[c], d3, Dabbc);			// 30
 				for (int d = 0; d <= c; d++) {
-					D(a, b, c, d) = fmadd(dxadxbdxc * dx[d], d4, D(a, b, c, d));	// 75
+					auto &Dabcd = D(a, b, c, d);
+					Dabcd = fmadd(dxadxbdxc * dx[d], d4, Dabcd);	// 75
 				}
 			}
 		}
