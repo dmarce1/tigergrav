@@ -273,7 +273,7 @@ inline simd_float gather(void *base, int s, int o) {
 	return v;
 }
 
-inline simd_float two_pow(const simd_float &r) {
+inline simd_float two_pow(const simd_float &r) {											// 21
 	static const simd_float zero = simd_float(0.0);
 	static const simd_float one = simd_float(1.0);
 	static const simd_float c1 = simd_float(std::log(2));
@@ -296,24 +296,24 @@ inline simd_float two_pow(const simd_float &r) {
 		n[i] = _mm512_cvtps_epi32(r0.v[i]);
 		r0.v[i] = _mm512_cvtepi32_ps(n[i]);
 #else
-		r0.v[i] = _mm256_round_ps(r.v[i], _MM_FROUND_TO_NEAREST_INT);
-		n[i] = _mm256_cvtps_epi32(r0.v[i]);
-		r0.v[i] = _mm256_cvtepi32_ps(n[i]);
+		r0.v[i] = _mm256_round_ps(r.v[i], _MM_FROUND_TO_NEAREST_INT);							// 1
+		n[i] = _mm256_cvtps_epi32(r0.v[i]);														// 1
+		r0.v[i] = _mm256_cvtepi32_ps(n[i]);														// 1
 #endif
 	}
 	auto x = r - r0;
 	auto y = c8;
-	y = fmadd(y, x, c7);
-	y = fmadd(y, x, c6);
-	y = fmadd(y, x, c5);
-	y = fmadd(y, x, c4);
-	y = fmadd(y, x, c3);
-	y = fmadd(y, x, c2);
-	y = fmadd(y, x, c1);
-	y = fmadd(y, x, one);
+	y = fmadd(y, x, c7);																		// 2
+	y = fmadd(y, x, c6);																		// 2
+	y = fmadd(y, x, c5);																		// 2
+	y = fmadd(y, x, c4);																		// 2
+	y = fmadd(y, x, c3);																		// 2
+	y = fmadd(y, x, c2);																		// 2
+	y = fmadd(y, x, c1);																		// 2
+	y = fmadd(y, x, one);																		// 2
 	for (int i = 0; i < NCHUNK; i++) {
 #ifdef USE_AVX512
-		auto imm0 = _mm512_add_epi32(n[i], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
+		auto imm0 = _mm512_add_epi32(n[i], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f)); // 1
 		imm0 = _mm512_slli_epi32(imm0, 23);
 		r0.v[i] = _mm512_castsi512_ps(imm0);
 #else
@@ -322,7 +322,7 @@ inline simd_float two_pow(const simd_float &r) {
 		r0.v[i] = _mm256_castsi256_ps(imm0);
 #endif
 	}
-	auto res = y * r0;
+	auto res = y * r0;																			// 1
 	return res;
 }
 
@@ -338,22 +338,22 @@ inline simd_float round(const simd_float a) {
 	return v;
 }
 
-inline simd_float sin(const simd_float &x0) {
+inline simd_float sin(const simd_float &x0) {						// 17
 	auto x = x0;
 	// From : http://mooooo.ooo/chebyshev-sine-approximation/
 	static const simd_float pi_major(3.1415927);
 	static const simd_float pi_minor(-0.00000008742278);
-	x = x - round(x * (1.0 / (2.0 * M_PI))) * (2.0 * M_PI);
-	const simd_float x2 = x * x;
+	x = x - round(x * (1.0 / (2.0 * M_PI))) * (2.0 * M_PI);			// 4
+	const simd_float x2 = x * x;									// 1
 	simd_float p = simd_float(0.00000000013291342);
-	p = fmadd(p, x2, simd_float(-0.000000023317787));
-	p = fmadd(p, x2, simd_float(0.0000025222919));
-	p = fmadd(p, x2, simd_float(-0.00017350505));
-	p = fmadd(p, x2, simd_float(0.0066208798));
-	p = fmadd(p, x2, simd_float(-0.10132118));
-	const auto x1 = (x - pi_major - pi_minor);
-	const auto x3 = (x + pi_major + pi_minor);
-	auto res = x1 * x3 * p * x;
+	p = fmadd(p, x2, simd_float(-0.000000023317787));				// 2
+	p = fmadd(p, x2, simd_float(0.0000025222919));					// 2
+	p = fmadd(p, x2, simd_float(-0.00017350505));					// 2
+	p = fmadd(p, x2, simd_float(0.0066208798));						// 2
+	p = fmadd(p, x2, simd_float(-0.10132118));						// 2
+	const auto x1 = (x - pi_major - pi_minor);						// 2
+	const auto x3 = (x + pi_major + pi_minor);						// 2
+	auto res = x1 * x3 * p * x;										// 3
 	return res;
 }
 
@@ -370,7 +370,7 @@ inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {
 //#endif
 }
 
-inline simd_float exp(const simd_float &a) {
+inline simd_float exp(const simd_float &a) { 	// 22
 	static const simd_float c0 = 1.0 / std::log(2);
 	return two_pow(a * c0);
 //	simd_float v;
@@ -384,7 +384,7 @@ inline simd_float exp(const simd_float &a) {
 //	return v;
 }
 
-inline simd_float erfexp(const simd_float &x, simd_float *e) {
+inline simd_float erfexp(const simd_float &x, simd_float *e) {				// 48
 	simd_float v;
 	const simd_float p(0.3275911);
 	const simd_float a1(0.254829592);
@@ -392,13 +392,13 @@ inline simd_float erfexp(const simd_float &x, simd_float *e) {
 	const simd_float a3(1.421413741);
 	const simd_float a4(-1.453152027);
 	const simd_float a5(1.061405429);
-	const simd_float t1 = simd_float(1) / (simd_float(1) + p * x);
-	const simd_float t2 = t1 * t1;
-	const simd_float t3 = t2 * t1;
-	const simd_float t4 = t2 * t2;
-	const simd_float t5 = t2 * t3;
-	*e = exp(-x * x);
-	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * *e;
+	const simd_float t1 = simd_float(1) / (simd_float(1) + p * x);			// 3
+	const simd_float t2 = t1 * t1;											// 1
+	const simd_float t3 = t2 * t1;											// 2
+	const simd_float t4 = t2 * t2;											// 3
+	const simd_float t5 = t2 * t3;											// 4
+	*e = exp(-x * x);														// 24
+	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * *e; // 11
 	return v;
 }
 
