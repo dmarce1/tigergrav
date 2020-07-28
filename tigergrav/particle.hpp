@@ -13,13 +13,6 @@
 
 #include <vector>
 
-
-struct monopole {
-	float m;
-	vect<float> x;
-	double r;
-};
-
 struct source {
 	float m;
 	vect<float> x;
