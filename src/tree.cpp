@@ -67,8 +67,8 @@ void tree::set_theta(float t) {
 	theta_inv = 1.0 / t;
 }
 
-tree_ptr tree::new_(range r, part_iter b, part_iter e, int level) {
-	return std::make_shared<tree>(r, b, e, level);
+tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
+	return tree_client(std::make_shared<tree>(r, b, e, level));
 }
 
 tree::tree(range box, part_iter b, part_iter e, int level_) {
@@ -183,10 +183,10 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 	} else {
 		std::pair<multipole_info, range> ml, mr;
 		auto rcl = thread_if_avail([=]() {
-			return children[0]->compute_multipoles(mrung, do_out);
+			return children[0].compute_multipoles(mrung, do_out);
 		}, level, true);
 		auto rcr = thread_if_avail([=]() {
-			return children[1]->compute_multipoles(mrung, do_out);
+			return children[1].compute_multipoles(mrung, do_out);
 		}, level);
 		mr = rcr.get();
 		ml = rcl.get();
@@ -219,8 +219,8 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 node_attr tree::get_node_attributes() const {
 	node_attr attr;
 	attr.multi = multi;
-	attr.children[0] = &(*children[0]);
-	attr.children[1] = &(*children[1]);
+	attr.children[0] = children[0].get_raw_ptr();
+	attr.children[1] = children[1].get_raw_ptr();
 	attr.leaf = is_leaf();
 	attr.pbegin = part_begin;
 	attr.pend = part_end;
@@ -262,7 +262,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	next_echecklist.reserve(NCHILD * echecklist.size());
 
 	for (auto c : dchecklist) {
-		auto other = c.ptr->get_node_attributes();
+		const auto other = c.node.get_node_attributes();
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.multi.x) : abs(multi.x - other.multi.x);
 		const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 		if (far) {
@@ -275,7 +275,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		} else {
 			if (other.leaf) {
-				next_dchecklist.push_back( { true, c.ptr });
+				next_dchecklist.push_back( { true, c.node });
 			} else {
 				next_dchecklist.push_back( { false, other.children[0] });
 				next_dchecklist.push_back( { false, other.children[1] });
@@ -285,7 +285,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	if (opts.ewald) {
 		for (auto c : echecklist) {
-			auto other = c.ptr->get_node_attributes();
+			const auto other = c.node.get_node_attributes();
 			const auto dx = ewald_far_separation(multi.x - other.multi.x, multi.r + other.multi.r);
 			const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 			if (far) {
@@ -297,8 +297,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					emulti_srcs.push_back( { other.multi.m, other.multi.x });
 				}
 			} else {
-				if (c.ptr->is_leaf()) {
-					next_echecklist.push_back( { true, c.ptr });
+				if (other.leaf) {
+					next_echecklist.push_back( { true, c.node });
 				} else {
 					next_echecklist.push_back( { false, other.children[0] });
 					next_echecklist.push_back( { false, other.children[1] });
@@ -322,10 +322,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	esources.resize(0);
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=]() {
-			return children[0]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
+			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
 		}, level, true);
 		auto rc_r_fut = thread_if_avail([&]() {
-			return children[1]->kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
+			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
 		}, level);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
@@ -340,7 +340,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	} else {
 		while (!dchecklist.empty()) {
 			for (auto c : dchecklist) {
-				auto other = c.ptr->get_node_attributes();
+				const auto other = c.node.get_node_attributes();
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.multi.x) : abs(multi.x - other.multi.x);
 				const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 				if (c.opened) {
@@ -351,8 +351,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					if (far) {
 						dmulti_srcs.push_back( { other.multi.m, other.multi.x });
 					} else {
-						if (c.ptr->is_leaf()) {
-							next_dchecklist.push_back( { true, c.ptr });
+						if (other.leaf) {
+							next_dchecklist.push_back( { true, c.node });
 						} else {
 							next_dchecklist.push_back( { false, other.children[0] });
 							next_dchecklist.push_back( { false, other.children[1] });
@@ -366,7 +366,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		if (opts.ewald) {
 			while (!echecklist.empty()) {
 				for (auto c : echecklist) {
-					auto other = c.ptr->get_node_attributes();
+					const auto other = c.node.get_node_attributes();
 					const auto dx = ewald_far_separation(multi.x - other.multi.x, multi.r + other.multi.r);
 					const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 					if (c.opened) {
@@ -377,8 +377,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 						if (far) {
 							emulti_srcs.push_back( { other.multi.m, other.multi.x });
 						} else {
-							if (c.ptr->is_leaf()) {
-								next_echecklist.push_back( { true, c.ptr });
+							if (other.leaf) {
+								next_echecklist.push_back( { true, c.node });
 							} else {
 								next_echecklist.push_back( { false, other.children[0] });
 								next_echecklist.push_back( { false, other.children[1] });
@@ -484,11 +484,11 @@ void tree::drift(float dt) {
 		}
 	} else {
 		auto rcl = thread_if_avail([=]() {
-			children[0]->drift(dt);
+			children[0].drift(dt);
 			return 1;
 		}, level, true);
 		auto rcr = thread_if_avail([=]() {
-			children[1]->drift(dt);
+			children[1].drift(dt);
 			return 1;
 		}, level);
 		rcl.get();

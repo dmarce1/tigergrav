@@ -18,11 +18,11 @@ double timer(void) {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
-kick_return solve_gravity(tree_ptr root_ptr, rung_type mrung, bool do_out) {
-	root_ptr->compute_multipoles(mrung, do_out);
+kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
+	root_ptr.compute_multipoles(mrung, do_out);
 	expansion<float> L;
 	L = 0.0;
-	return root_ptr->kick_fmm(std::vector<check_item>(1, { false, &(*root_ptr) }), std::vector<check_item>(1, { false, &(*root_ptr) }), { { 0.5, 0.5, 0.5 } },
+	return root_ptr.kick_fmm(std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), { { 0.5, 0.5, 0.5 } },
 			L, mrung, do_out);
 }
 
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 	if (opts.solver_test) {
 		printf("Computing direct solution first\n");
 		auto parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
-		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
+		tree_client root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
 		tree::set_theta(1e-10);
 		auto kr = solve_gravity(root_ptr, min_rung(0), true);
 		std::sort(kr.out.begin(), kr.out.end());
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
 		auto parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
 
 		printf("Forming tree\n");
-		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
+		tree_client root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
 		printf("Done forming tree\n");
 
 		double t = 0.0;
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 			printf("%9x ", (int) itime);
 			printf("%9i ", (int) kr.rung);
 			printf("%9i ", (int) min_rung(itime));
-			printf("%13.6e ", root_ptr->get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
+			printf("%13.6e ", root_ptr.get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
 //			tree::reset_flop();
 //			tstart = timer();
 			if (do_out) {
@@ -139,7 +139,7 @@ int main(int argc, char *argv[]) {
 			} else {
 				do_out = false;
 			}
-			root_ptr->drift(dt);
+			root_ptr.drift(dt);
 			root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
 			itime = inc(itime, kr.rung);
 			kr = solve_gravity(root_ptr, min_rung(itime), do_out);
