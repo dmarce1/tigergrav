@@ -18,25 +18,12 @@ double timer(void) {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
-kick_return solve_gravity(tree_ptr root_ptr, int type, rung_type mrung, bool do_out) {
-	if (type == 0) {
-		root_ptr->active_particles(mrung, do_out);
-		std::vector<vect<float>> sources;
-		return root_ptr->kick_direct(sources, mrung, do_out);
-	} else if (type == 1) {
-		root_ptr->compute_multipoles(mrung, do_out);
-		return root_ptr->kick_bh(std::vector<raw_tree_ptr>(1, &(*root_ptr)), std::vector<vect<float>>(), std::vector<multi_src>(),
-				std::vector<raw_tree_ptr>(1, &(*root_ptr)), std::vector<vect<float>>(), std::vector<multi_src>(), mrung, do_out);
-	} else if (type == 2) {
-		root_ptr->compute_multipoles(mrung, do_out);
-		expansion<float> L;
-		L = 0.0;
-		return root_ptr->kick_fmm(std::vector<check_item>(1, { false, &(*root_ptr) }), std::vector<check_item>(1, { false, &(*root_ptr) }),
-				{ { 0.5, 0.5, 0.5 } }, L, mrung, do_out);
-	} else {
-		printf("Unknown gravity solver type\n");
-		return kick_return();
-	}
+kick_return solve_gravity(tree_ptr root_ptr, rung_type mrung, bool do_out) {
+	root_ptr->compute_multipoles(mrung, do_out);
+	expansion<float> L;
+	L = 0.0;
+	return root_ptr->kick_fmm(std::vector<check_item>(1, { false, &(*root_ptr) }), std::vector<check_item>(1, { false, &(*root_ptr) }), { { 0.5, 0.5, 0.5 } },
+			L, mrung, do_out);
 }
 
 #ifdef USE_HPX
@@ -69,7 +56,8 @@ int main(int argc, char *argv[]) {
 		printf("Computing direct solution first\n");
 		auto parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
 		tree_ptr root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
-		auto kr = solve_gravity(root_ptr, 0, min_rung(0), true);
+		tree::set_theta(1e-10);
+		auto kr = solve_gravity(root_ptr, min_rung(0), true);
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
 		printf("%13s %13s %13s %13s %13s %13s %13s %13s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
@@ -79,7 +67,7 @@ int main(int argc, char *argv[]) {
 			tree::set_theta(theta);
 			tree::reset_flop();
 			auto start = timer();
-			kr = solve_gravity(root_ptr, opts.solver_type, min_rung(0), true);
+			kr = solve_gravity(root_ptr, min_rung(0), true);
 			auto stop = timer();
 			auto flops = tree::get_flop() / (stop - start + 1.0e-10) / std::pow(1024, 3);
 			std::sort(kr.out.begin(), kr.out.end());
@@ -137,7 +125,7 @@ int main(int argc, char *argv[]) {
 		};
 		int oi = 1;
 		int si = 1;
-		kr = solve_gravity(root_ptr, opts.solver_type, min_rung(0), do_out);
+		kr = solve_gravity(root_ptr, min_rung(0), do_out);
 		if (do_out) {
 			output_particles(kr.out, "parts.0.silo");
 		}
@@ -154,7 +142,7 @@ int main(int argc, char *argv[]) {
 			root_ptr->drift(dt);
 			root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
 			itime = inc(itime, kr.rung);
-			kr = solve_gravity(root_ptr, opts.solver_type, min_rung(itime), do_out);
+			kr = solve_gravity(root_ptr, min_rung(itime), do_out);
 			if (do_out) {
 				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
 			}

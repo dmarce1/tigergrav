@@ -11,21 +11,6 @@ float tree::theta_inv;
 static std::atomic<int> num_threads(1);
 static bool inc_thread();
 static void dec_thread();
-interaction_statistics tree::istats;
-
-interaction_statistics tree::get_istats() {
-	interaction_statistics i = istats;
-	const double total = i.PP_direct + i.PC_direct + i.CP_direct + i.CC_direct + i.PP_ewald + i.PC_ewald + i.CP_ewald + i.CC_ewald;
-	i.PP_direct_pct = i.PP_direct / total;
-	i.PC_direct_pct = i.PC_direct / total;
-	i.CP_direct_pct = i.CP_direct / total;
-	i.CC_direct_pct = i.CC_direct / total;
-	i.PP_ewald_pct = i.PP_ewald / total;
-	i.PC_ewald_pct = i.PC_ewald / total;
-	i.CP_ewald_pct = i.CP_ewald / total;
-	i.CC_ewald_pct = i.CC_ewald / total;
-	return i;
-}
 
 bool inc_thread() {
 #ifdef USE_HPX
@@ -333,13 +318,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 	}
-	istats.CC_direct += dmulti_srcs.size();
-	istats.CP_direct += dsources.size();
 	flop += gravity_CC_direct(L, multi.x, dmulti_srcs);
 	flop += gravity_CP_direct(L, multi.x, dsources);
 	if (opts.ewald) {
-		istats.CC_ewald += emulti_srcs.size();
-		istats.CP_ewald += esources.size();
 		flop += gravity_CC_ewald(L, multi.x, emulti_srcs);
 		flop += gravity_CP_ewald(L, multi.x, esources);
 	}
@@ -443,164 +424,11 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				j++;
 			}
 		}
-		istats.PC_direct += x.size() * dmulti_srcs.size();
-		istats.PP_direct += x.size() * dsources.size();
 		flop += gravity_PP_direct(f, x, dsources);
 		flop += gravity_PC_direct(f, x, dmulti_srcs);
 		if (opts.ewald) {
-			istats.PC_ewald += x.size() * emulti_srcs.size();
-			istats.PP_ewald += x.size() * esources.size();
 			flop += gravity_PP_ewald(f, x, esources);
 			flop += gravity_PC_ewald(f, x, emulti_srcs);
-		}
-		rc = do_kick(f, min_rung, do_out);
-	}
-	return rc;
-}
-
-kick_return tree::kick_bh(std::vector<raw_tree_ptr> dchecklist, std::vector<vect<float>> dsources, std::vector<multi_src> multi_srcs,
-		std::vector<raw_tree_ptr> echecklist, std::vector<vect<float>> esources, std::vector<multi_src> emulti_srcs, rung_type min_rung, bool do_out) {
-
-	kick_return rc;
-	if (!multi.has_active && !do_out) {
-		rc.rung = 0;
-		return rc;
-	}
-
-	std::vector<raw_tree_ptr> next_dchecklist;
-	std::vector<raw_tree_ptr> next_echecklist;
-	static const auto opts = options::get();
-	static const float m = 1.0 / opts.problem_size;
-	for (auto c : dchecklist) {
-		auto other = c->get_multipole();
-		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.x) : abs(multi.x - other.x);
-		if (dx > (multi.r + other.r) * theta_inv) {
-			multi_srcs.push_back( { other.m, other.x });
-		} else {
-			if (c->is_leaf()) {
-				const auto pos = c->get_positions();
-				for (auto i = pos.first; i != pos.second; i++) {
-					dsources.push_back(pos_to_double(i->x));
-				}
-			} else {
-				auto next = c->get_children();
-				next_dchecklist.push_back(next[0]);
-				next_dchecklist.push_back(next[1]);
-			}
-		}
-	}
-	dchecklist = std::move(next_dchecklist);
-	if (opts.ewald) {
-		for (auto c : echecklist) {
-			auto other = c->get_multipole();
-			const auto dx = ewald_far_separation(multi.x - other.x, multi.r + other.r);
-			if (dx > (multi.r + other.r) * theta_inv) {
-				emulti_srcs.push_back( { other.m, other.x });
-			} else {
-				if (c->is_leaf()) {
-					const auto pos = c->get_positions();
-					for (auto i = pos.first; i != pos.second; i++) {
-						esources.push_back(pos_to_double(i->x));
-					}
-				} else {
-					auto next = c->get_children();
-					next_echecklist.push_back(next[0]);
-					next_echecklist.push_back(next[1]);
-				}
-			}
-		}
-	}
-	echecklist = std::move(next_echecklist);
-	if (!is_leaf()) {
-		auto rc_l_fut = thread_if_avail(
-				[=]() {
-					return children[0]->kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources),
-							std::move(emulti_srcs), min_rung, do_out);
-				}, level, true);
-		auto rc_r_fut = thread_if_avail(
-				[=]() {
-					return children[1]->kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources),
-							std::move(emulti_srcs), min_rung, do_out);
-				}, level);
-		const auto rc_r = rc_r_fut.get();
-		const auto rc_l = rc_l_fut.get();
-		rc.rung = std::max(rc_r.rung, rc_l.rung);
-		if (do_out) {
-			rc.out = std::move(rc_l.out);
-			rc.out.insert(rc.out.end(), rc_r.out.begin(), rc_r.out.end());
-		}
-		if (do_out) {
-			rc.stats = rc_r.stats + rc_l.stats;
-		}
-	} else {
-		if (!dchecklist.empty() || !echecklist.empty()) {
-			rc = kick_bh(std::move(dchecklist), std::move(dsources), std::move(multi_srcs), std::move(echecklist), std::move(esources), std::move(emulti_srcs),
-					min_rung, do_out);
-		} else {
-			std::vector<vect<float>> x;
-			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= min_rung || do_out) {
-					x.push_back(pos_to_double(i->x));
-				}
-			}
-			std::vector<force> f(x.size(), { 0, vect<float>(0) });
-			flop += gravity_PC_direct(f, x, multi_srcs);
-			flop += gravity_PP_direct(f, x, dsources);
-			if (opts.ewald) {
-				flop += gravity_PP_ewald(f, x, esources);
-				flop += gravity_PC_ewald(f, x, emulti_srcs);
-			}
-			rc = do_kick(f, min_rung, do_out);
-		}
-	}
-	return rc;
-}
-
-kick_return tree::kick_direct(std::vector<vect<float>> sources, rung_type min_rung, bool do_out) {
-
-	static const auto opts = options::get();
-	static const float m = 1.0 / opts.problem_size;
-	if (sources.size() == 0) {
-		for (auto i = part_begin; i != part_end; i++) {
-			sources.push_back(pos_to_double(i->x));
-		}
-	}
-
-	kick_return rc;
-	if (!multi.has_active && !do_out) {
-		rc.rung = 0;
-		return rc;
-	}
-
-	if (!is_leaf()) {
-		auto rc_l_fut = thread_if_avail([&]() {
-			return children[0]->kick_direct(sources, min_rung, do_out);
-		}, level, true);
-		auto rc_r_fut = thread_if_avail([&]() {
-			return children[1]->kick_direct(sources, min_rung, do_out);
-		}, level);
-		const auto rc_r = rc_r_fut.get();
-		const auto rc_l = rc_l_fut.get();
-		rc.rung = std::max(rc_r.rung, rc_l.rung);
-		if (do_out) {
-			rc.out = std::move(rc_l.out);
-			rc.out.insert(rc.out.end(), rc_r.out.begin(), rc_r.out.end());
-		}
-		if (do_out) {
-			rc.stats = rc_r.stats + rc_l.stats;
-		}
-	} else {
-		std::vector<vect<float>> x;
-		for (auto i = part_begin; i != part_end; i++) {
-			if (i->rung >= min_rung || do_out) {
-				x.push_back(pos_to_double(i->x));
-			}
-		}
-		std::vector<force> f(x.size(), { 0, vect<float>(0) });
-		std::vector<vect<float>> esources = sources;
-		flop += gravity_PP_direct(f, x, sources);
-		if (opts.ewald) {
-			flop += gravity_PP_ewald(f, x, esources);
 		}
 		rc = do_kick(f, min_rung, do_out);
 	}

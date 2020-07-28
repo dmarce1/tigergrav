@@ -23,7 +23,6 @@ public:
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
 		arc & solver_test;
-		arc & solver_type;
 		arc & out_parts;
 		arc & ewald;
 		arc & config_file;
