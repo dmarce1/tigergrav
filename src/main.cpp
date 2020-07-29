@@ -1,12 +1,10 @@
 #include <tigergrav/defs.hpp>
 
-#ifdef USE_HPX
 #include <hpx/hpx_init.hpp>
-#endif
 
 #include <tigergrav/initialize.hpp>
 #include <tigergrav/options.hpp>
-#include <tigergrav/particle.hpp>
+#include <tigergrav/part_vect.hpp>
 #include <tigergrav/gravity.hpp>
 #include <tigergrav/tree.hpp>
 
@@ -26,18 +24,10 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 			L, mrung, do_out);
 }
 
-#ifdef USE_HPX
 int hpx_main(int argc, char *argv[]) {
-#else
-int main(int argc, char *argv[]) {
-#endif
 	printf("sizeof(particle) = %li\n", sizeof(particle));
 	printf("sizeof(tree)     = %li\n", sizeof(tree));
-#ifdef USE_HPX
 	printf("Hardware concurrency = %li\n", hpx::threads::hardware_concurrency());
-#else
-	printf("Hardware concurrency = %li\n", std::thread::hardware_concurrency());
-#endif
 	feenableexcept(FE_DIVBYZERO);
 	feenableexcept(FE_INVALID);
 	feenableexcept(FE_OVERFLOW);
@@ -52,18 +42,18 @@ int main(int argc, char *argv[]) {
 		root_box.max[dim] = 1.0;
 	}
 
+	part_vect_init();
+
 	if (opts.solver_test) {
 		printf("Computing direct solution first\n");
-		auto parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
-		tree_client root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
+		tree_client root_ptr = tree::new_(root_box, 0, opts.problem_size, 0);
 		tree::set_theta(1e-10);
 		auto kr = solve_gravity(root_ptr, min_rung(0), true);
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
 		printf("%13s %13s %13s %13s %13s %13s %13s %13s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
-			parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
-			root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
+			root_ptr = tree::new_(root_box, 0, opts.problem_size, 0);
 			tree::set_theta(theta);
 			tree::reset_flop();
 			auto start = timer();
@@ -76,10 +66,9 @@ int main(int argc, char *argv[]) {
 		}
 	} else {
 
-		auto parts = initial_particle_set(opts.problem, opts.problem_size, opts.out_parts);
 
 		printf("Forming tree\n");
-		tree_client root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
+		tree_client root_ptr = tree::new_(root_box, 0, opts.problem_size, 0);
 		printf("Done forming tree\n");
 
 		double t = 0.0;
@@ -140,7 +129,7 @@ int main(int argc, char *argv[]) {
 				do_out = false;
 			}
 			root_ptr.drift(dt);
-			root_ptr = tree::new_(root_box, parts.begin(), parts.end(), 0);
+			root_ptr = tree::new_(root_box, 0, opts.problem_size, 0);
 			itime = inc(itime, kr.rung);
 			kr = solve_gravity(root_ptr, min_rung(itime), do_out);
 			if (do_out) {
@@ -153,14 +142,9 @@ int main(int argc, char *argv[]) {
 		show();
 //	root_ptr->output(t, oi);
 	}
-#ifdef USE_HPX
 	return hpx::finalize();
-#else
-	return 0;
-#endif
 }
 
-#ifdef USE_HPX
 int main(int argc, char *argv[]) {
 
 	std::vector<std::string> cfg = { "hpx.commandline.allow_unknown=1" };
@@ -168,4 +152,3 @@ int main(int argc, char *argv[]) {
 	hpx::init(argc, argv, cfg);
 }
 
-#endif

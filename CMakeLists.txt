@@ -30,6 +30,7 @@ set(tigergrav_source_files
 	src/new.cpp
 	src/output.cpp
 	src/options.cpp
+	src/part_vect.cpp
 	src/rand.cpp
 	src/range.cpp
 	src/tree.cpp
@@ -48,6 +49,7 @@ set(tigergrav_header_files
 	tigergrav/multipole.hpp
 	tigergrav/output.hpp
 	tigergrav/options.hpp
+	tigergrav/part_vect.hpp
 	tigergrav/particle.hpp
 	tigergrav/position.hpp
 	tigergrav/rand.hpp

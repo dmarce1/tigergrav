@@ -1,12 +1,10 @@
 #include <tigergrav/options.hpp>
 #include <fstream>
 #include <iostream>
-#ifdef USE_HPX
 #include <hpx/runtime/actions/plain_action.hpp>
 #include <hpx/async.hpp>
 
 HPX_PLAIN_ACTION(options::set, set_options_action);
-#endif
 #include <boost/program_options.hpp>
 
 options options::global;
@@ -75,18 +73,14 @@ bool options::process_options(int argc, char *argv[]) {
 	if( out_parts < 0) {
 		out_parts = problem_size;
 	}
-#ifdef USE_HPX
 	const auto loc = hpx::find_all_localities();
 	const auto sz = loc.size();
 	std::vector<hpx::future<void>> futs;
-#endif
 	set(*this);
-#ifdef USE_HPX
 	for (int i = 1; i < sz; i++) {
 		futs.push_back(hpx::async < set_options_action > (loc[i], *this));
 	}
 	hpx::wait_all(futs);
-#endif
 #define SHOW( opt ) std::cout << std::string( #opt ) << " = " << std::to_string(opt) << '\n';
 #define SHOW_STR( opt ) std::cout << std::string( #opt ) << " = " << opt << '\n';
 	SHOW(dt_max);

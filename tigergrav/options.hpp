@@ -18,23 +18,22 @@ public:
 	double dt_max;
 	double t_max;
 
-
-
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc &  config_file;
+		arc & problem;
+		arc & ewald;
 		arc & solver_test;
 		arc & out_parts;
-		arc & ewald;
-		arc & config_file;
-		arc & problem;
 		arc & parts_per_node;
 		arc & problem_size;
+		arc & solver_type;
 		arc & theta;
 		arc & eta;
 		arc & soft_len;
+		arc & dt_out;
 		arc & dt_max;
 		arc & t_max;
-		arc & dt_out;
 	}
 	static options global;
 	static options& get();

@@ -20,6 +20,14 @@ struct output {
 		}
 		return false;
 	}
+	template<class A>
+	void serialize(A &&arc, unsigned) {
+		arc & x;
+		arc & v;
+		arc & g;
+		arc & phi;
+		arc & rung;
+	}
 };
 
 struct error {

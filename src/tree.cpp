@@ -5,6 +5,8 @@
 #include <atomic>
 #include <algorithm>
 
+HPX_REGISTER_COMPONENT(hpx::components::component<tree>, tree);
+
 std::atomic<std::uint64_t> tree::flop(0);
 float tree::theta_inv;
 
@@ -13,11 +15,7 @@ static bool inc_thread();
 static void dec_thread();
 
 bool inc_thread() {
-#ifdef USE_HPX
 	static const int nmax = 4 * hpx::threads::hardware_concurrency();
-#else
-	static const int nmax = 4 * std::thread::hardware_concurrency();
-#endif
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
@@ -33,33 +31,21 @@ void dec_thread() {
 template<class F>
 auto thread_if_avail(F &&f, int level, bool left = false) {
 	bool thread;
-	if (level % 8 == 0) {
+	if (level % 3 == 0) {
 		thread = true;
 		num_threads++;
 	} else if (left) {
 		thread = inc_thread();
 	}
 	if (thread) {
-#ifdef USE_HPX
 		auto rc = hpx::async([](F &&f) {
-#else
-		auto rc = std::async(std::launch::async, [](F &&f) {
-#endif
 			auto rc = f();
 			dec_thread();
 			return rc;
 		},std::forward<F>(f));
 		return rc;
 	} else {
-#ifdef USE_HPX
 		return hpx::make_ready_future(f());
-#else
-		auto rc = f();
-		using T = decltype(rc);
-		std::promise<T> prms;
-		prms.set_value(std::move(rc));
-		return prms.get_future();
-#endif
 	}
 }
 
@@ -68,7 +54,7 @@ void tree::set_theta(float t) {
 }
 
 tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
-	return tree_client(std::make_shared<tree>(r, b, e, level));
+	return tree_client(hpx::new_ < tree > (hpx::find_here(), r, b, e, level).get());
 }
 
 tree::tree(range box, part_iter b, part_iter e, int level_) {
@@ -78,18 +64,7 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 	part_end = e;
 	if (e - b > opts.parts_per_node) {
 		float max_span = 0.0;
-		range prange;
-		for (int dim = 0; dim < NDIM; dim++) {
-			prange.max[dim] = 0.0;
-			prange.min[dim] = +1.0;
-		}
-		for (auto i = b; i != e; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto x = pos_to_double(i->x[dim]);
-				prange.max[dim] = std::max(prange.max[dim], x);
-				prange.min[dim] = std::min(prange.min[dim], x);
-			}
-		}
+		const range prange = part_vect_range(b, e);
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto this_span = prange.max[dim] - prange.min[dim];
@@ -103,18 +78,10 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 		float mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		decltype(b) mid_iter;
-//		if (e - b < 64 * opts.parts_per_node) {
-//			std::sort(b, e, [max_dim](const particle &p1, const particle &p2) {
-//				return p1.x[max_dim] < p2.x[max_dim];
-//			});
-//			mid_iter = b + (e - b) / 2;
-//		} else {
 		if (e - b == 0) {
 			mid_iter = e;
 		} else {
-			mid_iter = bisect(b, e, [max_dim, mid](const particle &p) {
-				return pos_to_double(p.x[max_dim]) < mid;
-			});
+			mid_iter = part_vect_sort(b, e, mid, max_dim);
 		}
 //		}
 		auto rcl = thread_if_avail([=]() {
@@ -135,17 +102,18 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 	range prange;
 	if (is_leaf()) {
 		multi.x = vect<float>(0.0);
-		for (auto i = part_begin; i != part_end; i++) {
+		const auto parts = part_vect_read(part_begin, part_end);
+		for (const auto &p : parts) {
 			multi.m() += m;
-			multi.x += pos_to_double(i->x) * m;
+			multi.x += pos_to_double(p.x) * m;
 		}
 		if (multi.m() != 0.0) {
 			multi.x = multi.x / multi.m();
 		} else {
 			ERROR();
 		}
-		for (auto i = part_begin; i != part_end; i++) {
-			const auto X = pos_to_double(i->x) - multi.x;
+		for (const auto &p : parts) {
+			const auto X = pos_to_double(p.x) - multi.x;
 			for (int j = 0; j < NDIM; j++) {
 				for (int k = 0; k <= j; k++) {
 					multi.m(j, k) += m * X[j] * X[k];
@@ -156,13 +124,13 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 			}
 		}
 		multi.r = 0.0;
-		for (auto i = part_begin; i != part_end; i++) {
-			multi.r = std::max(multi.r, (ireal) abs(pos_to_double(i->x) - multi.x));
+		for (const auto &p : parts) {
+			multi.r = std::max(multi.r, (ireal) abs(pos_to_double(p.x) - multi.x));
 		}
 		bool rc = do_out;
 		if (!do_out) {
-			for (auto i = part_begin; i != part_end; i++) {
-				if (i->rung >= mrung) {
+			for (const auto &p : parts) {
+				if (p.rung >= mrung) {
 					rc = true;
 					break;
 				}
@@ -173,8 +141,8 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 			prange.max[dim] = 0.0;
 			prange.min[dim] = 1.0;
 		}
-		for (auto i = part_begin; i != part_end; i++) {
-			const auto X = pos_to_double(i->x);
+		for (const auto &p : parts) {
+			const auto X = pos_to_double(p.x);
 			for (int dim = 0; dim < NDIM; dim++) {
 				prange.max[dim] = std::max(prange.max[dim], X[dim]);
 				prange.min[dim] = std::min(prange.min[dim], X[dim]);
@@ -243,21 +211,15 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	L = L << (multi.x - Lcom);
 
-	static thread_local std::vector<check_item> next_dchecklist;
-	static thread_local std::vector<check_item> next_echecklist;
+	std::vector<check_item> next_dchecklist;
+	std::vector<check_item> next_echecklist;
 	static const auto opts = options::get();
 	static const float m = 1.0 / opts.problem_size;
 
-	static thread_local std::vector<multi_src> dmulti_srcs;
-	static thread_local std::vector<vect<float>> dsources;
-	static thread_local std::vector<multi_src> emulti_srcs;
-	static thread_local std::vector<vect<float>> esources;
-	dmulti_srcs.resize(0);
-	emulti_srcs.resize(0);
-	esources.resize(0);
-	dsources.resize(0);
-	next_dchecklist.resize(0);
-	next_echecklist.resize(0);
+	std::vector<multi_src> dmulti_srcs;
+	std::vector<vect<float>> dsources;
+	std::vector<multi_src> emulti_srcs;
+	std::vector<vect<float>> esources;
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
 
@@ -267,7 +229,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 		if (far) {
 			if (c.opened) {
-				for (auto i = other.pbegin; i != other.pend; i++) {
+				const auto parts = part_vect_read(other.pbegin, other.pend);
+				for (auto i = parts.begin(); i != parts.end(); i++) {
 					dsources.push_back(pos_to_double(i->x));
 				}
 			} else {
@@ -290,7 +253,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 			if (far) {
 				if (c.opened) {
-					for (auto i = other.pbegin; i != other.pend; i++) {
+					const auto parts = part_vect_read(other.pbegin, other.pend);
+					for (auto i = parts.begin(); i != parts.end(); i++) {
 						esources.push_back(pos_to_double(i->x));
 					}
 				} else {
@@ -344,7 +308,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.multi.x) : abs(multi.x - other.multi.x);
 				const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 				if (c.opened) {
-					for (auto i = other.pbegin; i != other.pend; i++) {
+					const auto parts = part_vect_read(other.pbegin, other.pend);
+					for (auto i = parts.begin(); i != parts.end(); i++) {
 						dsources.push_back(pos_to_double(i->x));
 					}
 				} else {
@@ -370,7 +335,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					const auto dx = ewald_far_separation(multi.x - other.multi.x, multi.r + other.multi.r);
 					const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 					if (c.opened) {
-						for (auto i = other.pbegin; i != other.pend; i++) {
+						const auto parts = part_vect_read(other.pbegin, other.pend);
+						for (auto i = parts.begin(); i != parts.end(); i++) {
 							esources.push_back(pos_to_double(i->x));
 						}
 					} else {
@@ -393,14 +359,15 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		static thread_local std::vector<vect<float>> x;
 		static thread_local std::vector<force> f;
 		x.resize(0);
-		for (auto i = part_begin; i != part_end; i++) {
+		const auto parts = part_vect_read(part_begin, part_end);
+		for (auto i = parts.begin(); i != parts.end(); i++) {
 			if (i->rung >= min_rung || do_out) {
 				x.push_back(pos_to_double(i->x));
 			}
 		}
 		f.resize(x.size());
 		int j = 0;
-		for (auto i = part_begin; i != part_end; i++) {
+		for (auto i = parts.begin(); i != parts.end(); i++) {
 			if (i->rung >= min_rung || do_out) {
 				force this_f = L.translate_L2(x[j] - multi.x);
 				f[j].phi = this_f.phi;
@@ -429,7 +396,8 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 	if (do_out) {
 		rc.stats.zero();
 	}
-	for (auto i = part_begin; i != part_end; i++) {
+	auto parts = part_vect_read(part_begin, part_end);
+	for (auto i = parts.begin(); i != parts.end(); i++) {
 		if (i->rung >= min_rung || do_out) {
 			if (i->rung >= min_rung) {
 				if (i->rung != 0) {
@@ -463,12 +431,14 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 			j++;
 		}
 	}
+	part_vect_write(part_begin, part_end, std::move(parts));
 	return rc;
 }
 
 void tree::drift(float dt) {
 	if (is_leaf()) {
-		for (auto i = part_begin; i != part_end; i++) {
+		auto parts = part_vect_read(part_begin, part_end);
+		for (auto i = parts.begin(); i != parts.end(); i++) {
 			const vect<double> dx = i->v * dt;
 			vect<double> x = pos_to_double(i->x);
 			x += dx;
@@ -482,6 +452,7 @@ void tree::drift(float dt) {
 			}
 			i->x = double_to_pos(x);
 		}
+		part_vect_write(part_begin, part_end, std::move(parts));
 	} else {
 		auto rcl = thread_if_avail([=]() {
 			children[0].drift(dt);
