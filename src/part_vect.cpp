@@ -12,10 +12,10 @@ static part_iter part_end;
 
 inline particle& parts(part_iter i) {
 	int j = i - part_begin;
-	if (j < 0 || j >= particles.size()) {
-		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
-		abort();
-	}
+//	if (j < 0 || j >= particles.size()) {
+//		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
+//		abort();
+//	}
 	return particles[j];
 }
 
@@ -55,11 +55,9 @@ std::vector<particle> part_vect_read(part_iter b, part_iter e) {
 			these_parts.push_back(parts(i));
 		}
 		if (these_parts.size() != e - b) {
-//			printf("Broken read %i %i %i %i %i \n", b, e, this_e, b + these_parts.size(), myid);
-			auto fut = hpx::async<part_vect_read_action>(localities[myid + 1], b + these_parts.size(), e);
-//			printf("Broken read done 1\n");
-			auto next_parts = fut.get();
-//			printf("Broken read done 2\n");
+	//		printf("Broken read %i %i %i %i %i \n", b, e, this_e, b + these_parts.size(), myid);
+			auto next_parts = part_vect_read_action()(localities[myid + 1], b + these_parts.size(), e);
+	//		printf("Broken read done\n");
 			for (const auto &p : next_parts) {
 				these_parts.push_back(p);
 			}
@@ -103,39 +101,8 @@ std::pair<particle, part_iter> part_vect_sort_hi(part_iter, part_iter, double xm
 HPX_PLAIN_ACTION (part_vect_sort_lo);
 HPX_PLAIN_ACTION (part_vect_sort_hi);
 
-part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
-	static const auto localities = hpx::find_all_localities();
-	static const std::uint64_t N = localities.size();
-	static const std::uint64_t n = hpx::get_locality_id();
-	static const std::uint64_t M = options::get().problem_size;
-	part_iter this_hi;
-	bool complete;
-	if (hi > (n + 1) * M / N - 1) {
-		this_hi = (n + 1) * M / N - 1;
-		complete = false;
-	} else {
-		this_hi = hi;
-		complete = true;
-	}
-	while (lo <= std::min(this_hi, hi)) {
-		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
-			const auto hiid = part_vect_locality_id(hi);
-			auto tmp = part_vect_sort_hi_action()(localities[hiid], lo, hi, xmid, dim, parts(lo));
-			parts(lo) = tmp.first;
-			hi = tmp.second;
-		}
-		lo++;
-	}
-	if (!complete && lo <= hi) {
-		//	printf("lo_jump\n");
-		return part_vect_sort_lo_action()(localities[n + 1], this_hi + 1, hi, xmid, dim);
-	} else {
-		return hi;
-	}
 
-}
-
-std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter hi, double xmid, int dim, particle lo_part) {
+inline std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter hi, double xmid, int dim, particle lo_part) {
 	static const auto localities = hpx::find_all_localities();
 	static const std::uint64_t N = localities.size();
 	static const std::uint64_t n = hpx::get_locality_id();
@@ -159,6 +126,43 @@ std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter hi, dou
 		parts(hi) = lo_part;
 	}
 	return rc;
+}
+
+part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
+	static const auto localities = hpx::find_all_localities();
+	static const std::uint64_t N = localities.size();
+	static const std::uint64_t n = hpx::get_locality_id();
+	static const std::uint64_t M = options::get().problem_size;
+	part_iter this_hi;
+	bool complete;
+	if (hi > (n + 1) * M / N - 1) {
+		this_hi = (n + 1) * M / N - 1;
+		complete = false;
+	} else {
+		this_hi = hi;
+		complete = true;
+	}
+	while (lo <= std::min(this_hi, hi)) {
+		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
+			const auto hiid = part_vect_locality_id(hi);
+			std::pair<particle, part_iter> tmp;
+			if( hiid == n) {
+				tmp = part_vect_sort_hi(lo, hi, xmid, dim, parts(lo));
+			} else {
+				tmp = part_vect_sort_hi_action()(localities[hiid], lo, hi, xmid, dim, parts(lo));
+			}
+			parts(lo) = tmp.first;
+			hi = tmp.second;
+		}
+		lo++;
+	}
+	if (!complete && lo <= hi) {
+		//	printf("lo_jump\n");
+		return part_vect_sort_lo_action()(localities[n + 1], this_hi + 1, hi, xmid, dim);
+	} else {
+		return hi;
+	}
+
 }
 
 part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
