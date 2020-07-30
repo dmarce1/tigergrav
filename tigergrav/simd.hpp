@@ -36,7 +36,8 @@
 #define _mmx_cvtps_epi32(a)         _mm512_cvtps_epi32((a))
 #define _mmx_fmadd_ps(a,b,c)        _mm512_fmadd_ps ((a),(b),(c))
 #define _mmx_cmp_ps(a,b,c)       _mm512_cmp_ps_mask(a,b,c)
-#else
+#endif
+
 #ifdef USE_AVX2
 #define SIMDALIGN                  __attribute__((aligned(32)))
 #define SIMD_VLEN 8
@@ -59,12 +60,32 @@
 #define _mmx_cvtps_epi32(a)         _mm256_cvtps_epi32((a))
 #define _mmx_fmadd_ps(a,b,c)        _mm256_fmadd_ps ((a),(b),(c))
 #define _mmx_cmp_ps(a,b,c)        	_mm256_cmp_ps(a,b,c)
-#else
-#define NOSIMD
-#error 'Error - Compiling without SIMD support!'
 #endif
 
+#ifdef USE_AVX
+#define SIMDALIGN                  __attribute__((aligned(16)))
+#define SIMD_VLEN 4
+#define _simd_float                 __m128
+#define _simd_int                   __m128i
+#define _mmx_add_ps(a,b)            _mm_add_ps((a),(b))
+#define _mmx_sub_ps(a,b)            _mm_sub_ps((a),(b))
+#define _mmx_mul_ps(a,b)            _mm_mul_ps((a),(b))
+#define _mmx_div_ps(a,b)            _mm_div_ps((a),(b))
+#define _mmx_sqrt_ps(a)             _mm_sqrt_ps(a)
+#define _mmx_min_ps(a, b)           _mm_min_ps((a),(b))
+#define _mmx_max_ps(a, b)           _mm_max_ps((a),(b))
+#define _mmx_or_ps(a, b)            _mm_or_ps((a),(b))
+#define _mmx_and_ps(a, b)           _mm_and_ps((a),(b))
+#define _mmx_andnot_ps(a, b)        _mm_andnot_ps((a),(b))
+#define _mmx_rsqrt_ps(a)            _mm_rsqrt_ps(a)
+#define _mmx_add_epi32(a,b)         _mm_add_epi32((a),(b))
+#define _mmx_sub_epi32(a,b)         _mm_sub_epi32((a),(b))
+#define _mmx_mul_epi32(a,b)         _mm_mullo_epi32((a),(b))
+#define _mmx_cvtps_epi32(a)         _mm_cvtps_epi32((a))
+#define _mmx_fmadd_ps(a,b,c)        _mm_fmadd_ps ((a),(b),(c))
+#define _mmx_cmp_ps(a,b,c)        	_mm_cmp_ps(a,b,c)
 #endif
+
 class simd_int;
 class simd_float;
 
@@ -81,8 +102,12 @@ public:
 	inline simd_float(float d) {
 #ifdef USE_AVX512
         v = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
-#else
+#endif
+#ifdef USE_AVX2
 		v = _mm256_set_ps(d, d, d, d, d, d, d, d);
+#endif
+#ifdef USE_AVX
+		v = _mm_set_ps(d, d, d, d);
 #endif
 	}
 	union union_mm {
@@ -91,21 +116,31 @@ public:
 		__m256 m8[2];
 		__m128 m4[4];
 		float m1[16];
-#else
+#endif
+#ifdef USE_AVX2
 		__m256 m8[1];
 		__m128 m4[2];
 		float m1[8];
+#endif
+#ifdef USE_AVX
+		__m128 m4[2];
+		float m1[4];
 #endif
 	};
 	inline float sum() const {
 		union_mm s;
 #ifdef USE_AVX512
-		s.m16[0] = v[0];
+		s.m16[0] = v;
 		s.m8[0] = _mm256_add_ps(s.m8[0],s.m8[1]);
-#else
-		s.m8[0] = v;
-#endif
 		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
+#endif
+#ifdef USE_AVX2
+		s.m8[0] = v;
+		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
+#endif
+#ifdef USE_AVX
+		s.m4[0] = v;
+#endif
 		s.m1[4] = s.m1[2];
 		s.m1[5] = s.m1[3];
 		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
@@ -244,17 +279,27 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	simd_float r0;
 #ifdef USE_AVX512
         __m512i n;
-#else
-	__m256i n;
+#endif
+#ifdef USE_AVX2
+    	__m256i n;
+#endif
+#ifdef USE_AVX
+    	__m128i n;
 #endif
 #ifdef USE_AVX512
 	r0.v = _mm512_roundscale_ps(r.v, _MM_FROUND_TO_NEAREST_INT);
 	n = _mm512_cvtps_epi32(r0.v);
 	r0.v = _mm512_cvtepi32_ps(n);
-#else
+#endif
+#ifdef USE_AVX2
 	r0.v = _mm256_round_ps(r.v, _MM_FROUND_TO_NEAREST_INT);							// 1
 	n = _mm256_cvtps_epi32(r0.v);														// 1
 	r0.v = _mm256_cvtepi32_ps(n);														// 1
+#endif
+#ifdef USE_AVX
+	r0.v = _mm_round_ps(r.v, _MM_FROUND_TO_NEAREST_INT);							// 1
+	n = _mm_cvtps_epi32(r0.v);														// 1
+	r0.v = _mm_cvtepi32_ps(n);														// 1
 #endif
 	auto x = r - r0;
 	auto y = c8;
@@ -270,10 +315,16 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	auto imm0 = _mm512_add_epi32(n[i], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f)); // 1
 	imm0 = _mm512_slli_epi32(imm0, 23);
 	r0.v = _mm512_castsi512_ps(imm0);
-#else
+#endif
+#ifdef USE_AVX2
 	auto imm0 = _mm256_add_epi32(n, _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
 	imm0 = _mm256_slli_epi32(imm0, 23);
 	r0.v = _mm256_castsi256_ps(imm0);
+#endif
+#ifdef USE_AVX
+	auto imm0 = _mm_add_epi32(n, _mm_set_epi32(0x7f, 0x7f, 0x7f, 0x7f));
+	imm0 = _mm_slli_epi32(imm0, 23);
+	r0.v = _mm_castsi128_ps(imm0);
 #endif
 	auto res = y * r0;																			// 1
 	return res;
@@ -283,8 +334,12 @@ inline simd_float round(const simd_float a) {
 	simd_float v;
 #ifdef USE_AVX512
 	v.v = _mm512_roundscale_ps(a.v, 0);
-#else
+#endif
+#ifdef USE_AVX2
 	v.v = _mm256_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
+#endif
+#ifdef USE_AVX
+	v.v = _mm_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
 #endif
 	return v;
 }

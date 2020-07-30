@@ -7,13 +7,10 @@
 
 #define ERROR() printf( "ERROR %s %i\n", __FILE__, __LINE__)
 
-//#define INDIRECT_DOUBLE
-#ifdef __AVX512F__
-#define USE_AVX512
-#warning 'compiling for AVX512'
-#else
-#define USE_AVX2
-#endif
+
+//#define USE_AVX512
+//#define USE_AVX2
+#define USE_AVX
 
 
 
