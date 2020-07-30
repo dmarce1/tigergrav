@@ -16,6 +16,9 @@ static std::atomic<int> num_threads(1);
 static bool inc_thread();
 static void dec_thread();
 
+static std::vector<hpx::id_type> localities;
+static int myid;
+
 bool inc_thread() {
 	const int nmax = 4 * hpx::threads::hardware_concurrency();
 	if (num_threads++ < nmax) {
@@ -56,9 +59,10 @@ HPX_PLAIN_ACTION(tree::set_theta,set_theta_action);
 void tree::set_theta(float t) {
 	set_theta_action action;
 	theta_inv = 1.0 / t;
-	if (hpx::get_locality_id() == 0) {
+	localities = hpx::find_all_localities();
+	myid = hpx::get_locality_id();
+	if (myid == 0) {
 		std::vector<hpx::future<void>> futs;
-		const auto localities = hpx::find_all_localities();
 		for (int i = 1; i < localities.size(); i++) {
 			futs.push_back(hpx::async < set_theta_action > (localities[i], t));
 		}
@@ -67,7 +71,6 @@ void tree::set_theta(float t) {
 }
 
 tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
-	const auto localities = hpx::find_all_localities();
 	return tree_client(hpx::new_ < tree > (localities[part_vect_locality_id(b)], r, b, e, level).get());
 }
 
@@ -267,8 +270,19 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
 
+	std::vector<hpx::future<node_attr>> dfuts;
+	std::vector<hpx::future<node_attr>> efuts;
+
 	for (auto c : dchecklist) {
-		const auto other = c.node.get_node_attributes();
+		dfuts.push_back(c.node.get_node_attributes());
+	}
+	for (auto c : echecklist) {
+		efuts.push_back(c.node.get_node_attributes());
+	}
+
+	int futi = 0;
+	for (auto c : dchecklist) {
+		const auto other = dfuts[futi++].get();
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.multi.x) : abs(multi.x - other.multi.x);
 		const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 		if (far) {
@@ -291,8 +305,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	}
 
 	if (opts.ewald) {
+		futi = 0;
 		for (auto c : echecklist) {
-			const auto other = c.node.get_node_attributes();
+			const auto other = efuts[futi++].get();
 			const auto dx = ewald_far_separation(multi.x - other.multi.x, multi.r + other.multi.r);
 			const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 			if (far) {
@@ -347,8 +362,13 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}
 	} else {
 		while (!dchecklist.empty()) {
+			dfuts.resize(0);
 			for (auto c : dchecklist) {
-				const auto other = c.node.get_node_attributes();
+				dfuts.push_back(c.node.get_node_attributes());
+			}
+			int futi = 0;
+			for (auto c : dchecklist) {
+				const auto other = dfuts[futi++].get();
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.multi.x) : abs(multi.x - other.multi.x);
 				const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 				if (c.opened) {
@@ -374,8 +394,13 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}
 		if (opts.ewald) {
 			while (!echecklist.empty()) {
+				efuts.resize(0);
 				for (auto c : echecklist) {
-					const auto other = c.node.get_node_attributes();
+					efuts.push_back(c.node.get_node_attributes());
+				}
+				int futi = 0;
+				for (auto c : echecklist) {
+					const auto other = efuts[futi++].get();
 					const auto dx = ewald_far_separation(multi.x - other.multi.x, multi.r + other.multi.r);
 					const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 					if (c.opened) {
@@ -522,21 +547,19 @@ void tree::reset_flop() {
 	flop = 0;
 }
 
-node_attr get_node_attributes_(raw_id_type id);
+hpx::future<node_attr> get_node_attributes_(raw_id_type id);
 
 HPX_PLAIN_ACTION (get_node_attributes_, get_node_attributes_action);
 
-node_attr get_node_attributes_(raw_id_type id) {
-	const auto here = hpx::get_locality_id();
-	const auto localities = hpx::find_all_localities();
-	if (here == id.loc_id) {
-		return reinterpret_cast<tree*>(id.ptr)->get_node_attributes();
+hpx::future<node_attr> get_node_attributes_(raw_id_type id) {
+	if (myid == id.loc_id) {
+		return hpx::make_ready_future(reinterpret_cast<tree*>(id.ptr)->get_node_attributes());
 	} else {
-		return get_node_attributes_action()(localities[id.loc_id], id);
+		return hpx::async < get_node_attributes_action > (localities[id.loc_id], id);
 	}
 }
 
-node_attr raw_tree_client::get_node_attributes() const {
+hpx::future<node_attr> raw_tree_client::get_node_attributes() const {
 	return get_node_attributes_(ptr);
 }
 

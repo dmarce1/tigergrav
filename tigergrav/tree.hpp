@@ -109,7 +109,7 @@ class raw_tree_client {
 public:
 	raw_tree_client() = default;
 	raw_tree_client(raw_id_type ptr_);
-	node_attr get_node_attributes() const;
+	hpx::future<node_attr> get_node_attributes() const;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & ptr;
