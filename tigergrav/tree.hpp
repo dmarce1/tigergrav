@@ -19,9 +19,6 @@
 
 class tree;
 
-using tree_ptr = std::shared_ptr<tree>;
-using raw_tree_ptr = const tree*;
-
 using mutex_type = hpx::lcos::local::spinlock;
 template<class T>
 using future_type = hpx::future<T>;
@@ -82,7 +79,15 @@ struct multipole_info {
 	}
 };
 
-using raw_id_type = hpx::id_type;
+struct raw_id_type {
+	int loc_id;
+	std::uint64_t ptr;
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & loc_id;
+		arc & ptr;
+	}
+};
 using id_type = hpx::id_type;
 
 class tree_client {
@@ -142,6 +147,7 @@ class tree: public hpx::components::component_base<tree> {
 	part_iter part_begin;
 	part_iter part_end;
 	std::array<tree_client, NCHILD> children;
+	std::array<raw_id_type, NCHILD> raw_children;
 	int level;
 
 	static float theta_inv;
@@ -160,11 +166,12 @@ public:
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
+	raw_id_type get_raw_ptr() const;
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_flop); 				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);	//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);					//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_node_attributes);	//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_raw_ptr);	//
 };
 
 inline tree_client::tree_client(id_type ptr_) {
@@ -176,7 +183,7 @@ inline raw_tree_client::raw_tree_client(raw_id_type ptr_) {
 }
 
 inline raw_id_type tree_client::get_raw_ptr() const {
-	return ptr;
+	return tree::get_raw_ptr_action()(ptr);
 }
 
 inline std::pair<multipole_info, range> tree_client::compute_multipoles(rung_type min_rung, bool do_out) const {
@@ -194,8 +201,4 @@ inline kick_return tree_client::kick_fmm(std::vector<check_item> dchecklist, std
 
 inline std::uint64_t tree_client::get_flop() const {
 	return tree::get_flop_action()(ptr);
-}
-
-inline node_attr raw_tree_client::get_node_attributes() const {
-	return tree::get_node_attributes_action()(ptr);
 }

@@ -2,6 +2,8 @@
 #include <tigergrav/time.hpp>
 #include <tigergrav/tree.hpp>
 
+#include <hpx/runtime/actions/plain_action.hpp>
+
 #include <atomic>
 #include <algorithm>
 
@@ -31,7 +33,7 @@ void dec_thread() {
 template<class F>
 auto thread_if_avail(F &&f, int level, bool left = false) {
 	bool thread;
-	if (level % 3 == 0) {
+	if (level % 8 == 0) {
 		thread = true;
 		num_threads++;
 	} else if (left) {
@@ -92,6 +94,8 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 		}, level);
 		children[1] = rcr.get();
 		children[0] = rcl.get();
+		raw_children[0] = children[0].get_raw_ptr();
+		raw_children[1] = children[1].get_raw_ptr();
 	}
 }
 
@@ -187,12 +191,20 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 node_attr tree::get_node_attributes() const {
 	node_attr attr;
 	attr.multi = multi;
-	attr.children[0] = children[0].get_raw_ptr();
-	attr.children[1] = children[1].get_raw_ptr();
 	attr.leaf = is_leaf();
+	attr.children[0] = raw_children[0];
+	attr.children[1] = raw_children[1];
 	attr.pbegin = part_begin;
 	attr.pend = part_end;
 	return attr;
+}
+
+raw_id_type tree::get_raw_ptr() const {
+	static const auto loc_id = hpx::get_locality_id();
+	raw_id_type id;
+	id.loc_id = loc_id;
+	id.ptr = reinterpret_cast<std::uint64_t>(this);
+	return id;
 }
 
 bool tree::is_leaf() const {
@@ -474,3 +486,22 @@ std::uint64_t tree::get_flop() {
 void tree::reset_flop() {
 	flop = 0;
 }
+
+node_attr get_node_attributes_(raw_id_type id);
+
+HPX_PLAIN_ACTION (get_node_attributes_, get_node_attributes_action);
+
+node_attr get_node_attributes_(raw_id_type id) {
+	static const auto here = hpx::get_locality_id();
+	static const auto localities = hpx::find_all_localities();
+	if (here == id.loc_id) {
+		return reinterpret_cast<tree*>(id.ptr)->get_node_attributes();
+	} else {
+		return get_node_attributes_action()(localities[id.loc_id], id);
+	}
+}
+
+node_attr raw_tree_client::get_node_attributes() const {
+	return get_node_attributes_(ptr);
+}
+
