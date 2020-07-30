@@ -82,7 +82,6 @@
 #define _mmx_sub_epi32(a,b)         _mm_sub_epi32((a),(b))
 #define _mmx_mul_epi32(a,b)         _mm_mullo_epi32((a),(b))
 #define _mmx_cvtps_epi32(a)         _mm_cvtps_epi32((a))
-#define _mmx_fmadd_ps(a,b,c)        _mm_fmadd_ps ((a),(b),(c))
 #define _mmx_cmp_ps(a,b,c)        	_mm_cmp_ps(a,b,c)
 #endif
 
@@ -402,7 +401,11 @@ inline simd_float erfexp(const simd_float &x, simd_float *e) {				// 48
 inline simd_float fmadd(const simd_float &a, const simd_float &b, const simd_float &c) {
 
 	simd_float v;
+#ifdef USE_AVX
+	v = a*b + c;
+#else
 	v.v = _mmx_fmadd_ps(a.v, b.v, c.v);
+#endif
 	return v;
 }
 
