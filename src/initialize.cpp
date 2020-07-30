@@ -2,10 +2,12 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/rand.hpp>
 
+#include <hpx/include/components.hpp>
+
 part_vect initial_particle_set(std::string pn, int N, int Nout) {
 	part_vect parts;
 	parts.reserve(N);
-	srand(0);
+	srand(hpx::get_locality_id() * 0xA3CF98A7);
 	if (pn == "cosmos") {
 		for (int i = 0; i < N; i++) {
 			particle p;
