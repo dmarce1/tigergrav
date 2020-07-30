@@ -9,8 +9,8 @@
 
 
 //#define USE_AVX512
-//#define USE_AVX2
-#define USE_AVX
+#define USE_AVX2
+//#define USE_AVX
 
 
 

@@ -10,6 +10,9 @@ static std::vector<particle> particles;
 static part_iter part_begin;
 static part_iter part_end;
 
+static std::vector<hpx::id_type> localities;
+static int myid;
+
 inline particle& parts(part_iter i) {
 	int j = i - part_begin;
 //	if (j < 0 || j >= particles.size()) {
@@ -25,11 +28,14 @@ HPX_PLAIN_ACTION (part_vect_write);
 HPX_PLAIN_ACTION (part_vect_range);
 
 void part_vect_init() {
-	static const auto opts = options::get();
-	static const auto localities = hpx::find_all_localities();
-	static const std::uint64_t N = localities.size();
-	static const std::uint64_t n = hpx::get_locality_id();
-	static const std::uint64_t M = opts.problem_size;
+	localities = hpx::find_all_localities();
+	myid = hpx::get_locality_id();
+
+	const auto opts = options::get();
+
+	const std::uint64_t N = localities.size();
+	const std::uint64_t n = myid;
+	const std::uint64_t M = opts.problem_size;
 	std::vector<hpx::future<void>> futs;
 	if (n == 0) {
 		for (int i = 1; i < N; i++) {
@@ -44,8 +50,8 @@ void part_vect_init() {
 
 std::vector<particle> part_vect_read(part_iter b, part_iter e) {
 //	printf("Reading %i %i\n", b, e);
-	static const auto myid = hpx::get_locality_id();
-	static const auto localities = hpx::find_all_localities();
+	const auto myid = hpx::get_locality_id();
+
 	const auto id = part_vect_locality_id(b);
 	std::vector<particle> these_parts;
 	if (id == myid) {
@@ -55,9 +61,9 @@ std::vector<particle> part_vect_read(part_iter b, part_iter e) {
 			these_parts.push_back(parts(i));
 		}
 		if (these_parts.size() != e - b) {
-	//		printf("Broken read %i %i %i %i %i \n", b, e, this_e, b + these_parts.size(), myid);
+			//		printf("Broken read %i %i %i %i %i \n", b, e, this_e, b + these_parts.size(), myid);
 			auto next_parts = part_vect_read_action()(localities[myid + 1], b + these_parts.size(), e);
-	//		printf("Broken read done\n");
+			//		printf("Broken read done\n");
 			for (const auto &p : next_parts) {
 				these_parts.push_back(p);
 			}
@@ -70,8 +76,8 @@ std::vector<particle> part_vect_read(part_iter b, part_iter e) {
 }
 
 void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts) {
-	static const auto myid = hpx::get_locality_id();
-	static const auto localities = hpx::find_all_localities();
+	const auto myid = hpx::get_locality_id();
+
 	const auto id = part_vect_locality_id(b);
 	if (id == myid) {
 		int i = b;
@@ -101,12 +107,11 @@ std::pair<particle, part_iter> part_vect_sort_hi(part_iter, part_iter, double xm
 HPX_PLAIN_ACTION (part_vect_sort_lo);
 HPX_PLAIN_ACTION (part_vect_sort_hi);
 
-
 inline std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter hi, double xmid, int dim, particle lo_part) {
-	static const auto localities = hpx::find_all_localities();
-	static const std::uint64_t N = localities.size();
-	static const std::uint64_t n = hpx::get_locality_id();
-	static const std::uint64_t M = options::get().problem_size;
+
+	const std::uint64_t N = localities.size();
+	const std::uint64_t n = myid;
+	const std::uint64_t M = options::get().problem_size;
 	const auto this_lo = std::max((part_iter) (n * M / N), lo);
 	bool found = false;
 	std::pair<particle, part_iter> rc;
@@ -129,10 +134,10 @@ inline std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter 
 }
 
 part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
-	static const auto localities = hpx::find_all_localities();
-	static const std::uint64_t N = localities.size();
-	static const std::uint64_t n = hpx::get_locality_id();
-	static const std::uint64_t M = options::get().problem_size;
+
+	const std::uint64_t N = localities.size();
+	const std::uint64_t n = myid;
+	const std::uint64_t M = options::get().problem_size;
 	part_iter this_hi;
 	bool complete;
 	if (hi > (n + 1) * M / N - 1) {
@@ -146,7 +151,7 @@ part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
 		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
 			const auto hiid = part_vect_locality_id(hi);
 			std::pair<particle, part_iter> tmp;
-			if( hiid == n) {
+			if (hiid == n) {
 				tmp = part_vect_sort_hi(lo, hi, xmid, dim, parts(lo));
 			} else {
 				tmp = part_vect_sort_hi_action()(localities[hiid], lo, hi, xmid, dim, parts(lo));
@@ -166,7 +171,7 @@ part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
 }
 
 part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
-	static const auto localities = hpx::find_all_localities();
+
 	if (e == b) {
 		return e;
 	} else {
@@ -176,8 +181,6 @@ part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
 }
 
 range part_vect_range(part_iter b, part_iter e) {
-	static const auto myid = hpx::get_locality_id();
-	static const auto localities = hpx::find_all_localities();
 	const auto id = part_vect_locality_id(b);
 	range r;
 	if (id == myid) {
@@ -208,8 +211,8 @@ range part_vect_range(part_iter b, part_iter e) {
 }
 
 int part_vect_locality_id(part_iter i) {
-	static const std::uint64_t N = hpx::find_all_localities().size();
-	static const std::uint64_t M = options::get().problem_size;
+	const std::uint64_t N = localities.size();
+	const std::uint64_t M = options::get().problem_size;
 	std::uint64_t n = i * N / M;
 	while (i < n * M / N) {
 		n--;
