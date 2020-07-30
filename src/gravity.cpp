@@ -300,6 +300,7 @@ std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::
 	return 408 * cnt1 + simd_float::size() * LP;
 }
 
+
 std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
 	if (x.size() == 0) {
 		return 0;
@@ -356,53 +357,51 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 			simd_real phi = 0.0;
 			vect<simd_real> g;
 			g = simd_real(0);
-			for (int i = 0; i < indices_real.size(); i++) {				// 80 x 93 = 7440
+			for (int i = 0; i < indices_real.size(); i++) {
 				h = indices_real[i];
 				n = h;
-				const vect<simd_real> dx = dX0 - n;                         // 3 OP
-				const simd_real r2 = dx.dot(dx);							// 5 OP
-				const simd_real r = sqrt(r2);                      			// 1 OP
-				const simd_real rinv = r / (r2 + tiny);						// 2
-				const simd_real r2inv = rinv * rinv;						// 1
-				const simd_real r3inv = r2inv * rinv;						// 1
+				const vect<simd_real> dx = dX0 - n;                          // 3 OP
+				const simd_real r2 = dx.dot(dx);
+				const simd_real r = sqrt(r2);                      // 5 OP
+				const simd_real rinv = r / (r2 + tiny);
+				const simd_real r2inv = rinv * rinv;
+				const simd_real r3inv = r2inv * rinv;
 				simd_float expfac;
-				const simd_real erfc = one - erfexp(2.0 * r, &expfac);		// 50
-				const simd_real d0 = -erfc * rinv;							// 2
-				const simd_real expfactor = 4.0 * r * expfac / sqrt(M_PI);	// 3
-				const simd_real d1 = (expfactor + erfc) * r3inv;			// 2
-				phi += d0; // 6 OP											// 1
+				const simd_real erfc = one - erfexp(2.0 * r, &expfac);
+				const simd_real d0 = -erfc * rinv;
+				const simd_real expfactor = 4.0 * r * expfac / sqrt(M_PI);
+				const simd_real d1 = (expfactor + erfc) * r3inv;
+				phi += d0; // 6 OP
 				for (int a = 0; a < NDIM; a++) {
-					g[a] -= (dX0[a] - n[a]) * d1;							// 9
+					g[a] -= (dX0[a] - n[a]) * d1;
 				}
 			}
-			for (int i = 0; i < indices_four.size(); i++) {					// 47 X 123 = 5781
+			for (int i = 0; i < indices_four.size(); i++) {
 				const expansion<float> &H = periodic[i];
 				h = indices_four[i];
-				simd_real hdotdx = dX0[0] * h[0];							// 1
-				for (int dim = 1; dim < NDIM; dim++) {
-					hdotdx += dX0[dim] * h[dim];							// 4
+				const float h2 = h.dot(h);                     // 5 OP
+				simd_real hdotdx = simd_real(0);
+				for (int dim = 0; dim < NDIM; dim++) {
+					hdotdx += dX0[dim] * h[dim];
 				}
 				const simd_real omega = 2.0 * M_PI * hdotdx;
 				simd_real s, c;
-				sincos(omega, &s, &c);										// 34
-				phi = fmadd(H(), c, phi);									// 2
+				sincos(omega, &s, &c);
+				phi += H() * c;
 				for (int dim = 0; dim < NDIM; dim++) {
-					g[dim] -= H(dim) * s;									// 6
+					g[dim] -= H(dim) * s;
 				}
 			}
-			const simd_real r = abs(dX0);									// 5
-			const simd_real rinv = r / (r * r + tiny);						// 3
-			phi = simd_real(M_PI / 4.0) + phi + rinv;						// 2
-			const simd_real sw = r > simd_float(0);							// 1
-			phi = 2.8372975 * (simd_real(1.0) - sw) + phi * sw;				// 4
-			const auto rinv3 = rinv * rinv * rinv;							// 2
+			const simd_real r = abs(dX0);
+			const simd_real rinv = r / (r * r + tiny);
+			phi = simd_real(M_PI / 4.0) + phi + rinv;
+			const simd_real sw = r > simd_float(0);
+			phi = 2.8372975 * (simd_real(1.0) - sw) + phi * sw;
 			for (int dim = 0; dim < NDIM; dim++) {
-				g[dim] = g[dim] + dX0[dim] * rinv3;							// 6
+				g[dim] = g[dim] + dX0[dim] * rinv * rinv * rinv;
 			}
-			Phi[I] = fmadd(M * phi, mask, phi[I]);							// 3
-			for (int dim = 0; dim < NDIM; dim++) {
-				G[I][dim] = fmadd(g[dim] * M, mask, G[I][dim]);					// 6
-			}
+			Phi[I] += M * phi * mask;
+			G[I] += g * M * mask;
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
