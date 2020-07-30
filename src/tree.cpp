@@ -56,7 +56,8 @@ void tree::set_theta(float t) {
 }
 
 tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
-	return tree_client(hpx::new_ < tree > (hpx::find_here(), r, b, e, level).get());
+	const static auto localities = hpx::find_all_localities();
+	return tree_client(hpx::new_ < tree > (localities[part_vect_locality_id(b)], r, b, e, level).get());
 }
 
 tree::tree(range box, part_iter b, part_iter e, int level_) {

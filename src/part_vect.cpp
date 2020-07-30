@@ -103,11 +103,68 @@ void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts
 //	return hi;
 //}
 
+part_iter part_vect_sort_lo(part_iter, part_iter, double xmid, int dim);
+std::pair<particle, part_iter> part_vect_sort_hi(part_iter, part_iter, double xmid, int dim, particle lo_part);
+
+HPX_PLAIN_ACTION (part_vect_sort_lo);
+HPX_PLAIN_ACTION (part_vect_sort_hi);
+
+part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
+	static const auto localities = hpx::find_all_localities();
+	static const auto N = localities.size();
+	static const auto n = hpx::get_locality_id();
+	static const auto M = options::get().problem_size;
+	const auto this_hi = std::min((int) ((n + 1) * M / N - 1), (int) hi);
+	const auto hi0 = this_hi;
+	while (lo < std::min(this_hi, hi)) {
+		if (pos_to_double(parts[lo].x[dim]) >= xmid) {
+			const auto hiid = part_vect_locality_id(hi);
+			auto tmp = part_vect_sort_hi_action()(localities[hiid], lo, hi, xmid, dim, parts[lo]);
+			parts[lo] = tmp.first;
+			hi = tmp.second;
+		}
+		lo++;
+	}
+	if (hi0 != this_hi && lo != hi) {
+		return part_vect_sort_lo_action()(localities[n + 1], this_hi, hi, xmid, dim);
+	} else {
+		return hi;
+	}
+
+}
+
+std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter hi, double xmid, int dim, particle lo_part) {
+	static const auto localities = hpx::find_all_localities();
+	static const auto N = localities.size();
+	static const auto n = hpx::get_locality_id();
+	static const auto M = options::get().problem_size;
+	const auto this_lo = std::max((int) (n * M / N), lo);
+	bool found = false;
+	std::pair<particle, part_iter> rc;
+	while (this_lo != hi) {
+		if (pos_to_double(parts[hi].x[dim]) < xmid) {
+			found = true;
+			break;
+		}
+		hi--;
+	}
+	if (!found && this_lo != lo) {
+		rc = part_vect_sort_hi_action()(localities[n - 1], lo, this_lo - 1, xmid, dim, lo_part);
+	} else {
+		rc.first = parts[hi];
+		rc.second = hi;
+		parts[hi] = lo_part;
+	}
+	return rc;
+}
+
 part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
-	auto mid_iter = bisect(parts.begin() + b, parts.begin() + e, [dim, xmid](const particle &p) {
-		return pos_to_double(p.x[dim]) < xmid;
-	});
-	return mid_iter - parts.begin();
+	if (e == b) {
+		return e;
+	} else {
+		auto rc = part_vect_sort_lo(b, e - 1, xmid, dim);
+		return rc;
+	}
 }
 
 range part_vect_range(part_iter b, part_iter e) {
