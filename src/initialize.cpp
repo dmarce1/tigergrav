@@ -29,12 +29,10 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 		printf("Problem %s unknown\n", pn.c_str());
 		abort();
 	}
-#ifndef GLOBAL_DT
 	int j = 0;
 	for (auto i = parts.begin(); i != parts.end(); i++, j++) {
 		i->rung = 0;
 		i->flags.out = j < Nout;
 	}
-#endif
 	return parts;
 }

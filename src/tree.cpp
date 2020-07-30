@@ -51,8 +51,19 @@ auto thread_if_avail(F &&f, int level, bool left = false) {
 	}
 }
 
+HPX_PLAIN_ACTION(tree::set_theta,set_theta_action);
+
 void tree::set_theta(float t) {
+	set_theta_action action;
 	theta_inv = 1.0 / t;
+	if (hpx::get_locality_id() == 0) {
+		std::vector<hpx::future<void>> futs;
+		const auto localities = hpx::find_all_localities();
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async < set_theta_action > (localities[i], t));
+		}
+		hpx::wait_all(futs);
+	}
 }
 
 tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
@@ -226,7 +237,7 @@ raw_id_type tree::get_raw_ptr() const {
 }
 
 bool tree::is_leaf() const {
-	static const auto opts = options::get();
+	const auto opts = options::get();
 	return (part_end - part_begin) <= opts.parts_per_node;
 }
 
@@ -246,8 +257,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	std::vector<check_item> next_dchecklist;
 	std::vector<check_item> next_echecklist;
-	static const auto opts = options::get();
-	static const float m = 1.0 / opts.problem_size;
+	const auto opts = options::get();
+	const float m = 1.0 / opts.problem_size;
 
 	std::vector<multi_src> dmulti_srcs;
 	std::vector<vect<float>> dsources;
@@ -419,9 +430,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 }
 
 kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool do_out) {
-	static const auto opts = options::get();
-	static const float eps = 10.0 * std::numeric_limits<float>::min();
-	static const float m = 1.0 / opts.problem_size;
+	const auto opts = options::get();
+	const float eps = 10.0 * std::numeric_limits<float>::min();
+	const float m = 1.0 / opts.problem_size;
 	kick_return rc;
 	rc.rung = 0;
 	int j = 0;

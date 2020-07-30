@@ -39,10 +39,6 @@ public:
 	multipole operator>>(const vect<T> &dX) const;
 	multipole<T>& operator>>=(const vect<T> &Y);
 	multipole<T> operator +(const multipole<T> &vec) const;
-	template<class A>
-	void serialize( A&& arc, unsigned ) {
-		arc & *((std::array<T,MP>*)(this));
-	}
 };
 
 template<class T>

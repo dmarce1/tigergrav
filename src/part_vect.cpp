@@ -49,7 +49,6 @@ void part_vect_init() {
 }
 
 std::vector<particle> part_vect_read(part_iter b, part_iter e) {
-//	printf("Reading %i %i\n", b, e);
 	const auto myid = hpx::get_locality_id();
 
 	const auto id = part_vect_locality_id(b);
@@ -61,23 +60,22 @@ std::vector<particle> part_vect_read(part_iter b, part_iter e) {
 			these_parts.push_back(parts(i));
 		}
 		if (these_parts.size() != e - b) {
-			//		printf("Broken read %i %i %i %i %i \n", b, e, this_e, b + these_parts.size(), myid);
 			auto next_parts = part_vect_read_action()(localities[myid + 1], b + these_parts.size(), e);
-			//		printf("Broken read done\n");
 			for (const auto &p : next_parts) {
 				these_parts.push_back(p);
+			}
+			if (these_parts.size() != e - b) {
+				printf( "Error in part_vect_read\n");
+				abort();
 			}
 		}
 	} else {
 		these_parts = part_vect_read_action()(localities[id], b, e);
 	}
-//	printf("Done reading\n");
 	return these_parts;
 }
 
 void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts) {
-	const auto myid = hpx::get_locality_id();
-
 	const auto id = part_vect_locality_id(b);
 	if (id == myid) {
 		int i = b;
@@ -112,7 +110,6 @@ inline std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter 
 	const std::uint64_t N = localities.size();
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;
-	const auto this_lo = std::max((part_iter) (n * M / N), lo);
 	bool complete = true;
 	std::pair<particle, part_iter> rc;
 	while (lo != hi) {

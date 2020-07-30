@@ -22,6 +22,12 @@ error compute_error(std::vector<output> test, std::vector<output> direct) {
 		ERROR();
 	}
 	for (int i = 0; i < test.size(); i++) {
+		for( int dim = 0; dim < NDIM; dim++) {
+			if( test[i].x[dim] != direct[i].x[dim]) {
+				printf( "Test set does not match reference\n");
+				abort();
+			}
+		}
 		const auto dg = abs(test[i].g - direct[i].g);
 		const auto gd = abs(test[i].g);
 		const auto this_err = dg / gd;
