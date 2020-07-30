@@ -17,7 +17,7 @@ static bool inc_thread();
 static void dec_thread();
 
 bool inc_thread() {
-	static const int nmax = 4 * hpx::threads::hardware_concurrency();
+	const int nmax = 4 * hpx::threads::hardware_concurrency();
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
@@ -56,7 +56,7 @@ void tree::set_theta(float t) {
 }
 
 tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
-	const static auto localities = hpx::find_all_localities();
+	const auto localities = hpx::find_all_localities();
 	return tree_client(hpx::new_ < tree > (localities[part_vect_locality_id(b)], r, b, e, level).get());
 }
 
@@ -66,6 +66,18 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
+	auto myparts = part_vect_read(b, e);
+	for (const auto &p : myparts) {
+		const auto x = pos_to_double(p.x);
+		if (!in_range(x, box)) {
+			printf("Found particle out of range!\n");
+			printf("%e %e %e\n", x[0], x[1], x[2]);
+			for (int dim = 0; dim < NDIM; dim++) {
+				printf("%e %e\n", box.min[dim], box.max[dim]);
+			}
+			abort();
+		}
+	}
 	if (e - b > opts.parts_per_node) {
 		float max_span = 0.0;
 		const range prange = part_vect_range(b, e);
@@ -103,8 +115,8 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 }
 
 std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool do_out) {
-	if( level == 0 ) {
-		printf( "compute_multipoles\n");
+	if (level == 0) {
+		printf("compute_multipoles\n");
 	}
 	const auto &opts = options::get();
 	const auto m = 1.0 / opts.problem_size;
@@ -206,7 +218,7 @@ node_attr tree::get_node_attributes() const {
 }
 
 raw_id_type tree::get_raw_ptr() const {
-	static const auto loc_id = hpx::get_locality_id();
+	const auto loc_id = hpx::get_locality_id();
 	raw_id_type id;
 	id.loc_id = loc_id;
 	id.ptr = reinterpret_cast<std::uint64_t>(this);
@@ -220,8 +232,8 @@ bool tree::is_leaf() const {
 
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_out) {
-	if( level == 0 ) {
-		printf( "kick_fmm\n");
+	if (level == 0) {
+		printf("kick_fmm\n");
 	}
 
 	kick_return rc;
@@ -377,9 +389,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				next_echecklist.resize(0);
 			}
 		}
-		static thread_local std::vector<vect<float>> x;
-		static thread_local std::vector<force> f;
-		x.resize(0);
+		std::vector<vect<float>> x;
+		std::vector<force> f;
 		const auto parts = part_vect_read(part_begin, part_end);
 		for (auto i = parts.begin(); i != parts.end(); i++) {
 			if (i->rung >= min_rung || do_out) {
@@ -457,8 +468,8 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 }
 
 void tree::drift(float dt) {
-	if( level == 0 ) {
-		printf( "drift\n");
+	if (level == 0) {
+		printf("drift\n");
 	}
 
 	if (is_leaf()) {
@@ -505,8 +516,8 @@ node_attr get_node_attributes_(raw_id_type id);
 HPX_PLAIN_ACTION (get_node_attributes_, get_node_attributes_action);
 
 node_attr get_node_attributes_(raw_id_type id) {
-	static const auto here = hpx::get_locality_id();
-	static const auto localities = hpx::find_all_localities();
+	const auto here = hpx::get_locality_id();
+	const auto localities = hpx::find_all_localities();
 	if (here == id.loc_id) {
 		return reinterpret_cast<tree*>(id.ptr)->get_node_attributes();
 	} else {

@@ -113,18 +113,21 @@ inline std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter 
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;
 	const auto this_lo = std::max((part_iter) (n * M / N), lo);
-	bool found = false;
+	bool complete = true;
 	std::pair<particle, part_iter> rc;
-	while (this_lo != hi) {
+	while (lo != hi) {
 		if (pos_to_double(parts(hi).x[dim]) < xmid) {
-			found = true;
 			break;
 		}
 		hi--;
+		if (hi == part_begin - 1) {
+			complete = false;
+			break;
+		}
 	}
-	if (!found && this_lo != lo) {
+	if (!complete) {
 //		printf("hi_jump\n");
-		rc = part_vect_sort_hi_action()(localities[n - 1], lo, this_lo - 1, xmid, dim, lo_part);
+		rc = part_vect_sort_hi_action()(localities[n - 1], lo, part_begin - 1, xmid, dim, lo_part);
 	} else {
 		rc.first = parts(hi);
 		rc.second = hi;
@@ -138,16 +141,8 @@ part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
 	const std::uint64_t N = localities.size();
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;
-	part_iter this_hi;
-	bool complete;
-	if (hi > (n + 1) * M / N - 1) {
-		this_hi = (n + 1) * M / N - 1;
-		complete = false;
-	} else {
-		this_hi = hi;
-		complete = true;
-	}
-	while (lo <= std::min(this_hi, hi)) {
+	bool complete = true;
+	while (lo < hi) {
 		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
 			const auto hiid = part_vect_locality_id(hi);
 			std::pair<particle, part_iter> tmp;
@@ -160,10 +155,14 @@ part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
 			hi = tmp.second;
 		}
 		lo++;
+		if (lo == part_end) {
+			complete = false;
+			break;
+		}
 	}
-	if (!complete && lo <= hi) {
+	if (!complete) {
 		//	printf("lo_jump\n");
-		return part_vect_sort_lo_action()(localities[n + 1], this_hi + 1, hi, xmid, dim);
+		return part_vect_sort_lo_action()(localities[n + 1], part_end, hi, xmid, dim);
 	} else {
 		return hi;
 	}
