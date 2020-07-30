@@ -5,8 +5,8 @@
 #include <tigergrav/range.hpp>
 
 
-using part_iter = int;
-using const_part_iter = int;
+using part_iter = std::uint64_t;
+using const_part_iter = std::uint64_t;
 
 void part_vect_init();
 std::vector<particle> part_vect_read(part_iter b, part_iter e);

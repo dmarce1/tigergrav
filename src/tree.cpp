@@ -61,16 +61,18 @@ tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
 }
 
 tree::tree(range box, part_iter b, part_iter e, int level_) {
+//	printf("Forming %i %i\n", b, e);
 	level = level_;
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
 	if (e - b > opts.parts_per_node) {
 		float max_span = 0.0;
-		const range prange = part_vect_range(b, e);
+//		const range prange = part_vect_range(b, e);
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
-			const auto this_span = prange.max[dim] - prange.min[dim];
+//			const auto this_span = prange.max[dim] - prange.min[dim];
+			const auto this_span = box.max[dim] - box.min[dim];
 			if (this_span > max_span) {
 				max_span = this_span;
 				max_dim = dim;
@@ -101,6 +103,9 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 }
 
 std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool do_out) {
+	if( level == 0 ) {
+		printf( "compute_multipoles\n");
+	}
 	const auto &opts = options::get();
 	const auto m = 1.0 / opts.problem_size;
 	multi.m = 0.0;
@@ -215,6 +220,9 @@ bool tree::is_leaf() const {
 
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_out) {
+	if( level == 0 ) {
+		printf( "kick_fmm\n");
+	}
 
 	kick_return rc;
 	if (!multi.has_active && !do_out) {
@@ -449,6 +457,10 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 }
 
 void tree::drift(float dt) {
+	if( level == 0 ) {
+		printf( "drift\n");
+	}
+
 	if (is_leaf()) {
 		auto parts = part_vect_read(part_begin, part_end);
 		for (auto i = parts.begin(); i != parts.end(); i++) {

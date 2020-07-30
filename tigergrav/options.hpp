@@ -9,8 +9,7 @@ public:
 	bool solver_test;
 	int out_parts;
 	int parts_per_node;
-	int problem_size;
-	int solver_type;
+	std::uint64_t problem_size;
 	double theta;
 	double eta;
 	double soft_len;
@@ -27,7 +26,6 @@ public:
 		arc & out_parts;
 		arc & parts_per_node;
 		arc & problem_size;
-		arc & solver_type;
 		arc & theta;
 		arc & eta;
 		arc & soft_len;

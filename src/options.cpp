@@ -31,7 +31,7 @@ bool options::process_options(int argc, char *argv[]) {
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(32), "maximum number of particles on a node") //
-	("problem_size", po::value<int>(&problem_size)->default_value(4096), "number of particles") //
+	("problem_size", po::value<std::uint64_t>(&problem_size)->default_value(4096), "number of particles") //
 	("theta", po::value<double>(&theta)->default_value(0.5), "separation parameter") //
 	("eta", po::value<double>(&eta)->default_value(0.2), "accuracy parameter") //
 	("soft_len", po::value<double>(&soft_len)->default_value(-1), "softening parameter") //
@@ -93,7 +93,6 @@ bool options::process_options(int argc, char *argv[]) {
 	SHOW(problem_size);
 	SHOW(soft_len);
 	SHOW(solver_test);
-	SHOW(solver_type);
 	SHOW(t_max);
 	SHOW(theta);
 	return true;
