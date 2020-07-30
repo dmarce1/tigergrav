@@ -15,10 +15,10 @@ static int myid;
 
 inline particle& parts(part_iter i) {
 	int j = i - part_begin;
-//	if (j < 0 || j >= particles.size()) {
-//		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
-//		abort();
-//	}
+	if (j < 0 || j >= particles.size()) {
+		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
+		abort();
+	}
 	return particles[j];
 }
 
@@ -44,7 +44,7 @@ void part_vect_init() {
 	}
 	part_begin = n * M / N;
 	part_end = (n + 1) * M / N;
-	particles = initial_particle_set(opts.problem, part_end - part_begin, opts.out_parts);
+	particles = initial_particle_set(opts.problem, part_end - part_begin, (n + 1) * opts.out_parts / N - n * opts.out_parts / N);
 	hpx::wait_all(futs);
 }
 
@@ -69,7 +69,7 @@ std::vector<particle> part_vect_read(part_iter b, part_iter e) {
 			}
 		}
 	} else {
-		auto these_parts = part_vect_read_action()(localities[id], b, e);
+		these_parts = part_vect_read_action()(localities[id], b, e);
 	}
 //	printf("Done reading\n");
 	return these_parts;
