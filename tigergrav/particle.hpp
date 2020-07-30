@@ -18,14 +18,24 @@ struct source {
 	vect<float> x;
 };
 
-
 struct particle {
 	vect<pos_type> x;
 	vect<float> v;
 	rung_type rung;
 	struct {
-		std::uint8_t out : 1;
+		std::uint8_t out :1;
 	} flags;
+	template<class A>
+	void serialize(A &&arc, unsigned) {
+		int tmp;
+		arc & x;
+		arc & v;
+		arc & rung;
+		tmp = flags.out;
+		arc & tmp;
+		flags.out = tmp;
+	}
+
 };
 
 using part_vect = std::vector<particle>;
