@@ -76,6 +76,7 @@ struct multipole_info {
 		arc & m;
 		arc & x;
 		arc & r;
+		arc & has_active;
 	}
 };
 

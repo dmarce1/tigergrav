@@ -68,11 +68,11 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 	part_end = e;
 	if (e - b > opts.parts_per_node) {
 		float max_span = 0.0;
-//		const range prange = part_vect_range(b, e);
+		const range prange = part_vect_range(b, e);
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
-//			const auto this_span = prange.max[dim] - prange.min[dim];
-			const auto this_span = box.max[dim] - box.min[dim];
+			const auto this_span = prange.max[dim] - prange.min[dim];
+//			const auto this_span = box.max[dim] - box.min[dim];
 			if (this_span > max_span) {
 				max_span = this_span;
 				max_dim = dim;

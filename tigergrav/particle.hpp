@@ -13,10 +13,6 @@
 
 #include <vector>
 
-struct source {
-	float m;
-	vect<float> x;
-};
 
 struct particle {
 	vect<pos_type> x;

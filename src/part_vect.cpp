@@ -10,7 +10,7 @@ static std::vector<particle> particles;
 static part_iter part_begin;
 static part_iter part_end;
 
-static particle& parts(part_iter i) {
+inline particle& parts(part_iter i) {
 	int j = i - part_begin;
 	if (j < 0 || j >= particles.size()) {
 		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
@@ -55,9 +55,11 @@ std::vector<particle> part_vect_read(part_iter b, part_iter e) {
 			these_parts.push_back(parts(i));
 		}
 		if (these_parts.size() != e - b) {
-	//		printf("Broken read %i %i %i %i %i \n", b, e, this_e, b + these_parts.size(), myid);
-			auto next_parts = part_vect_read_action()(localities[myid + 1], b + these_parts.size(), e);
-	//		printf("Broken read done\n");
+//			printf("Broken read %i %i %i %i %i \n", b, e, this_e, b + these_parts.size(), myid);
+			auto fut = hpx::async<part_vect_read_action>(localities[myid + 1], b + these_parts.size(), e);
+//			printf("Broken read done 1\n");
+			auto next_parts = fut.get();
+//			printf("Broken read done 2\n");
 			for (const auto &p : next_parts) {
 				these_parts.push_back(p);
 			}
