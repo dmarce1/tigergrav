@@ -8,11 +8,14 @@
 #include <algorithm>
 #include <stack>
 #include <thread>
+#include <unordered_map>
 
 HPX_REGISTER_COMPONENT(hpx::components::component<tree>, tree);
 
 std::atomic<std::uint64_t> tree::flop(0);
 float tree::theta_inv;
+
+void reset_node_cache();
 
 static std::atomic<int> num_threads(1);
 static bool inc_thread();
@@ -21,6 +24,12 @@ static void dec_thread();
 static std::vector<hpx::id_type> localities;
 static int myid;
 static int hardware_concurrency = std::thread::hardware_concurrency();
+
+struct raw_id_type_hash {
+	std::size_t operator()(raw_id_type id) const {
+		return id.ptr | id.loc_id;
+	}
+};
 
 bool inc_thread() {
 	const int nmax = 4 * hardware_concurrency;
@@ -292,6 +301,8 @@ void trash_workspace(workspace &&w) {
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_out) {
 	if (level == 0) {
+		reset_node_cache();
+		part_vect_cache_reset();
 		printf("kick_fmm\n");
 	}
 
@@ -611,6 +622,23 @@ void tree::reset_flop() {
 	flop = 0;
 }
 
+std::unordered_map<raw_id_type, hpx::shared_future<node_attr>, raw_id_type_hash> node_cache;
+mutex_type node_cache_mtx;
+
+
+HPX_PLAIN_ACTION(reset_node_cache);
+
+void reset_node_cache() {
+	std::vector<hpx::future<void>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async < reset_node_cache_action > (localities[i]));
+		}
+	}
+	node_cache.clear();
+	hpx::wait_all(futs);
+}
+
 hpx::future<node_attr> get_node_attributes_(raw_id_type id);
 
 HPX_PLAIN_ACTION (get_node_attributes_, get_node_attributes_action);
@@ -623,7 +651,23 @@ hpx::future<node_attr> get_node_attributes_(raw_id_type id) {
 	}
 }
 
+hpx::future<node_attr> read_node_cache(raw_id_type id) {
+	std::lock_guard<mutex_type> lock(node_cache_mtx);
+	auto iter = node_cache.find(id);
+	if (iter == node_cache.end()) {
+		node_cache[id] = get_node_attributes_(id);
+	}
+	return hpx::async([id] {
+		std::lock_guard<mutex_type> lock(node_cache_mtx);
+		return node_cache[id].get();
+	});
+}
+
 hpx::future<node_attr> raw_tree_client::get_node_attributes() const {
-	return get_node_attributes_(ptr);
+	if (myid == ptr.loc_id) {
+		return hpx::make_ready_future(reinterpret_cast<tree*>(ptr.ptr)->get_node_attributes());
+	} else {
+		return read_node_cache(ptr);
+	}
 }
 

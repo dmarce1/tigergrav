@@ -16,7 +16,6 @@
 #include <hpx/include/threads.hpp>
 #include <hpx/include/components.hpp>
 
-
 class tree;
 
 using mutex_type = hpx::lcos::local::spinlock;
@@ -33,7 +32,7 @@ struct statistics {
 	float kin;
 
 	template<class A>
-	void serialize(A&& arc, unsigned) {
+	void serialize(A &&arc, unsigned) {
 		arc & g;
 		arc & p;
 		arc & pot;
@@ -59,7 +58,7 @@ struct kick_return {
 	rung_type rung;
 	std::vector<output> out;
 	template<class A>
-	void serialize(A&& arc, unsigned) {
+	void serialize(A &&arc, unsigned) {
 		arc & stats;
 		arc & rung;
 		arc & out;
@@ -84,9 +83,12 @@ struct raw_id_type {
 	int loc_id;
 	std::uint64_t ptr;
 	template<class A>
-	void serialize(A&& arc, unsigned) {
+	void serialize(A &&arc, unsigned) {
 		arc & loc_id;
 		arc & ptr;
+	}
+	bool operator==(const raw_id_type &other) const {
+		return ptr == other.ptr && loc_id == other.loc_id;
 	}
 };
 using id_type = hpx::id_type;
@@ -167,12 +169,12 @@ public:
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
-	raw_id_type get_raw_ptr() const;
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_flop); 				//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);	//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);				//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);					//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_raw_ptr);	//
+	raw_id_type get_raw_ptr() const;HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_flop); 				//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_raw_ptr);
+	//
 };
 
 inline tree_client::tree_client(id_type ptr_) {

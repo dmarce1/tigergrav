@@ -17,3 +17,4 @@ void part_vect_write(part_iter b, part_iter e, std::vector<particle>);
 part_iter part_vect_sort(part_iter b, part_iter e, double mid, int dim);
 range part_vect_range(part_iter b, part_iter e);
 int part_vect_locality_id(part_iter);
+void part_vect_cache_reset();

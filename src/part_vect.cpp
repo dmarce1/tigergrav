@@ -4,23 +4,20 @@
 #include <hpx/runtime/actions/plain_action.hpp>
 #include <hpx/include/async.hpp>
 #include <hpx/include/serialization.hpp>
+#include <hpx/synchronization/spinlock.hpp>
+
+#include <unordered_map>
+
+using mutex_type = hpx::lcos::local::spinlock;
 
 static std::vector<particle> particles;
-
 static part_iter part_begin;
 static part_iter part_end;
-
 static std::vector<hpx::id_type> localities;
 static int myid;
 
-inline particle& parts(part_iter i) {
-	int j = i - part_begin;
-	if (j < 0 || j >= particles.size()) {
-		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
-		abort();
-	}
-	return particles[j];
-}
+static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_type>>>> pos_cache;
+static mutex_type pos_cache_mtx;
 
 part_iter part_vect_sort_lo(part_iter, part_iter, double xmid, int dim);
 std::pair<particle, part_iter> part_vect_sort_hi(part_iter, part_iter, double xmid, int dim, particle lo_part);
@@ -32,6 +29,27 @@ HPX_PLAIN_ACTION (part_vect_write);
 HPX_PLAIN_ACTION (part_vect_range);
 HPX_PLAIN_ACTION (part_vect_sort_lo);
 HPX_PLAIN_ACTION (part_vect_sort_hi);
+HPX_PLAIN_ACTION (part_vect_cache_reset);
+
+void part_vect_cache_reset() {
+	std::vector<hpx::future<void>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async < part_vect_cache_reset_action > (localities[i]));
+		}
+	}
+	pos_cache.clear();
+	hpx::wait_all(futs);
+}
+
+inline particle& parts(part_iter i) {
+	int j = i - part_begin;
+//	if (j < 0 || j >= particles.size()) {
+//		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
+//		abort();
+//	}
+	return particles[j];
+}
 
 void part_vect_init() {
 	localities = hpx::find_all_localities();
@@ -81,11 +99,27 @@ hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {
 	return hpx::make_ready_future(these_parts);
 }
 
+inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_iter b, part_iter e) {
+	std::lock_guard<mutex_type> lock(pos_cache_mtx);
+	auto iter = pos_cache.find(b);
+	if (iter == pos_cache.end()) {
+		auto fut = hpx::async < part_vect_read_position_action > (localities[part_vect_locality_id(b)], b, e);
+		pos_cache[b] = fut.then([b](decltype(fut) f) {
+			return f.get().get();
+		});
+	}
+	return hpx::async(hpx::launch::deferred, [b]() {
+		std::lock_guard < mutex_type > lock(pos_cache_mtx);
+		return pos_cache[b].get();
+	});
+}
+
 hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, part_iter e) {
 	if (b >= part_begin && b < part_end) {
 		if (e <= part_end) {
 			return hpx::async(hpx::launch::deferred, [=]() {
 				std::vector<vect<pos_type>> these_parts;
+				these_parts.reserve(e - b);
 				for (int i = b; i < e; i++) {
 					these_parts.push_back(parts(i).x);
 				}
@@ -94,10 +128,11 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 		} else {
 			return hpx::async(hpx::launch::async, [=]() {
 				std::vector<vect<pos_type>> these_parts;
+				these_parts.reserve(e - b);
 				for (int i = b; i < part_end; i++) {
 					these_parts.push_back(parts(i).x);
 				}
-				auto fut = part_vect_read_position_action()(localities[myid + 1], b + these_parts.size(), e);
+				auto fut = part_vect_read_pos_cache(b + these_parts.size(), e);
 				auto next_parts = fut.get();
 				for (const auto &p : next_parts) {
 					these_parts.push_back(p);
@@ -107,10 +142,7 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 
 		}
 	} else {
-		auto fut = hpx::async < part_vect_read_position_action > (localities[part_vect_locality_id(b)], b, e);
-		return fut.then([](decltype(fut) f) {
-			return f.get();
-		});
+		return part_vect_read_pos_cache(b, e);
 	}
 }
 
