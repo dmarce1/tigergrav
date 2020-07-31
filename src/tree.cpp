@@ -7,6 +7,7 @@
 #include <atomic>
 #include <algorithm>
 #include <stack>
+#include <thread>
 
 HPX_REGISTER_COMPONENT(hpx::components::component<tree>, tree);
 
@@ -19,9 +20,10 @@ static void dec_thread();
 
 static std::vector<hpx::id_type> localities;
 static int myid;
+static int hardware_concurrency = std::thread::hardware_concurrency();
 
 bool inc_thread() {
-	const int nmax = 4 * hpx::threads::hardware_concurrency();
+	const int nmax = 4 * hardware_concurrency;
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
@@ -233,7 +235,7 @@ node_attr tree::get_node_attributes() const {
 }
 
 raw_id_type tree::get_raw_ptr() const {
-	const auto loc_id = hpx::get_locality_id();
+	const auto loc_id = myid;
 	raw_id_type id;
 	id.loc_id = loc_id;
 	id.ptr = reinterpret_cast<std::uint64_t>(this);
