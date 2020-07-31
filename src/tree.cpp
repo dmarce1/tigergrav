@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <algorithm>
+#include <stack>
 
 HPX_REGISTER_COMPONENT(hpx::components::component<tree>, tree);
 
@@ -244,6 +245,48 @@ bool tree::is_leaf() const {
 	return (part_end - part_begin) <= opts.parts_per_node;
 }
 
+struct workspace {
+	std::vector<multi_src> dmulti_srcs;
+	std::vector<multi_src> emulti_srcs;
+	std::vector<hpx::future<node_attr>> dfuts;
+	std::vector<hpx::future<node_attr>> efuts;
+	std::vector<hpx::future<std::vector<vect<pos_type>>>> dsource_futs;
+	std::vector<hpx::future<std::vector<vect<pos_type>>>> esource_futs;
+	std::vector<vect<float>> sources;
+	std::vector<vect<float>> x;
+	std::vector<force> f;
+
+};
+
+std::stack<workspace> workspaces;
+mutex_type workspace_mutex;
+
+workspace get_workspace() {
+	workspace this_space;
+	{
+		std::lock_guard<mutex_type> lock(workspace_mutex);
+		if (workspaces.size() != 0) {
+			this_space = std::move(workspaces.top());
+			workspaces.pop();
+		}
+	}
+	this_space.dmulti_srcs.resize(0);
+	this_space.emulti_srcs.resize(0);
+	this_space.dfuts.resize(0);
+	this_space.efuts.resize(0);
+	this_space.dsource_futs.resize(0);
+	this_space.esource_futs.resize(0);
+	this_space.sources.resize(0);
+	this_space.x.resize(0);
+	this_space.f.resize(0);
+	return std::move(this_space);
+}
+
+void trash_workspace(workspace &&w) {
+	std::lock_guard<mutex_type> lock(workspace_mutex);
+	workspaces.push(std::move(w));
+}
+
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_out) {
 	if (level == 0) {
@@ -258,22 +301,23 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	L = L << (multi.x - Lcom);
 
-	std::vector<check_item> next_dchecklist;
-	std::vector<check_item> next_echecklist;
 	const auto opts = options::get();
 	const float m = 1.0 / opts.problem_size;
+	std::vector<check_item> next_dchecklist;
+	std::vector<check_item> next_echecklist;
+	auto space = get_workspace();
+	auto &dmulti_srcs = space.dmulti_srcs;
+	auto &emulti_srcs = space.emulti_srcs;
+	auto &dfuts = space.dfuts;
+	auto &efuts = space.efuts;
+	auto &dsource_futs = space.dsource_futs;
+	auto &esource_futs = space.esource_futs;
+	auto &sources = space.sources;
+	auto &x = space.x;
+	auto &f = space.f;
 
-	std::vector<multi_src> dmulti_srcs;
-	std::vector<vect<float>> dsources;
-	std::vector<multi_src> emulti_srcs;
-	std::vector<vect<float>> esources;
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
-
-	std::vector<hpx::future<node_attr>> dfuts;
-	std::vector<hpx::future<node_attr>> efuts;
-	std::vector<hpx::future<std::vector<vect<pos_type>>>> dsource_futs;
-	std::vector<hpx::future<std::vector<vect<pos_type>>>> esource_futs;
 
 	for (auto c : dchecklist) {
 		dfuts.push_back(c.node.get_node_attributes());
@@ -327,24 +371,24 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}
 	}
 	flop += gravity_CC_direct(L, multi.x, dmulti_srcs);
-	dsources.resize(0);
+	sources.resize(0);
 	for (auto &v : dsource_futs) {
 		auto s = v.get();
-		for( auto x : s) {
-			dsources.push_back(pos_to_double(x));
+		for (auto x : s) {
+			sources.push_back(pos_to_double(x));
 		}
 	}
-	flop += gravity_CP_direct(L, multi.x, dsources);
+	flop += gravity_CP_direct(L, multi.x, sources);
 	if (opts.ewald) {
 		flop += gravity_CC_ewald(L, multi.x, emulti_srcs);
-		esources.resize(0);
+		sources.resize(0);
 		for (auto &v : esource_futs) {
 			auto s = v.get();
-			for( auto x : s) {
-				esources.push_back(pos_to_double(x));
+			for (auto x : s) {
+				sources.push_back(pos_to_double(x));
 			}
 		}
-		flop += gravity_CP_ewald(L, multi.x, esources);
+		flop += gravity_CP_ewald(L, multi.x, sources);
 	}
 	std::swap(dchecklist, next_dchecklist);
 	std::swap(echecklist, next_echecklist);
@@ -352,8 +396,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	next_echecklist.resize(0);
 	dmulti_srcs.resize(0);
 	emulti_srcs.resize(0);
-	dsources.resize(0);
-	esources.resize(0);
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=]() {
 			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
@@ -432,8 +474,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				next_echecklist.resize(0);
 			}
 		}
-		std::vector<vect<float>> x;
-		std::vector<force> f;
 		const auto parts = part_vect_read(part_begin, part_end).get();
 		for (auto i = parts.begin(); i != parts.end(); i++) {
 			if (i->rung >= min_rung || do_out) {
@@ -451,25 +491,28 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 		}
 		flop += gravity_PC_direct(f, x, dmulti_srcs);
+		sources.resize(0);
 		for (auto &v : dsource_futs) {
 			auto s = v.get();
-			for( auto x : s) {
-				dsources.push_back(pos_to_double(x));
+			for (auto x : s) {
+				sources.push_back(pos_to_double(x));
 			}
 		}
-		flop += gravity_PP_direct(f, x, dsources);
+		flop += gravity_PP_direct(f, x, sources);
 		if (opts.ewald) {
 			flop += gravity_PC_ewald(f, x, emulti_srcs);
+			sources.resize(0);
 			for (auto &v : esource_futs) {
 				auto s = v.get();
-				for( auto x : s) {
-					esources.push_back(pos_to_double(x));
+				for (auto x : s) {
+					sources.push_back(pos_to_double(x));
 				}
 			}
-			flop += gravity_PP_ewald(f, x, esources);
+			flop += gravity_PP_ewald(f, x, sources);
 		}
 		rc = do_kick(f, min_rung, do_out);
 	}
+	trash_workspace(std::move(space));
 	return rc;
 }
 
