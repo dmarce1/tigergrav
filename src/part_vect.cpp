@@ -22,10 +22,16 @@ inline particle& parts(part_iter i) {
 	return particles[j];
 }
 
+part_iter part_vect_sort_lo(part_iter, part_iter, double xmid, int dim);
+std::pair<particle, part_iter> part_vect_sort_hi(part_iter, part_iter, double xmid, int dim, particle lo_part);
+
 HPX_PLAIN_ACTION (part_vect_init);
 HPX_PLAIN_ACTION (part_vect_read);
+HPX_PLAIN_ACTION (part_vect_read_position);
 HPX_PLAIN_ACTION (part_vect_write);
 HPX_PLAIN_ACTION (part_vect_range);
+HPX_PLAIN_ACTION (part_vect_sort_lo);
+HPX_PLAIN_ACTION (part_vect_sort_hi);
 
 void part_vect_init() {
 	localities = hpx::find_all_localities();
@@ -48,9 +54,7 @@ void part_vect_init() {
 	hpx::wait_all(futs);
 }
 
-std::vector<particle> part_vect_read(part_iter b, part_iter e) {
-	const auto myid = hpx::get_locality_id();
-
+hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {
 	const auto id = part_vect_locality_id(b);
 	std::vector<particle> these_parts;
 	if (id == myid) {
@@ -60,19 +64,54 @@ std::vector<particle> part_vect_read(part_iter b, part_iter e) {
 			these_parts.push_back(parts(i));
 		}
 		if (these_parts.size() != e - b) {
-			auto next_parts = part_vect_read_action()(localities[myid + 1], b + these_parts.size(), e);
+			auto fut = part_vect_read_action()(localities[myid + 1], b + these_parts.size(), e);
+			auto next_parts = fut.get();
 			for (const auto &p : next_parts) {
 				these_parts.push_back(p);
 			}
 			if (these_parts.size() != e - b) {
-				printf( "Error in part_vect_read\n");
+				printf("Error in part_vect_read\n");
 				abort();
 			}
 		}
 	} else {
-		these_parts = part_vect_read_action()(localities[id], b, e);
+		auto fut = part_vect_read_action()(localities[id], b, e);
+		these_parts = fut.get();
 	}
-	return these_parts;
+	return hpx::make_ready_future(these_parts);
+}
+
+hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, part_iter e) {
+	if (b >= part_begin && b < part_end) {
+		if (e <= part_end) {
+			return hpx::async(hpx::launch::deferred, [=]() {
+				std::vector<vect<pos_type>> these_parts;
+				for (int i = b; i < e; i++) {
+					these_parts.push_back(parts(i).x);
+				}
+				return these_parts;
+			});
+		} else {
+			return hpx::async(hpx::launch::async, [=]() {
+				std::vector<vect<pos_type>> these_parts;
+				for (int i = b; i < part_end; i++) {
+					these_parts.push_back(parts(i).x);
+				}
+				auto fut = part_vect_read_position_action()(localities[myid + 1], b + these_parts.size(), e);
+				auto next_parts = fut.get();
+				for (const auto &p : next_parts) {
+					these_parts.push_back(p);
+				}
+				return these_parts;
+			});
+
+		}
+	} else {
+		auto fut = hpx::async < part_vect_read_position_action > (localities[part_vect_locality_id(b)], b, e);
+		return fut.then([](decltype(fut) f) {
+			return f.get();
+		});
+	}
 }
 
 void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts) {
@@ -98,12 +137,6 @@ void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts
 		part_vect_write_action()(localities[id], b, e, std::move(these_parts));
 	}
 }
-
-part_iter part_vect_sort_lo(part_iter, part_iter, double xmid, int dim);
-std::pair<particle, part_iter> part_vect_sort_hi(part_iter, part_iter, double xmid, int dim, particle lo_part);
-
-HPX_PLAIN_ACTION (part_vect_sort_lo);
-HPX_PLAIN_ACTION (part_vect_sort_hi);
 
 inline std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter hi, double xmid, int dim, particle lo_part) {
 

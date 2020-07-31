@@ -80,18 +80,18 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
-	auto myparts = part_vect_read(b, e);
-	for (const auto &p : myparts) {
-		const auto x = pos_to_double(p.x);
-		if (!in_range(x, box)) {
-			printf("Found particle out of range!\n");
-			printf("%e %e %e\n", x[0], x[1], x[2]);
-			for (int dim = 0; dim < NDIM; dim++) {
-				printf("%e %e\n", box.min[dim], box.max[dim]);
-			}
-			abort();
-		}
-	}
+//	auto myparts = part_vect_read(b, e);
+//	for (const auto &p : myparts) {
+//		const auto x = pos_to_double(p.x);
+//		if (!in_range(x, box)) {
+//			printf("Found particle out of range!\n");
+//			printf("%e %e %e\n", x[0], x[1], x[2]);
+//			for (int dim = 0; dim < NDIM; dim++) {
+//				printf("%e %e\n", box.min[dim], box.max[dim]);
+//			}
+//			abort();
+//		}
+//	}
 	if (e - b > opts.parts_per_node) {
 		float max_span = 0.0;
 		const range prange = part_vect_range(b, e);
@@ -138,7 +138,7 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 	range prange;
 	if (is_leaf()) {
 		multi.x = vect<float>(0.0);
-		const auto parts = part_vect_read(part_begin, part_end);
+		const auto parts = part_vect_read(part_begin, part_end).get();
 		for (const auto &p : parts) {
 			multi.m() += m;
 			multi.x += pos_to_double(p.x) * m;
@@ -272,14 +272,17 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	std::vector<hpx::future<node_attr>> dfuts;
 	std::vector<hpx::future<node_attr>> efuts;
+	std::vector<hpx::future<std::vector<vect<pos_type>>>> dsource_futs;
+	std::vector<hpx::future<std::vector<vect<pos_type>>>> esource_futs;
 
 	for (auto c : dchecklist) {
 		dfuts.push_back(c.node.get_node_attributes());
 	}
-	for (auto c : echecklist) {
-		efuts.push_back(c.node.get_node_attributes());
+	if (opts.ewald) {
+		for (auto c : echecklist) {
+			efuts.push_back(c.node.get_node_attributes());
+		}
 	}
-
 	int futi = 0;
 	for (auto c : dchecklist) {
 		const auto other = dfuts[futi++].get();
@@ -287,10 +290,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 		if (far) {
 			if (c.opened) {
-				const auto parts = part_vect_read(other.pbegin, other.pend);
-				for (auto i = parts.begin(); i != parts.end(); i++) {
-					dsources.push_back(pos_to_double(i->x));
-				}
+				dsource_futs.push_back(part_vect_read_position(other.pbegin, other.pend));
 			} else {
 				dmulti_srcs.push_back( { other.multi.m, other.multi.x });
 			}
@@ -312,10 +312,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 			if (far) {
 				if (c.opened) {
-					const auto parts = part_vect_read(other.pbegin, other.pend);
-					for (auto i = parts.begin(); i != parts.end(); i++) {
-						esources.push_back(pos_to_double(i->x));
-					}
+					esource_futs.push_back(part_vect_read_position(other.pbegin, other.pend));
 				} else {
 					emulti_srcs.push_back( { other.multi.m, other.multi.x });
 				}
@@ -330,9 +327,23 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}
 	}
 	flop += gravity_CC_direct(L, multi.x, dmulti_srcs);
+	dsources.resize(0);
+	for (auto &v : dsource_futs) {
+		auto s = v.get();
+		for( auto x : s) {
+			dsources.push_back(pos_to_double(x));
+		}
+	}
 	flop += gravity_CP_direct(L, multi.x, dsources);
 	if (opts.ewald) {
 		flop += gravity_CC_ewald(L, multi.x, emulti_srcs);
+		esources.resize(0);
+		for (auto &v : esource_futs) {
+			auto s = v.get();
+			for( auto x : s) {
+				esources.push_back(pos_to_double(x));
+			}
+		}
 		flop += gravity_CP_ewald(L, multi.x, esources);
 	}
 	std::swap(dchecklist, next_dchecklist);
@@ -361,6 +372,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			rc.stats = rc_r.stats + rc_l.stats;
 		}
 	} else {
+		dsource_futs.resize(0);
+		esource_futs.resize(0);
 		while (!dchecklist.empty()) {
 			dfuts.resize(0);
 			for (auto c : dchecklist) {
@@ -372,10 +385,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - other.multi.x) : abs(multi.x - other.multi.x);
 				const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 				if (c.opened) {
-					const auto parts = part_vect_read(other.pbegin, other.pend);
-					for (auto i = parts.begin(); i != parts.end(); i++) {
-						dsources.push_back(pos_to_double(i->x));
-					}
+					dsource_futs.push_back(part_vect_read_position(other.pbegin, other.pend));
 				} else {
 					if (far) {
 						dmulti_srcs.push_back( { other.multi.m, other.multi.x });
@@ -404,10 +414,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					const auto dx = ewald_far_separation(multi.x - other.multi.x, multi.r + other.multi.r);
 					const bool far = dx > (multi.r + other.multi.r) * theta_inv;
 					if (c.opened) {
-						const auto parts = part_vect_read(other.pbegin, other.pend);
-						for (auto i = parts.begin(); i != parts.end(); i++) {
-							esources.push_back(pos_to_double(i->x));
-						}
+						esource_futs.push_back(part_vect_read_position(other.pbegin, other.pend));
 					} else {
 						if (far) {
 							emulti_srcs.push_back( { other.multi.m, other.multi.x });
@@ -427,7 +434,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}
 		std::vector<vect<float>> x;
 		std::vector<force> f;
-		const auto parts = part_vect_read(part_begin, part_end);
+		const auto parts = part_vect_read(part_begin, part_end).get();
 		for (auto i = parts.begin(); i != parts.end(); i++) {
 			if (i->rung >= min_rung || do_out) {
 				x.push_back(pos_to_double(i->x));
@@ -443,11 +450,23 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				j++;
 			}
 		}
-		flop += gravity_PP_direct(f, x, dsources);
 		flop += gravity_PC_direct(f, x, dmulti_srcs);
+		for (auto &v : dsource_futs) {
+			auto s = v.get();
+			for( auto x : s) {
+				dsources.push_back(pos_to_double(x));
+			}
+		}
+		flop += gravity_PP_direct(f, x, dsources);
 		if (opts.ewald) {
-			flop += gravity_PP_ewald(f, x, esources);
 			flop += gravity_PC_ewald(f, x, emulti_srcs);
+			for (auto &v : esource_futs) {
+				auto s = v.get();
+				for( auto x : s) {
+					esources.push_back(pos_to_double(x));
+				}
+			}
+			flop += gravity_PP_ewald(f, x, esources);
 		}
 		rc = do_kick(f, min_rung, do_out);
 	}
@@ -464,7 +483,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 	if (do_out) {
 		rc.stats.zero();
 	}
-	auto parts = part_vect_read(part_begin, part_end);
+	auto parts = part_vect_read(part_begin, part_end).get();
 	for (auto i = parts.begin(); i != parts.end(); i++) {
 		if (i->rung >= min_rung || do_out) {
 			if (i->rung >= min_rung) {
@@ -509,7 +528,7 @@ void tree::drift(float dt) {
 	}
 
 	if (is_leaf()) {
-		auto parts = part_vect_read(part_begin, part_end);
+		auto parts = part_vect_read(part_begin, part_end).get();
 		for (auto i = parts.begin(); i != parts.end(); i++) {
 			const vect<double> dx = i->v * dt;
 			vect<double> x = pos_to_double(i->x);
