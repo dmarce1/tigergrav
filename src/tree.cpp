@@ -32,7 +32,7 @@ struct raw_id_type_hash {
 };
 
 bool inc_thread() {
-	const int nmax = 128 * hardware_concurrency;
+	const int nmax = 512 * hardware_concurrency;
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
@@ -88,11 +88,14 @@ tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
 
 tree::tree(range box, part_iter b, part_iter e, int level_) {
 //	printf("Forming %i %i\n", b, e);
+//	if( level_ == 1 ) {
+//		sleep(100);
+//	}
 	level = level_;
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
-//	auto myparts = part_vect_read(b, e).get();
+	auto myparts = part_vect_read(b, e).get();
 //	bool abortme = false;
 //	for (const auto &p : myparts) {
 //		const auto x = pos_to_double(p.x);

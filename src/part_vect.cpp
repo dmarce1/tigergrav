@@ -169,8 +169,8 @@ void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts
 }
 
 part_iter part_vect_count_lo(part_iter, part_iter, double xmid, int dim);
-part_iter part_vect_sort_lo(part_iter, part_iter, part_iter, double xmid, int dim);
-std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter, double xmid, int dim, std::vector<particle> lo_parts, int current);
+void part_vect_sort_lo(part_iter, part_iter, part_iter, double xmid, int dim);
+std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter, double xmid, int dim, std::vector<particle> lo_parts);
 
 HPX_PLAIN_ACTION (part_vect_sort_lo);
 HPX_PLAIN_ACTION (part_vect_sort_hi);
@@ -187,14 +187,16 @@ part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
 		}
 	}
 	if (part_end < e) {
-		count += part_vect_count_lo_action()(localities[myid + 1], part_end, e, xmid, dim);
+		auto fut = hpx::async<part_vect_count_lo_action>(localities[myid + 1], part_end, e, xmid, dim);
+		count += fut.get();
 	}
 //	printf( "Counted %i in low partition on locality %i\n", count, myid);
 	return count;
 }
 
-inline std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter hi, double xmid, int dim, std::vector<particle> lo_parts, int current) {
+inline std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter hi, double xmid, int dim, std::vector<particle> lo_parts) {
 //	printf( "part_vect_sort_hi\n");
+	part_iter current = 0;
 	const std::uint64_t N = localities.size();
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;
@@ -202,7 +204,6 @@ inline std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter h
 	std::pair<std::vector<particle>, part_iter> rc;
 	while (hi != part_begin - 1 && current != lo_parts.size()) {
 		if (pos_to_double(parts(hi).x[dim]) < xmid) {
-//			printf("%e %e\n", pos_to_double(lo_parts[current].x[dim]), pos_to_double(parts(hi).x[dim]));
 			auto tmp = lo_parts[current];
 			lo_parts[current++] = parts(hi);
 			parts(hi) = tmp;
@@ -210,7 +211,17 @@ inline std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter h
 		hi--;
 	}
 	if (current != lo_parts.size()) {
-		rc = part_vect_sort_hi_action()(localities[n - 1], part_begin - 1, xmid, dim, std::move(lo_parts), current);
+		std::vector<particle> new_lo_parts;
+		new_lo_parts.reserve(lo_parts.size() - current);
+		for (int i = current; i < lo_parts.size(); i++) {
+			new_lo_parts.push_back(lo_parts[i]);
+		}
+		auto fut = hpx::async<part_vect_sort_hi_action>(localities[n - 1], part_begin - 1, xmid, dim, std::move(new_lo_parts));
+		rc = fut.get();
+		for (int i = current; i < lo_parts.size(); i++) {
+			lo_parts[i] = rc.first[i - current];
+		}
+		rc.first = std::move(lo_parts);
 	} else {
 		rc.first = std::move(lo_parts);
 		rc.second = hi;
@@ -218,43 +229,47 @@ inline std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter h
 	return rc;
 }
 
-part_iter part_vect_sort_lo(part_iter lo, part_iter hi, part_iter mid, double xmid, int dim) {
+void part_vect_sort_lo(part_iter lo, part_iter hi, part_iter mid, double xmid, int dim) {
 //	printf( "part_vect_sort_lo\n");
 	const std::uint64_t N = localities.size();
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;
 	bool complete = true;
 	std::vector<particle> hi_parts;
+	hi_parts.reserve(std::min(mid - lo, part_end - lo));
 	const auto lo0 = lo;
-//	for (int i = lo; i <= hi; i++) {
-//		printf("%i %e %e %e\n", i, pos_to_double(parts(i).x[0]), pos_to_double(parts(i).x[1]), pos_to_double(parts(i).x[2]));
-//	}
-
 	while (lo < mid && lo != part_end) {
 		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
 			hi_parts.push_back(parts(lo));
 		}
 		lo++;
 	}
-	auto rc = part_vect_sort_hi_action()(localities[part_vect_locality_id(hi)], hi, xmid, dim, std::move(hi_parts), 0);
-	hi = rc.second;
-	int current = 0;
-	for (lo = lo0; lo < mid && lo != part_end; lo++) {
-		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
-			parts(lo) = rc.first[current++];
+
+	if (hi_parts.size()) {
+		const auto hiid = part_vect_locality_id(hi);
+		std::pair<std::vector<particle>, part_iter> rc;
+		if (hiid != myid) {
+			auto fut = hpx::async<part_vect_sort_hi_action>(localities[hiid], hi, xmid, dim, std::move(hi_parts));
+			rc = fut.get();
+		} else {
+			rc = part_vect_sort_hi(hi, xmid, dim, std::move(hi_parts));
+		}
+		hi = rc.second;
+		int current = 0;
+		for (lo = lo0; lo < mid && lo != part_end; lo++) {
+			if (pos_to_double(parts(lo).x[dim]) >= xmid) {
+				parts(lo) = rc.first[current++];
+			}
+		}
+		if (current > rc.first.size()) {
+			printf("Size error %i %i\n", current, rc.first.size());
+			abort();
 		}
 	}
-	if (current > rc.first.size()) {
-		printf("Size error %i %i\n", current, rc.first.size());
-		abort();
-	}
 	if (lo != mid) {
-		//	printf("lo_jump\n");
-		return part_vect_sort_lo_action()(localities[n + 1], part_end, hi, mid, xmid, dim);
-	} else {
-		return mid;
+		auto fut = hpx::async<part_vect_sort_lo_action>(localities[n + 1], part_end, hi, mid, xmid, dim);
+		fut.get();
 	}
-
 }
 
 part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
@@ -264,7 +279,7 @@ part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
 	} else {
 		auto count = part_vect_count_lo(b, e, xmid, dim);
 //		sleep(1);
-		auto rc = part_vect_sort_lo_action()(localities[part_vect_locality_id(b)], b, e - 1, b + count, xmid, dim);
+		part_vect_sort_lo_action()(localities[part_vect_locality_id(b)], b, e - 1, b + count, xmid, dim);
 		return b + count;
 	}
 }

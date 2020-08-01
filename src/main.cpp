@@ -17,11 +17,16 @@ double timer(void) {
 }
 
 kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
+	auto start = timer();
 	root_ptr.compute_multipoles(mrung, do_out);
+	printf("Multipoles took %e seconds\n", timer() - start);
+	start = timer();
 	expansion<float> L;
 	L = 0.0;
-	return root_ptr.kick_fmm(std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), { {
-			0.5, 0.5, 0.5 } }, L, mrung, do_out);
+	auto rc = root_ptr.kick_fmm(std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), {
+			{ 0.5, 0.5, 0.5 } }, L, mrung, do_out);
+	printf("fmm took %e seconds\n", timer() - start);
+	return rc;
 }
 
 int hpx_main(int argc, char *argv[]) {
@@ -129,7 +134,9 @@ int hpx_main(int argc, char *argv[]) {
 				do_out = false;
 			}
 			root_ptr.drift(dt);
+			auto ts = timer();
 			root_ptr = tree::new_(root_box, 0, opts.problem_size, 0);
+			printf("Tree took %e seconds\n", timer() - ts);
 			itime = inc(itime, kr.rung);
 			kr = solve_gravity(root_ptr, min_rung(itime), do_out);
 			if (do_out) {
