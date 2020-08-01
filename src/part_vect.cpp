@@ -177,6 +177,7 @@ HPX_PLAIN_ACTION (part_vect_sort_hi);
 HPX_PLAIN_ACTION (part_vect_count_lo);
 
 part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
+//	printf( "part_vect_count_lo\n");
 	part_iter count = 0;
 	auto this_begin = std::max(b, part_begin);
 	auto this_end = std::min(e, part_end);
@@ -193,7 +194,7 @@ part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
 }
 
 inline std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter hi, double xmid, int dim, std::vector<particle> lo_parts, int current) {
-
+//	printf( "part_vect_sort_hi\n");
 	const std::uint64_t N = localities.size();
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;
@@ -218,7 +219,7 @@ inline std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter h
 }
 
 part_iter part_vect_sort_lo(part_iter lo, part_iter hi, part_iter mid, double xmid, int dim) {
-
+//	printf( "part_vect_sort_lo\n");
 	const std::uint64_t N = localities.size();
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;

@@ -69,7 +69,7 @@ int hpx_main(int argc, char *argv[]) {
 		printf("Forming tree\n");
 		auto tstart = timer();
 		tree_client root_ptr = tree::new_(root_box, 0, opts.problem_size, 0);
-		printf("Done forming tree to %e seconds\n", timer() - tstart);
+		printf("Done forming tree took %e seconds\n", timer() - tstart);
 
 		double t = 0.0;
 		int iter = 0;

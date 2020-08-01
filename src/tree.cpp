@@ -32,7 +32,7 @@ struct raw_id_type_hash {
 };
 
 bool inc_thread() {
-	const int nmax = 4 * hardware_concurrency;
+	const int nmax = 128 * hardware_concurrency;
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
