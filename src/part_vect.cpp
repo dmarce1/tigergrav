@@ -109,8 +109,10 @@ inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_it
 		});
 	}
 	return hpx::async(hpx::launch::deferred, [b]() {
-		std::lock_guard < mutex_type > lock(pos_cache_mtx);
-		return pos_cache[b].get();
+		std::unique_lock < mutex_type > lock(pos_cache_mtx);
+		auto future = pos_cache[b];
+		lock.unlock();
+		return future.get();
 	});
 }
 
@@ -126,19 +128,19 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 				return these_parts;
 			});
 		} else {
-			return hpx::async(hpx::launch::async, [=]() {
+			auto fut = part_vect_read_pos_cache(part_end, e);
+			return hpx::async(hpx::launch::deferred, [=](decltype(fut) f) {
 				std::vector<vect<pos_type>> these_parts;
 				these_parts.reserve(e - b);
 				for (int i = b; i < part_end; i++) {
 					these_parts.push_back(parts(i).x);
 				}
-				auto fut = part_vect_read_pos_cache(b + these_parts.size(), e);
-				auto next_parts = fut.get();
+				auto next_parts = f.get();
 				for (const auto &p : next_parts) {
 					these_parts.push_back(p);
 				}
 				return these_parts;
-			});
+			}, std::move(fut));
 
 		}
 	} else {
