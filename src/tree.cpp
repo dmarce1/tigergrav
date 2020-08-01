@@ -92,18 +92,22 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
-//	auto myparts = part_vect_read(b, e);
-//	for (const auto &p : myparts) {
-//		const auto x = pos_to_double(p.x);
-//		if (!in_range(x, box)) {
-//			printf("Found particle out of range!\n");
-//			printf("%e %e %e\n", x[0], x[1], x[2]);
-//			for (int dim = 0; dim < NDIM; dim++) {
-//				printf("%e %e\n", box.min[dim], box.max[dim]);
-//			}
-//			abort();
-//		}
-//	}
+	auto myparts = part_vect_read(b, e).get();
+	bool abortme = false;
+	for (const auto &p : myparts) {
+		const auto x = pos_to_double(p.x);
+		if (!in_range(x, box)) {
+			printf("Found particle out of range!\n");
+			printf("%e %e %e\n", x[0], x[1], x[2]);
+			for (int dim = 0; dim < NDIM; dim++) {
+				printf("%e %e\n", box.min[dim], box.max[dim]);
+			}
+			abortme = true;
+		}
+	}
+	if( abortme ) {
+		abort();
+	}
 	if (e - b > opts.parts_per_node) {
 		float max_span = 0.0;
 		const range prange = part_vect_range(b, e);

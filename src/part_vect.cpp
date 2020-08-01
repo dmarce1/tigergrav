@@ -6,6 +6,7 @@
 #include <hpx/include/serialization.hpp>
 #include <hpx/synchronization/spinlock.hpp>
 
+#include <unistd.h>
 #include <unordered_map>
 
 using mutex_type = hpx::lcos::local::spinlock;
@@ -19,16 +20,11 @@ static int myid;
 static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_type>>>> pos_cache;
 static mutex_type pos_cache_mtx;
 
-part_iter part_vect_sort_lo(part_iter, part_iter, double xmid, int dim);
-std::pair<particle, part_iter> part_vect_sort_hi(part_iter, part_iter, double xmid, int dim, particle lo_part);
-
 HPX_PLAIN_ACTION (part_vect_init);
 HPX_PLAIN_ACTION (part_vect_read);
 HPX_PLAIN_ACTION (part_vect_read_position);
 HPX_PLAIN_ACTION (part_vect_write);
 HPX_PLAIN_ACTION (part_vect_range);
-HPX_PLAIN_ACTION (part_vect_sort_lo);
-HPX_PLAIN_ACTION (part_vect_sort_hi);
 HPX_PLAIN_ACTION (part_vect_cache_reset);
 
 void part_vect_cache_reset() {
@@ -44,10 +40,10 @@ void part_vect_cache_reset() {
 
 inline particle& parts(part_iter i) {
 	int j = i - part_begin;
-//	if (j < 0 || j >= particles.size()) {
-//		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
-//		abort();
-//	}
+	if (j < 0 || j >= particles.size()) {
+		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
+		abort();
+	}
 	return particles[j];
 }
 
@@ -172,63 +168,90 @@ void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts
 	}
 }
 
-inline std::pair<particle, part_iter> part_vect_sort_hi(part_iter lo, part_iter hi, double xmid, int dim, particle lo_part) {
+part_iter part_vect_count_lo(part_iter, part_iter, double xmid, int dim);
+part_iter part_vect_sort_lo(part_iter, part_iter, part_iter, double xmid, int dim);
+std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter, double xmid, int dim, std::vector<particle> lo_parts, int current);
+
+HPX_PLAIN_ACTION (part_vect_sort_lo);
+HPX_PLAIN_ACTION (part_vect_sort_hi);
+HPX_PLAIN_ACTION (part_vect_count_lo);
+
+part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
+	part_iter count = 0;
+	auto this_begin = std::max(b, part_begin);
+	auto this_end = std::min(e, part_end);
+	for (int i = this_begin; i < this_end; i++) {
+		if (pos_to_double(parts(i).x[dim]) < xmid) {
+			count++;
+		}
+	}
+	if (part_end < e) {
+		count += part_vect_count_lo_action()(localities[myid + 1], part_end, e, xmid, dim);
+	}
+//	printf( "Counted %i in low partition on locality %i\n", count, myid);
+	return count;
+}
+
+inline std::pair<std::vector<particle>, part_iter> part_vect_sort_hi(part_iter hi, double xmid, int dim, std::vector<particle> lo_parts, int current) {
 
 	const std::uint64_t N = localities.size();
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;
 	bool complete = true;
-	std::pair<particle, part_iter> rc;
-	while (lo != hi) {
+	std::pair<std::vector<particle>, part_iter> rc;
+	while (hi != part_begin - 1 && current != lo_parts.size()) {
 		if (pos_to_double(parts(hi).x[dim]) < xmid) {
-			break;
+//			printf("%e %e\n", pos_to_double(lo_parts[current].x[dim]), pos_to_double(parts(hi).x[dim]));
+			auto tmp = lo_parts[current];
+			lo_parts[current++] = parts(hi);
+			parts(hi) = tmp;
 		}
 		hi--;
-		if (hi == part_begin - 1) {
-			complete = false;
-			break;
-		}
 	}
-	if (!complete) {
-//		printf("hi_jump\n");
-		rc = part_vect_sort_hi_action()(localities[n - 1], lo, part_begin - 1, xmid, dim, lo_part);
+	if (current != lo_parts.size()) {
+		rc = part_vect_sort_hi_action()(localities[n - 1], part_begin - 1, xmid, dim, std::move(lo_parts), current);
 	} else {
-		rc.first = parts(hi);
+		rc.first = std::move(lo_parts);
 		rc.second = hi;
-		parts(hi) = lo_part;
 	}
 	return rc;
 }
 
-part_iter part_vect_sort_lo(part_iter lo, part_iter hi, double xmid, int dim) {
+part_iter part_vect_sort_lo(part_iter lo, part_iter hi, part_iter mid, double xmid, int dim) {
 
 	const std::uint64_t N = localities.size();
 	const std::uint64_t n = myid;
 	const std::uint64_t M = options::get().problem_size;
 	bool complete = true;
-	while (lo < hi) {
+	std::vector<particle> hi_parts;
+	const auto lo0 = lo;
+//	for (int i = lo; i <= hi; i++) {
+//		printf("%i %e %e %e\n", i, pos_to_double(parts(i).x[0]), pos_to_double(parts(i).x[1]), pos_to_double(parts(i).x[2]));
+//	}
+
+	while (lo < mid && lo != part_end) {
 		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
-			const auto hiid = part_vect_locality_id(hi);
-			std::pair<particle, part_iter> tmp;
-			if (hiid == n) {
-				tmp = part_vect_sort_hi(lo, hi, xmid, dim, parts(lo));
-			} else {
-				tmp = part_vect_sort_hi_action()(localities[hiid], lo, hi, xmid, dim, parts(lo));
-			}
-			parts(lo) = tmp.first;
-			hi = tmp.second;
+			hi_parts.push_back(parts(lo));
 		}
 		lo++;
-		if (lo == part_end) {
-			complete = false;
-			break;
+	}
+	auto rc = part_vect_sort_hi_action()(localities[part_vect_locality_id(hi)], hi, xmid, dim, std::move(hi_parts), 0);
+	hi = rc.second;
+	int current = 0;
+	for (lo = lo0; lo < mid && lo != part_end; lo++) {
+		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
+			parts(lo) = rc.first[current++];
 		}
 	}
-	if (!complete) {
+	if (current > rc.first.size()) {
+		printf("Size error %i %i\n", current, rc.first.size());
+		abort();
+	}
+	if (lo != mid) {
 		//	printf("lo_jump\n");
-		return part_vect_sort_lo_action()(localities[n + 1], part_end, hi, xmid, dim);
+		return part_vect_sort_lo_action()(localities[n + 1], part_end, hi, mid, xmid, dim);
 	} else {
-		return hi;
+		return mid;
 	}
 
 }
@@ -238,8 +261,10 @@ part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
 	if (e == b) {
 		return e;
 	} else {
-		auto rc = part_vect_sort_lo_action()(localities[part_vect_locality_id(b)], b, e - 1, xmid, dim);
-		return rc;
+		auto count = part_vect_count_lo(b, e, xmid, dim);
+//		sleep(1);
+		auto rc = part_vect_sort_lo_action()(localities[part_vect_locality_id(b)], b, e - 1, b + count, xmid, dim);
+		return b + count;
 	}
 }
 
