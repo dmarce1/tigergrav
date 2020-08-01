@@ -32,7 +32,7 @@ struct raw_id_type_hash {
 };
 
 bool inc_thread() {
-	const int nmax = 128 * hardware_concurrency;
+	const int nmax = 8 * hardware_concurrency;
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
@@ -47,7 +47,7 @@ void dec_thread() {
 
 template<class F>
 auto thread_if_avail(F &&f, int nparts) {
-	const auto Nthreads = hardware_concurrency * 128;
+	const auto Nthreads = hardware_concurrency * 8;
 	const auto static N = options::get().problem_size / localities.size() / Nthreads;
 	bool thread;
 	if (nparts >= N) {
@@ -156,6 +156,8 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 
 std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool do_out) {
 	if (level == 0) {
+		reset_node_cache();
+		part_vect_cache_reset();
 		printf("compute_multipoles\n");
 	}
 	const auto &opts = options::get();
@@ -315,8 +317,6 @@ void trash_workspace(workspace &&w) {
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_out) {
 	if (level == 0) {
-		reset_node_cache();
-		part_vect_cache_reset();
 		printf("kick_fmm\n");
 	}
 
@@ -649,7 +649,7 @@ void reset_node_cache() {
 			futs.push_back(hpx::async < reset_node_cache_action > (localities[i]));
 		}
 	}
-	for( int i = 0; i < NODE_CACHE_SIZE; i++) {
+	for (int i = 0; i < NODE_CACHE_SIZE; i++) {
 		node_cache[i].clear();
 	}
 	hpx::wait_all(futs);

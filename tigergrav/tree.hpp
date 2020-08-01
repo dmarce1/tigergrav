@@ -112,6 +112,9 @@ public:
 	raw_tree_client() = default;
 	raw_tree_client(raw_id_type ptr_);
 	hpx::future<node_attr> get_node_attributes() const;
+	int get_locality() const {
+		return ptr.loc_id;
+	}
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & ptr;
