@@ -27,12 +27,12 @@ static int hardware_concurrency = std::thread::hardware_concurrency();
 
 struct raw_id_type_hash {
 	std::size_t operator()(raw_id_type id) const {
-		return id.ptr | id.loc_id;
+		return id.ptr ^ id.loc_id;
 	}
 };
 
 bool inc_thread() {
-	const int nmax = 512 * hardware_concurrency;
+	const int nmax = 128 * hardware_concurrency;
 	if (num_threads++ < nmax) {
 		return true;
 	} else {
@@ -46,13 +46,14 @@ void dec_thread() {
 }
 
 template<class F>
-auto thread_if_avail(F &&f, int level, bool left = false) {
+auto thread_if_avail(F &&f, int nparts) {
+	const auto Nthreads = hardware_concurrency * 128;
+	const auto static N = options::get().problem_size / localities.size() / Nthreads;
 	bool thread;
-	if (level % 8 == 0) {
+	if (nparts >= N) {
 		thread = true;
-		num_threads++;
-	} else if (left) {
-		thread = inc_thread();
+	} else {
+		thread = false;
 	}
 	if (thread) {
 		auto rc = hpx::async([](F &&f) {
@@ -113,7 +114,13 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 //	}
 	if (e - b > opts.parts_per_node) {
 		float max_span = 0.0;
-		const range prange = part_vect_range(b, e);
+		range prange;
+		// Don't bother choosing a particular bisection plane when lots of particles
+		if (e - b > 512 * opts.parts_per_node) {
+			prange = box;
+		} else {
+			prange = part_vect_range(b, e);
+		}
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto this_span = prange.max[dim] - prange.min[dim];
@@ -136,10 +143,10 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 //		}
 		auto rcl = thread_if_avail([=]() {
 			return new_(boxl, b, mid_iter, level + 1);
-		}, level, true);
+		}, part_end - part_begin);
 		auto rcr = thread_if_avail([=]() {
 			return new_(boxr, mid_iter, e, level + 1);
-		}, level);
+		}, part_end - part_begin);
 		children[1] = rcr.get();
 		children[0] = rcl.get();
 		raw_children[0] = children[0].get_raw_ptr();
@@ -207,10 +214,10 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		std::pair<multipole_info, range> ml, mr;
 		auto rcl = thread_if_avail([=]() {
 			return children[0].compute_multipoles(mrung, do_out);
-		}, level, true);
+		}, part_end - part_begin);
 		auto rcr = thread_if_avail([=]() {
 			return children[1].compute_multipoles(mrung, do_out);
-		}, level);
+		},part_end - part_begin);
 		mr = rcr.get();
 		ml = rcl.get();
 		multi.m() = ml.first.m() + mr.first.m();
@@ -419,10 +426,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=]() {
 			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
-		}, level, true);
+		},part_end - part_begin);
 		auto rc_r_fut = thread_if_avail([&]() {
 			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
-		}, level);
+		}, part_end - part_begin);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
@@ -611,11 +618,11 @@ void tree::drift(float dt) {
 		auto rcl = thread_if_avail([=]() {
 			children[0].drift(dt);
 			return 1;
-		}, level, true);
+		}, part_end - part_begin);
 		auto rcr = thread_if_avail([=]() {
 			children[1].drift(dt);
 			return 1;
-		}, level);
+		}, part_end - part_begin);
 		rcl.get();
 		rcr.get();
 	}
@@ -629,8 +636,9 @@ void tree::reset_flop() {
 	flop = 0;
 }
 
-std::unordered_map<raw_id_type, hpx::shared_future<node_attr>, raw_id_type_hash> node_cache;
-mutex_type node_cache_mtx;
+#define NODE_CACHE_SIZE 1024
+std::unordered_map<raw_id_type, hpx::shared_future<node_attr>, raw_id_type_hash> node_cache[NODE_CACHE_SIZE];
+mutex_type node_cache_mtx[NODE_CACHE_SIZE];
 
 HPX_PLAIN_ACTION (reset_node_cache);
 
@@ -641,7 +649,9 @@ void reset_node_cache() {
 			futs.push_back(hpx::async < reset_node_cache_action > (localities[i]));
 		}
 	}
-	node_cache.clear();
+	for( int i = 0; i < NODE_CACHE_SIZE; i++) {
+		node_cache[i].clear();
+	}
 	hpx::wait_all(futs);
 }
 
@@ -658,14 +668,15 @@ hpx::future<node_attr> get_node_attributes_(raw_id_type id) {
 }
 
 hpx::future<node_attr> read_node_cache(raw_id_type id) {
-	std::lock_guard<mutex_type> lock(node_cache_mtx);
-	auto iter = node_cache.find(id);
-	if (iter == node_cache.end()) {
-		node_cache[id] = get_node_attributes_(id);
+	const int index = raw_id_type_hash()(id) % NODE_CACHE_SIZE;
+	std::lock_guard<mutex_type> lock(node_cache_mtx[index]);
+	auto iter = node_cache[index].find(id);
+	if (iter == node_cache[index].end()) {
+		node_cache[index][id] = get_node_attributes_(id);
 	}
-	return hpx::async(hpx::launch::deferred, [id] {
-		std::unique_lock<mutex_type> lock(node_cache_mtx);
-		auto future = node_cache[id];
+	return hpx::async(hpx::launch::deferred, [id, index] {
+		std::unique_lock<mutex_type> lock(node_cache_mtx[index]);
+		auto future = node_cache[index][id];
 		lock.unlock();
 		return future.get();
 	});
@@ -673,7 +684,7 @@ hpx::future<node_attr> read_node_cache(raw_id_type id) {
 
 hpx::future<node_attr> raw_tree_client::get_node_attributes() const {
 	if (myid == ptr.loc_id) {
-		tree* tree_ptr = reinterpret_cast<tree*>(ptr.ptr);
+		tree *tree_ptr = reinterpret_cast<tree*>(ptr.ptr);
 		return hpx::async(hpx::launch::deferred, [tree_ptr]() {
 			return tree_ptr->get_node_attributes();
 		});

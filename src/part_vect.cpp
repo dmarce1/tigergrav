@@ -17,8 +17,9 @@ static part_iter part_end;
 static std::vector<hpx::id_type> localities;
 static int myid;
 
-static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_type>>>> pos_cache;
-static mutex_type pos_cache_mtx;
+#define POS_CACHE_SIZE 1024
+static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_type>>>> pos_cache[POS_CACHE_SIZE];
+static mutex_type pos_cache_mtx[POS_CACHE_SIZE];
 
 HPX_PLAIN_ACTION (part_vect_init);
 HPX_PLAIN_ACTION (part_vect_read);
@@ -34,7 +35,9 @@ void part_vect_cache_reset() {
 			futs.push_back(hpx::async < part_vect_cache_reset_action > (localities[i]));
 		}
 	}
-	pos_cache.clear();
+	for( int i = 0; i < POS_CACHE_SIZE; i++) {
+		pos_cache[i].clear();
+	}
 	hpx::wait_all(futs);
 }
 
@@ -96,17 +99,18 @@ hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {
 }
 
 inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_iter b, part_iter e) {
-	std::lock_guard<mutex_type> lock(pos_cache_mtx);
-	auto iter = pos_cache.find(b);
-	if (iter == pos_cache.end()) {
+	const int index = (b / sizeof(particle)) % POS_CACHE_SIZE;
+	std::lock_guard<mutex_type> lock(pos_cache_mtx[index]);
+	auto iter = pos_cache[index].find(b);
+	if (iter == pos_cache[index].end()) {
 		auto fut = hpx::async < part_vect_read_position_action > (localities[part_vect_locality_id(b)], b, e);
-		pos_cache[b] = fut.then([b](decltype(fut) f) {
+		pos_cache[index][b] = fut.then([b](decltype(fut) f) {
 			return f.get().get();
 		});
 	}
-	return hpx::async(hpx::launch::deferred, [b]() {
-		std::unique_lock < mutex_type > lock(pos_cache_mtx);
-		auto future = pos_cache[b];
+	return hpx::async(hpx::launch::deferred, [b,index]() {
+		std::unique_lock < mutex_type > lock(pos_cache_mtx[index]);
+		auto future = pos_cache[index][b];
 		lock.unlock();
 		return future.get();
 	});
@@ -293,6 +297,10 @@ range part_vect_range(part_iter b, part_iter e) {
 			r.min[dim] = 1.0;
 		}
 		const auto this_e = std::min(e, part_end);
+		hpx::future<range> fut;
+		if( this_e != e ) {
+			fut = hpx::async<part_vect_range_action>(localities[myid + 1], this_e, e);
+		}
 		for (int i = b; i < this_e; i++) {
 			const auto &p = parts(i);
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -302,14 +310,15 @@ range part_vect_range(part_iter b, part_iter e) {
 			}
 		}
 		if (this_e != e) {
-			const auto tmp = part_vect_range_action()(localities[myid + 1], this_e, e);
+			const auto tmp = fut.get();
 			for (int dim = 0; dim < NDIM; dim++) {
 				r.max[dim] = std::max(r.max[dim], tmp.max[dim]);
 				r.min[dim] = std::min(r.min[dim], tmp.max[dim]);
 			}
 		}
 	} else {
-		r = part_vect_range_action()(localities[id], b, e);
+		auto fut = hpx::async<part_vect_range_action>(localities[id], b, e);
+		r = fut.get();
 	}
 	return r;
 }
