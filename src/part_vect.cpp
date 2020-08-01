@@ -39,11 +39,11 @@ void part_vect_cache_reset() {
 }
 
 inline particle& parts(part_iter i) {
-	int j = i - part_begin;
-	if (j < 0 || j >= particles.size()) {
-		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
-		abort();
-	}
+	const int j = i - part_begin;
+//	if (j < 0 || j >= particles.size()) {
+//		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
+//		abort();
+//	}
 	return particles[j];
 }
 

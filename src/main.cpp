@@ -13,15 +13,15 @@
 #include <fenv.h>
 
 double timer(void) {
-	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
+	return std::chrono::duration_cast < std::chrono::milliseconds > (std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
 kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 	root_ptr.compute_multipoles(mrung, do_out);
 	expansion<float> L;
 	L = 0.0;
-	return root_ptr.kick_fmm(std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), { { 0.5, 0.5, 0.5 } },
-			L, mrung, do_out);
+	return root_ptr.kick_fmm(std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), { {
+			0.5, 0.5, 0.5 } }, L, mrung, do_out);
 }
 
 int hpx_main(int argc, char *argv[]) {
@@ -66,10 +66,10 @@ int hpx_main(int argc, char *argv[]) {
 		}
 	} else {
 
-
 		printf("Forming tree\n");
+		auto tstart = timer();
 		tree_client root_ptr = tree::new_(root_box, 0, opts.problem_size, 0);
-		printf("Done forming tree\n");
+		printf("Done forming tree to %e seconds\n", timer() - tstart);
 
 		double t = 0.0;
 		int iter = 0;
@@ -77,7 +77,7 @@ int hpx_main(int argc, char *argv[]) {
 		kick_return kr;
 		time_type itime = 0;
 
-		auto tstart = timer();
+		tstart = timer();
 
 		const auto system_cmd = [](std::string cmd) {
 			if (system(cmd.c_str()) != 0) {
