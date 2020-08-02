@@ -3,6 +3,7 @@
 #include <tigergrav/particle.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/range.hpp>
+#include <tigergrav/gravity.hpp>
 
 #include <hpx/include/async.hpp>
 
@@ -18,3 +19,6 @@ part_iter part_vect_sort(part_iter b, part_iter e, double mid, int dim);
 range part_vect_range(part_iter b, part_iter e);
 int part_vect_locality_id(part_iter);
 void part_vect_cache_reset();
+std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e);
+multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_iter b, part_iter e);
+

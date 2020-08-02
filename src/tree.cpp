@@ -24,6 +24,7 @@ static void dec_thread();
 static std::vector<hpx::id_type> localities;
 static int myid;
 static int hardware_concurrency = std::thread::hardware_concurrency();
+static int target_nthreads = hardware_concurrency;
 
 struct raw_id_type_hash {
 	std::size_t operator()(raw_id_type id) const {
@@ -46,11 +47,12 @@ void dec_thread() {
 }
 
 template<class F>
-auto thread_if_avail(F &&f, int nparts) {
-	const auto Nthreads = hardware_concurrency * 8;
-	const auto static N = options::get().problem_size / localities.size() / Nthreads;
+auto thread_if_avail(F &&f, int nparts, int level, bool left, int over_sub) {
+	const auto static N = options::get().problem_size / localities.size() / (over_sub * hardware_concurrency);
 	bool thread;
-	if (nparts >= N) {
+	if (nparts >= N && left) {
+		thread = true;
+	} else if (level % 8 == 0) {
 		thread = true;
 	} else {
 		thread = false;
@@ -143,10 +145,10 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 //		}
 		auto rcl = thread_if_avail([=]() {
 			return new_(boxl, b, mid_iter, level + 1);
-		}, part_end - part_begin);
+		}, part_end - part_begin, level, true, 8);
 		auto rcr = thread_if_avail([=]() {
 			return new_(boxr, mid_iter, e, level + 1);
-		}, part_end - part_begin);
+		}, part_end - part_begin, level, false, 8);
 		children[1] = rcr.get();
 		children[0] = rcl.get();
 		raw_children[0] = children[0].get_raw_ptr();
@@ -161,65 +163,19 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		printf("compute_multipoles\n");
 	}
 	const auto &opts = options::get();
-	const auto m = 1.0 / opts.problem_size;
-	multi.m = 0.0;
 	range prange;
 	if (is_leaf()) {
-		multi.x = vect<float>(0.0);
-		const auto parts = part_vect_read(part_begin, part_end).get();
-		for (const auto &p : parts) {
-			multi.m() += m;
-			multi.x += pos_to_double(p.x) * m;
-		}
-		if (multi.m() != 0.0) {
-			multi.x = multi.x / multi.m();
-		} else {
-			ERROR();
-		}
-		for (const auto &p : parts) {
-			const auto X = pos_to_double(p.x) - multi.x;
-			for (int j = 0; j < NDIM; j++) {
-				for (int k = 0; k <= j; k++) {
-					multi.m(j, k) += m * X[j] * X[k];
-					for (int l = 0; l <= k; l++) {
-						multi.m(j, k, l) += m * X[j] * X[k] * X[l];
-					}
-				}
-			}
-		}
-		multi.r = 0.0;
-		for (const auto &p : parts) {
-			multi.r = std::max(multi.r, (ireal) abs(pos_to_double(p.x) - multi.x));
-		}
-		bool rc = do_out;
-		if (!do_out) {
-			for (const auto &p : parts) {
-				if (p.rung >= mrung) {
-					rc = true;
-					break;
-				}
-			}
-		}
-		multi.has_active = rc;
-		for (int dim = 0; dim < NDIM; dim++) {
-			prange.max[dim] = 0.0;
-			prange.min[dim] = 1.0;
-		}
-		for (const auto &p : parts) {
-			const auto X = pos_to_double(p.x);
-			for (int dim = 0; dim < NDIM; dim++) {
-				prange.max[dim] = std::max(prange.max[dim], X[dim]);
-				prange.min[dim] = std::min(prange.min[dim], X[dim]);
-			}
-		}
+		multi.x = part_vect_center_of_mass(part_begin, part_end).second;
+		multi = part_vect_multipole_info(multi.x, do_out ? 0 : mrung, part_begin, part_end);
+		prange = part_vect_range(part_begin, part_end);
 	} else {
 		std::pair<multipole_info, range> ml, mr;
 		auto rcl = thread_if_avail([=]() {
 			return children[0].compute_multipoles(mrung, do_out);
-		}, part_end - part_begin);
+		}, part_end - part_begin, level, true, 16);
 		auto rcr = thread_if_avail([=]() {
 			return children[1].compute_multipoles(mrung, do_out);
-		},part_end - part_begin);
+		},part_end - part_begin, level, false, 16);
 		mr = rcr.get();
 		ml = rcl.get();
 		multi.m() = ml.first.m() + mr.first.m();
@@ -426,10 +382,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=]() {
 			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
-		},part_end - part_begin);
+		},part_end - part_begin, level, true, 8);
 		auto rc_r_fut = thread_if_avail([&]() {
 			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
-		}, part_end - part_begin);
+		}, part_end - part_begin, level, false, 8);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
@@ -618,11 +574,11 @@ void tree::drift(float dt) {
 		auto rcl = thread_if_avail([=]() {
 			children[0].drift(dt);
 			return 1;
-		}, part_end - part_begin);
+		}, part_end - part_begin, level, true, 8);
 		auto rcr = thread_if_avail([=]() {
 			children[1].drift(dt);
 			return 1;
-		}, part_end - part_begin);
+		}, part_end - part_begin, level, false, 8);
 		rcl.get();
 		rcr.get();
 	}

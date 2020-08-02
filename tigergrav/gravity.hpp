@@ -15,6 +15,21 @@ struct multi_src {
 };
 
 
+struct multipole_info {
+	multipole<ireal> m;
+	vect<ireal> x;
+	ireal r;
+	bool has_active;
+	template<class A>
+	void serialize(A &&arc, unsigned) {
+		arc & m;
+		arc & x;
+		arc & r;
+		arc & has_active;
+	}
+};
+
+
 std::uint64_t gravity_PP_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_PC_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
 std::uint64_t gravity_CC_direct(expansion<float>&, const vect<ireal> &x, std::vector<multi_src> &y);

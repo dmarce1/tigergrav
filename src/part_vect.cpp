@@ -21,12 +21,91 @@ static int myid;
 static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_type>>>> pos_cache[POS_CACHE_SIZE];
 static mutex_type pos_cache_mtx[POS_CACHE_SIZE];
 
+
 HPX_PLAIN_ACTION (part_vect_init);
 HPX_PLAIN_ACTION (part_vect_read);
 HPX_PLAIN_ACTION (part_vect_read_position);
 HPX_PLAIN_ACTION (part_vect_write);
 HPX_PLAIN_ACTION (part_vect_range);
 HPX_PLAIN_ACTION (part_vect_cache_reset);
+HPX_PLAIN_ACTION (part_vect_center_of_mass);
+HPX_PLAIN_ACTION (part_vect_multipole_info);
+
+inline particle& parts(part_iter i) {
+	const int j = i - part_begin;
+//	if (j < 0 || j >= particles.size()) {
+//		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
+//		abort();
+//	}
+	return particles[j];
+}
+
+std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e) {
+	static const auto m = 1.0 / options::get().problem_size;
+	std::pair<float, vect<float>> rc;
+	hpx::future<std::pair<float, vect<float>>> fut;
+	if (e > part_end) {
+		fut = hpx::async < part_vect_center_of_mass_action > (localities[myid + 1], part_end, e);
+	}
+	const auto this_end = std::min(part_end, e);
+	rc.first = 0.0;
+	rc.second = vect<float>(0.0);
+	for (part_iter i = b; i < this_end; i++) {
+		rc.first += m;
+		rc.second += pos_to_double(parts(i).x) * m;
+	}
+	if (e > part_end) {
+		auto tmp = fut.get();
+		rc.first += tmp.first;
+		rc.second = rc.second + tmp.second * tmp.first;
+	}
+	if (rc.first > 0.0) {
+		rc.second = rc.second / rc.first;
+	}
+	return rc;
+}
+
+multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_iter b, part_iter e) {
+	static const auto m = 1.0 / options::get().problem_size;
+	multipole_info rc;
+	hpx::future<multipole_info> fut;
+	if (e > part_end) {
+		fut = hpx::async < part_vect_multipole_info_action > (localities[myid + 1], com, mrung, part_end, e);
+	}
+	const auto this_end = std::min(part_end, e);
+	rc.m = 0.0;
+	rc.x = com;
+	for (part_iter i = b; i < this_end; i++) {
+		const auto X = pos_to_double(parts(i).x) - com;
+		rc.m() += m;
+		for (int j = 0; j < NDIM; j++) {
+			for (int k = 0; k <= j; k++) {
+				rc.m(j, k) += m * X[j] * X[k];
+				for (int l = 0; l <= k; l++) {
+					rc.m(j, k, l) += m * X[j] * X[k] * X[l];
+				}
+			}
+		}
+	}
+
+	rc.r = 0.0;
+	rc.has_active = false;
+	for (part_iter i = b; i < this_end; i++) {
+		rc.r = std::max(rc.r, (ireal) abs(pos_to_double(parts(i).x) - rc.x));
+		if (parts(i).rung >= mrung) {
+			rc.has_active = true;
+		}
+	}
+	if (e > part_end) {
+		auto tmp = fut.get();
+		for (int i = 0; i < MP; i++) {
+			rc.m[i] += tmp.m[i];
+		}
+		rc.r = std::max(rc.r, tmp.r);
+		rc.has_active = rc.has_active || tmp.has_active;
+	}
+	return rc;
+}
 
 void part_vect_cache_reset() {
 	std::vector<hpx::future<void>> futs;
@@ -39,15 +118,6 @@ void part_vect_cache_reset() {
 		pos_cache[i].clear();
 	}
 	hpx::wait_all(futs);
-}
-
-inline particle& parts(part_iter i) {
-	const int j = i - part_begin;
-//	if (j < 0 || j >= particles.size()) {
-//		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
-//		abort();
-//	}
-	return particles[j];
 }
 
 void part_vect_init() {
@@ -263,7 +333,7 @@ void part_vect_sort_lo(part_iter lo, part_iter hi, part_iter mid, double xmid, i
 	const part_iter M = options::get().problem_size;
 	bool complete = true;
 	std::vector<particle> hi_parts;
-	hi_parts.reserve(std::min(mid - lo, part_end - lo));
+//	hi_parts.reserve(std::min(mid - lo, part_end - lo));
 	const auto lo0 = lo;
 	while (lo < mid && lo != part_end) {
 		if (pos_to_double(parts(lo).x[dim]) >= xmid) {
@@ -304,10 +374,29 @@ part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
 	if (e == b) {
 		return e;
 	} else {
-		auto count = part_vect_count_lo(b, e, xmid, dim);
-//		sleep(1);
-		part_vect_sort_lo_action()(localities[part_vect_locality_id(b)], b, e - 1, b + count, xmid, dim);
-		return b + count;
+		if (e <= part_end) {
+			auto lo = b;
+			auto hi = e - 1;
+			while (lo < hi) {
+				if (pos_to_double(parts(lo).x[dim]) >= xmid) {
+					while (lo != hi) {
+						if (pos_to_double(parts(hi).x[dim]) < xmid) {
+							auto tmp = parts(lo);
+							parts(lo) = parts(hi);
+							parts(hi) = tmp;
+							break;
+						}
+						hi--;
+					}
+				}
+				lo++;
+			}
+			return hi;
+		} else {
+			auto count = part_vect_count_lo(b, e, xmid, dim);
+			part_vect_sort_lo_action()(localities[part_vect_locality_id(b)], b, e - 1, b + count, xmid, dim);
+			return b + count;
+		}
 	}
 }
 

@@ -133,8 +133,11 @@ int hpx_main(int argc, char *argv[]) {
 			} else {
 				do_out = false;
 			}
-			root_ptr.drift(dt);
 			auto ts = timer();
+			root_ptr.drift(dt);
+			printf("drift took %e seconds\n", timer() - ts);
+			ts = timer();
+			root_ptr = hpx::invalid_id;
 			root_ptr = tree::new_(root_box, 0, opts.problem_size, 0);
 			printf("Tree took %e seconds\n", timer() - ts);
 			itime = inc(itime, kr.rung);

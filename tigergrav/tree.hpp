@@ -65,19 +65,6 @@ struct kick_return {
 	}
 };
 
-struct multipole_info {
-	multipole<ireal> m;
-	vect<ireal> x;
-	ireal r;
-	bool has_active;
-	template<class A>
-	void serialize(A &&arc, unsigned) {
-		arc & m;
-		arc & x;
-		arc & r;
-		arc & has_active;
-	}
-};
 
 struct raw_id_type {
 	int loc_id;
