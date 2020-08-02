@@ -648,10 +648,16 @@ hpx::future<node_attr> get_node_attributes_(raw_id_type id) {
 
 hpx::future<node_attr> read_node_cache(raw_id_type id) {
 	const int index = raw_id_type_hash()(id) % NODE_CACHE_SIZE;
-	std::lock_guard<mutex_type> lock(node_cache_mtx[index]);
+	std::unique_lock<mutex_type> lock(node_cache_mtx[index]);
 	auto iter = node_cache[index].find(id);
 	if (iter == node_cache[index].end()) {
-		node_cache[index][id] = get_node_attributes_(id);
+		hpx::lcos::local::promise<hpx::future<node_attr>> promise;
+		auto fut = promise.get_future();
+		node_cache[index][id] = fut.then([](decltype(fut) f) {
+			return f.get().get();
+		});
+		lock.unlock();
+		promise.set_value(get_node_attributes_(id));
 	}
 	return hpx::async(hpx::launch::deferred, [id, index] {
 		std::unique_lock<mutex_type> lock(node_cache_mtx[index]);
@@ -686,10 +692,16 @@ hpx::future<multi_src> get_multi_srcs_(raw_id_type id) {
 
 hpx::future<multi_src> read_multipole_cache(raw_id_type id) {
 	const int index = raw_id_type_hash()(id) % NODE_CACHE_SIZE;
-	std::lock_guard<mutex_type> lock(multipole_cache_mtx[index]);
+	std::unique_lock<mutex_type> lock(multipole_cache_mtx[index]);
 	auto iter = multipole_cache[index].find(id);
 	if (iter == multipole_cache[index].end()) {
-		multipole_cache[index][id] = get_multi_srcs_(id);
+		hpx::lcos::local::promise<hpx::future<multi_src>> promise;
+		auto fut = promise.get_future();
+		multipole_cache[index][id] = fut.then([](decltype(fut) f) {
+			return f.get().get();
+		});
+		lock.unlock();
+		promise.set_value(get_multi_srcs_(id));
 	}
 	return hpx::async(hpx::launch::deferred, [id, index] {
 		std::unique_lock<mutex_type> lock(multipole_cache_mtx[index]);

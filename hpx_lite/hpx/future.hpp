@@ -89,6 +89,7 @@ public:
 };
 
 
+
 template<>
 class future<void> : public future<char> {
 public:
@@ -196,6 +197,13 @@ public:
 	void set_value_at_thread_exit();
 	future<void> get_future() const;
 };
+
+namespace lcos {
+namespace local {
+template<class T>
+using promise = hpx::promise<T>;
+}
+}
 
 namespace detail {
 

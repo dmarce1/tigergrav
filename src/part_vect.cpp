@@ -8,6 +8,7 @@
 #include <hpx/include/async.hpp>
 #include <hpx/include/serialization.hpp>
 #include <hpx/synchronization/spinlock.hpp>
+#include <hpx/local_lcos/promise.hpp>
 #endif
 
 #include <unistd.h>
@@ -204,15 +205,19 @@ hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {
 	return hpx::make_ready_future(these_parts);
 }
 
+
 inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_iter b, part_iter e) {
 	const int index = (b / sizeof(particle)) % POS_CACHE_SIZE;
-	std::lock_guard<mutex_type> lock(pos_cache_mtx[index]);
+	std::unique_lock<mutex_type> lock(pos_cache_mtx[index]);
 	auto iter = pos_cache[index].find(b);
 	if (iter == pos_cache[index].end()) {
-		auto fut = hpx::async < part_vect_read_position_action > (localities[part_vect_locality_id(b)], b, e);
+		hpx::lcos::local::promise<hpx::future<std::vector<vect<pos_type>>>> promise;
+		auto fut = promise.get_future();
 		pos_cache[index][b] = fut.then([b](decltype(fut) f) {
 			return f.get().get();
 		});
+		lock.unlock();
+		promise.set_value(hpx::async < part_vect_read_position_action > (localities[part_vect_locality_id(b)], b, e));
 	}
 	return hpx::async(hpx::launch::deferred, [b, index]() {
 		std::unique_lock < mutex_type > lock(pos_cache_mtx[index]);
