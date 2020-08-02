@@ -55,14 +55,18 @@ int hpx_main(int argc, char *argv[]) {
 
 	if (opts.solver_test) {
 		printf("Computing direct solution first\n");
-		tree_client root_ptr = tree::new_(root_box, 0, opts.problem_size, 0, 0);
+		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(),root_box, 0, opts.problem_size, 0).get();
+		while( root_ptr.refine(0)) {
+		}
 		tree::set_theta(1e-10);
 		auto kr = solve_gravity(root_ptr, min_rung(0), true);
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
 		printf("%13s %13s %13s %13s %13s %13s %13s %13s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
-			root_ptr = tree::new_(root_box, 0, opts.problem_size, 0, 0);
+			root_ptr = hpx::new_<tree>(hpx::find_here(),root_box, 0, opts.problem_size, 0).get();
+			while( root_ptr.refine(0)) {
+			}
 			tree::set_theta(theta);
 			tree::reset_flop();
 			auto start = timer();
@@ -77,7 +81,10 @@ int hpx_main(int argc, char *argv[]) {
 
 		printf("Forming tree\n");
 		auto tstart = timer();
-		tree_client root_ptr = tree::new_(root_box, 0, opts.problem_size, 0, 0);
+		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(),root_box, 0, opts.problem_size, 0).get();
+		while( root_ptr.refine(0)) {
+			printf( "Refining\n");
+		}
 		printf("Done forming tree took %e seconds\n", timer() - tstart);
 
 		double t = 0.0;
@@ -142,7 +149,9 @@ int hpx_main(int argc, char *argv[]) {
 			printf("drift took %e seconds\n", timer() - ts);
 			ts = timer();
 			root_ptr = hpx::invalid_id;
-			root_ptr = tree::new_(root_box, 0, opts.problem_size, 0, 0);
+			root_ptr = hpx::new_<tree>(hpx::find_here(),root_box, 0, opts.problem_size, 0).get();
+			while( root_ptr.refine(0)) {
+			}
 			printf("Tree took %e seconds\n", timer() - ts);
 			itime = inc(itime, kr.rung);
 			kr = solve_gravity(root_ptr, min_rung(itime), do_out);

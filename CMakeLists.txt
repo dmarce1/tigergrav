@@ -118,7 +118,7 @@ target_compile_options(tigergrav PUBLIC "-O3")
 target_compile_options(tigergrav PUBLIC "-march=native")
 target_include_directories(tigergrav_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_compile_options(tigergrav_lite PUBLIC "-DHPX_LITE")
-target_compile_options(tigergrav_lite PUBLIC "-O3")
+target_compile_options(tigergrav_lite PUBLIC "-g")
 target_compile_options(tigergrav_lite PUBLIC "-march=native")
 
 target_include_directories(test PUBLIC ${PROJECT_SOURCE_DIR})
