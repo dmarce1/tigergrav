@@ -86,10 +86,10 @@ public:
 	tree_client() = default;
 	tree_client(id_type ptr_);
 	raw_id_type get_raw_ptr() const;
-	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out) const;
+	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const;
 	void drift(float dt) const;
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
-			rung_type min_rung, bool do_output) const;
+			rung_type min_rung, bool do_output, int stack_cnt) const;
 	std::uint64_t get_flop() const;
 };
 
@@ -99,6 +99,7 @@ public:
 	raw_tree_client() = default;
 	raw_tree_client(raw_id_type ptr_);
 	hpx::future<node_attr> get_node_attributes() const;
+	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const;
 	int get_locality() const {
 		return ptr.loc_id;
 	}
@@ -150,16 +151,17 @@ public:
 	static void set_theta(float);
 	static std::uint64_t get_flop();
 	static void reset_flop();
-	static tree_client new_(range, part_iter, part_iter, int);
-	tree(range, part_iter, part_iter, int level);
+	static tree_client new_(range, part_iter, part_iter, int, int);
+	tree(range, part_iter, part_iter, int level, int stack_cnt);
 	bool is_leaf() const;
-	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out);
+	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt);
 	node_attr get_node_attributes() const;
 	void drift(float);
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
-			rung_type min_rung, bool do_output);
+			rung_type min_rung, bool do_output, int stack_ccnt);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
-	raw_id_type get_raw_ptr() const;HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_flop); 				//
+	raw_id_type get_raw_ptr() const;//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_flop); 				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);//
@@ -179,8 +181,8 @@ inline raw_id_type tree_client::get_raw_ptr() const {
 	return tree::get_raw_ptr_action()(ptr);
 }
 
-inline std::pair<multipole_info, range> tree_client::compute_multipoles(rung_type min_rung, bool do_out) const {
-	return tree::compute_multipoles_action()(ptr, min_rung, do_out);
+inline std::pair<multipole_info, range> tree_client::compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const {
+	return tree::compute_multipoles_action()(ptr, min_rung, do_out, stack_cnt);
 }
 
 inline void tree_client::drift(float dt) const {
@@ -188,8 +190,8 @@ inline void tree_client::drift(float dt) const {
 }
 
 inline kick_return tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
-		rung_type min_rung, bool do_output) const {
-	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output);
+		rung_type min_rung, bool do_output, int stack_cnt) const {
+	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output, stack_cnt);
 }
 
 inline std::uint64_t tree_client::get_flop() const {

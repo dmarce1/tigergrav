@@ -32,40 +32,32 @@ struct raw_id_type_hash {
 	}
 };
 
-bool inc_thread() {
-	const int nmax = 8 * hardware_concurrency;
-	if (num_threads++ < nmax) {
-		return true;
+template<class F>
+auto thread_if_avail(F &&f, bool left, int stack_cnt) {
+//	const auto static N = options::get().problem_size / localities.size() / (8 * hardware_concurrency);
+	bool thread;
+//	printf( "%i\n", (int) num_threads);
+	int count = num_threads++;
+	if (count < 4 * hardware_concurrency && left) {
+		thread = true;
 	} else {
 		num_threads--;
-		return false;
-	}
-}
-
-void dec_thread() {
-	num_threads--;
-}
-
-template<class F>
-auto thread_if_avail(F &&f, int nparts, int level, bool left, int over_sub) {
-	const auto static N = options::get().problem_size / localities.size() / (over_sub * hardware_concurrency);
-	bool thread;
-	if (nparts >= N && left) {
-		thread = true;
-	} else if (level % 8 == 0) {
-		thread = true;
-	} else {
-		thread = false;
+		if (stack_cnt % 8 == 7) {
+			num_threads++;
+			thread = true;
+		} else {
+			thread = false;
+		}
 	}
 	if (thread) {
 		auto rc = hpx::async([](F &&f) {
-			auto rc = f();
-			dec_thread();
+			auto rc = f(0);
+			num_threads--;
 			return rc;
 		},std::forward<F>(f));
 		return rc;
 	} else {
-		return hpx::make_ready_future(f());
+		return hpx::make_ready_future(f(stack_cnt + 1));
 	}
 }
 
@@ -85,11 +77,11 @@ void tree::set_theta(float t) {
 	}
 }
 
-tree_client tree::new_(range r, part_iter b, part_iter e, int level) {
-	return tree_client(hpx::new_ < tree > (localities[part_vect_locality_id(b)], r, b, e, level).get());
+tree_client tree::new_(range r, part_iter b, part_iter e, int level, int stack_cnt) {
+	return tree_client(hpx::new_ < tree > (localities[part_vect_locality_id(b)], r, b, e, level, stack_cnt).get());
 }
 
-tree::tree(range box, part_iter b, part_iter e, int level_) {
+tree::tree(range box, part_iter b, part_iter e, int level_, int stack_cnt) {
 //	printf("Forming %i %i\n", b, e);
 //	if( level_ == 1 ) {
 //		sleep(100);
@@ -98,7 +90,7 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
-	auto myparts = part_vect_read(b, e).get();
+//	auto myparts = part_vect_read(b, e).get();
 //	bool abortme = false;
 //	for (const auto &p : myparts) {
 //		const auto x = pos_to_double(p.x);
@@ -143,12 +135,12 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 			mid_iter = part_vect_sort(b, e, mid, max_dim);
 		}
 //		}
-		auto rcl = thread_if_avail([=]() {
-			return new_(boxl, b, mid_iter, level + 1);
-		}, part_end - part_begin, level, true, 8);
-		auto rcr = thread_if_avail([=]() {
-			return new_(boxr, mid_iter, e, level + 1);
-		}, part_end - part_begin, level, false, 8);
+		auto rcl = thread_if_avail([=](int stack_cnt) {
+			return new_(boxl, b, mid_iter, level + 1, stack_cnt);
+		}, true, stack_cnt);
+		auto rcr = thread_if_avail([=](int stack_cnt) {
+			return new_(boxr, mid_iter, e, level + 1, stack_cnt);
+		}, false, stack_cnt);
 		children[1] = rcr.get();
 		children[0] = rcl.get();
 		raw_children[0] = children[0].get_raw_ptr();
@@ -156,7 +148,7 @@ tree::tree(range box, part_iter b, part_iter e, int level_) {
 	}
 }
 
-std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool do_out) {
+std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
 	if (level == 0) {
 		reset_node_cache();
 		part_vect_cache_reset();
@@ -170,12 +162,12 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		prange = part_vect_range(part_begin, part_end);
 	} else {
 		std::pair<multipole_info, range> ml, mr;
-		auto rcl = thread_if_avail([=]() {
-			return children[0].compute_multipoles(mrung, do_out);
-		}, part_end - part_begin, level, true, 16);
-		auto rcr = thread_if_avail([=]() {
-			return children[1].compute_multipoles(mrung, do_out);
-		},part_end - part_begin, level, false, 16);
+		auto rcl = thread_if_avail([=](int stack_cnt) {
+			return raw_tree_client(raw_children[0]).compute_multipoles(mrung, do_out, stack_cnt);
+		}, true, stack_cnt);
+		auto rcr = thread_if_avail([=](int stack_cnt) {
+			return raw_tree_client(raw_children[1]).compute_multipoles(mrung, do_out, stack_cnt);
+		}, false, stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
 		multi.m() = ml.first.m() + mr.first.m();
@@ -271,7 +263,7 @@ void trash_workspace(workspace &&w) {
 }
 
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
-		rung_type min_rung, bool do_out) {
+		rung_type min_rung, bool do_out, int stack_cnt) {
 	if (level == 0) {
 		printf("kick_fmm\n");
 	}
@@ -380,12 +372,12 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	dmulti_srcs.resize(0);
 	emulti_srcs.resize(0);
 	if (!is_leaf()) {
-		auto rc_l_fut = thread_if_avail([=]() {
-			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
-		},part_end - part_begin, level, true, 8);
-		auto rc_r_fut = thread_if_avail([&]() {
-			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out);
-		}, part_end - part_begin, level, false, 8);
+		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
+			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out, stack_cnt);
+		}, true, stack_cnt);
+		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
+			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out, stack_cnt);
+		}, false, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
@@ -606,6 +598,22 @@ hpx::future<node_attr> read_node_cache(raw_id_type id) {
 		lock.unlock();
 		return future.get();
 	});
+}
+
+std::pair<multipole_info, range> compute_multipoles_(raw_id_type id, rung_type min_rung, bool do_out, int stack_cnt);
+HPX_PLAIN_ACTION (compute_multipoles_, compute_multipoles_action);
+
+std::pair<multipole_info, range> compute_multipoles_(raw_id_type id, rung_type min_rung, bool do_out, int stack_cnt) {
+	return reinterpret_cast<tree*>(id.ptr)->compute_multipoles(min_rung, do_out, stack_cnt);
+
+}
+
+std::pair<multipole_info, range> raw_tree_client::compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const {
+	if (myid == ptr.loc_id) {
+		return reinterpret_cast<tree*>(ptr.ptr)->compute_multipoles(min_rung, do_out, stack_cnt);
+	} else {
+		return hpx::async < compute_multipoles_action > (localities[ptr.loc_id], ptr, min_rung, do_out, stack_cnt).get();
+	}
 }
 
 hpx::future<node_attr> raw_tree_client::get_node_attributes() const {
