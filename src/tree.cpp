@@ -51,23 +51,25 @@ struct raw_id_type_hash {
 };
 
 template<class F>
-auto thread_if_avail(F &&f, bool left, int stack_cnt) {
-//	const auto static N = options::get().problem_size / localities.size() / (8 * hardware_concurrency);
+inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
+	const auto static N = options::get().problem_size / localities.size() / (2 * hardware_concurrency);
 	bool thread;
 //	printf( "%i\n", (int) num_threads);
-	int count = num_threads++;
-	if (count < 4 * hardware_concurrency && left) {
+//	int count = num_threads++;
+	if (nparts >= N && left) {
 		thread = true;
 	} else {
-		num_threads--;
+//		num_threads--;
 		if (stack_cnt % 8 == 7) {
-			num_threads++;
+//			num_threads++;
 			thread = true;
 		} else {
 			thread = false;
 		}
 	}
 	if (thread) {
+		num_threads++;
+//		printf( "Threading %i\n", (int) num_threads);
 		auto rc = hpx::async([](F &&f) {
 			auto rc = f(0);
 			num_threads--;
@@ -75,7 +77,9 @@ auto thread_if_avail(F &&f, bool left, int stack_cnt) {
 		},std::forward<F>(f));
 		return rc;
 	} else {
-		return hpx::make_ready_future(f(stack_cnt + 1));
+		return hpx::async(hpx::launch::deferred, [stack_cnt](F &&f) {
+			return f(stack_cnt + 1);
+		}, std::move(f));
 	}
 }
 
@@ -165,10 +169,10 @@ bool tree::refine(int stack_cnt) {
 	} else if (!is_leaf()) {
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].refine(stack_cnt);
-		}, true, stack_cnt);
+		}, true, part_end - part_begin, stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
 			return children[1].refine(stack_cnt);
-		}, false, stack_cnt);
+		}, false, part_end - part_begin, stack_cnt);
 		bool rc1 = rcr.get();
 		bool rc2 = rcl.get();
 		return rc1 || rc2;
@@ -193,10 +197,10 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 		multipole_return ml, mr;
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].compute_multipoles(mrung, do_out, stack_cnt);
-		}, true, stack_cnt);
+		}, true, part_end - part_begin, stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
 			return children[1].compute_multipoles(mrung, do_out, stack_cnt);
-		}, false, stack_cnt);
+		}, false, part_end - part_begin, stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
 		multi.m() = ml.m.m() + mr.m.m();
@@ -224,7 +228,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 		child_check[0] = ml.c;
 		child_check[1] = mr.c;
 	}
-	return multipole_return({multi, prange, get_check_item()});
+	return multipole_return( { multi, prange, get_check_item() });
 }
 
 node_attr tree::get_node_attributes() const {
@@ -422,10 +426,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
 			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out, stack_cnt);
-		}, true, stack_cnt);
+		}, true, part_end - part_begin, stack_cnt);
 		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
 			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out, stack_cnt);
-		}, false, stack_cnt);
+		}, false, part_end - part_begin, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		rc.rung = std::max(rc_r.rung, rc_l.rung);
