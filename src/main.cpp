@@ -27,7 +27,8 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 	start = timer();
 	expansion<float> L;
 	L = 0.0;
-	auto rc = root_ptr.kick_fmm(std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), std::vector<check_item>(1, { false, root_ptr.get_raw_ptr() }), {
+	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
+	auto rc = root_ptr.kick_fmm(root_list, root_list, {
 			{ 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
 	printf("fmm took %e seconds\n", timer() - start);
 	return rc;

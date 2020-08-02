@@ -94,7 +94,7 @@ public:
 	}
 	tree_client() = default;
 	tree_client(id_type ptr_);
-	raw_id_type get_raw_ptr() const;
+	check_item get_check_item() const;
 	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const;
 	void drift(float dt) const;
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
@@ -124,31 +124,27 @@ struct check_item {
 	raw_tree_client node;
 	float r;
 	vect<float> x;
+	part_iter pbegin;
+	part_iter pend;
+	bool is_leaf;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & opened;
 		arc & node;
 		arc & r;
 		arc & x;
+		arc & pbegin;
+		arc & pend;
+		arc & is_leaf;
 	}
 
 };
 
 struct node_attr {
-	float r;
-	vect<float> x;
-	bool leaf;
-	const_part_iter pbegin;
-	const_part_iter pend;
-	std::array<raw_tree_client, NCHILD> children;
+	std::array<check_item, NCHILD> children;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
-		arc & leaf;
-		arc & pbegin;
-		arc & pend;
 		arc & children;
-		arc & r;
-		arc & x;
 	}
 };
 
@@ -160,7 +156,7 @@ class tree: public hpx::components::managed_component_base<tree> {
 	range box;
 	bool leaf;
 	std::array<tree_client, NCHILD> children;
-	std::array<raw_id_type, NCHILD> raw_children;
+	std::array<check_item, NCHILD> raw_children;
 
 	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;
@@ -191,13 +187,13 @@ public:
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_ccnt);
 	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
-	raw_id_type get_raw_ptr() const;//
+	check_item get_check_item() const;//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine); 				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_flop); 				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_raw_ptr);
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_check_item);
 	//
 };
 
@@ -209,8 +205,8 @@ inline raw_tree_client::raw_tree_client(raw_id_type ptr_) {
 	ptr = ptr_;
 }
 
-inline raw_id_type tree_client::get_raw_ptr() const {
-	return tree::get_raw_ptr_action()(ptr);
+inline check_item tree_client::get_check_item() const {
+	return tree::get_check_item_action()(ptr);
 }
 
 inline std::pair<multipole_info, range> tree_client::compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const {
