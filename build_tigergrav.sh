@@ -29,6 +29,5 @@ cmake -DCMAKE_PREFIX_PATH="$HOME/local/$1/hpx" \
 
 
 make -j VERBOSE=1
-make test VERBOSE=1
 
 

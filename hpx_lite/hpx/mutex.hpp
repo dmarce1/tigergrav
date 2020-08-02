@@ -52,7 +52,33 @@ using spinlock = hpx::spinlock;
 using mutex =hpx::mutex;
 }
 }
+}
 
+#include "hpx/thread.hpp"
+
+namespace hpx {
+
+inline void mutex::lock() {
+	while (locked++ != 0) {
+		locked--;
+		hpx::this_thread::yield();
+	}
+}
+
+inline void mutex::unlock() {
+	locked--;
+}
+
+inline void spinlock::lock() {
+	while (locked++ != 0) {
+		locked--;
+		hpx::this_thread::yield();
+	}
+}
+
+inline void spinlock::unlock() {
+	locked--;
+}
 
 }
 
