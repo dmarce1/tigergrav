@@ -5,8 +5,11 @@
 #include <tigergrav/range.hpp>
 #include <tigergrav/gravity.hpp>
 
+#ifdef HPX_LITE
+#include <hpx/hpx_lite.hpp>
+#else
 #include <hpx/include/async.hpp>
-
+#endif
 
 using part_iter = std::uint64_t;
 using const_part_iter = std::uint64_t;

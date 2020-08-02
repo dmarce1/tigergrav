@@ -2,7 +2,11 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/rand.hpp>
 
+#ifdef HPX_LITE
+#include <hpx/hpx_lite.hpp>
+#else
 #include <hpx/include/components.hpp>
+#endif
 
 part_vect initial_particle_set(std::string pn, int N, int Nout) {
 	part_vect parts;

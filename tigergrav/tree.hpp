@@ -11,10 +11,14 @@
 #include <atomic>
 #include <memory>
 
+#ifndef HPX_LITE
 #include <hpx/synchronization/spinlock.hpp>
 #include <hpx/include/async.hpp>
 #include <hpx/include/threads.hpp>
 #include <hpx/include/components.hpp>
+#else
+#include <hpx/hpx_lite.hpp>
+#endif
 
 class tree;
 
@@ -83,6 +87,10 @@ using id_type = hpx::id_type;
 class tree_client {
 	id_type ptr;
 public:
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & ptr;
+	}
 	tree_client() = default;
 	tree_client(id_type ptr_);
 	raw_id_type get_raw_ptr() const;
@@ -136,7 +144,7 @@ struct node_attr {
 	}
 };
 
-class tree: public hpx::components::component_base<tree> {
+class tree: public hpx::components::managed_component_base<tree> {
 	multipole_info multi;
 	part_iter part_begin;
 	part_iter part_end;
@@ -148,8 +156,18 @@ class tree: public hpx::components::component_base<tree> {
 	static std::atomic<std::uint64_t> flop;
 
 public:
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & multi;
+		arc & part_begin;
+		arc & part_end;
+		arc & children;
+		arc & raw_children;
+		arc & level;
+	}
+	tree() = default;
 	static void set_theta(float);
-	static std::uint64_t get_flop();
+	std::uint64_t get_flop();
 	static void reset_flop();
 	static tree_client new_(range, part_iter, part_iter, int, int);
 	tree(range, part_iter, part_iter, int level, int stack_cnt);

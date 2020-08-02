@@ -1,6 +1,10 @@
 #include <tigergrav/defs.hpp>
 
+#ifdef HPX_LITE
+#include <hpx/hpx_lite.hpp>
+#else
 #include <hpx/hpx_init.hpp>
+#endif
 
 #include <tigergrav/initialize.hpp>
 #include <tigergrav/options.hpp>
@@ -32,7 +36,7 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 int hpx_main(int argc, char *argv[]) {
 	printf("sizeof(particle) = %li\n", sizeof(particle));
 	printf("sizeof(tree)     = %li\n", sizeof(tree));
-	printf("Hardware concurrency = %li\n", hpx::threads::hardware_concurrency());
+//	printf("Hardware concurrency = %li\n", hpx::threads::hardware_concurrency());
 	feenableexcept(FE_DIVBYZERO);
 	feenableexcept(FE_INVALID);
 	feenableexcept(FE_OVERFLOW);
@@ -64,7 +68,7 @@ int hpx_main(int argc, char *argv[]) {
 			auto start = timer();
 			kr = solve_gravity(root_ptr, min_rung(0), true);
 			auto stop = timer();
-			auto flops = tree::get_flop() / (stop - start + 1.0e-10) / std::pow(1024, 3);
+			auto flops = root_ptr.get_flop() / (stop - start + 1.0e-10) / std::pow(1024, 3);
 			std::sort(kr.out.begin(), kr.out.end());
 			const auto err = compute_error(kr.out, direct);
 			printf("%13.6e %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e \n", theta, stop - start, flops, err.err, err.err99, err.g[0], err.g[1], err.g[2]);
@@ -155,6 +159,7 @@ int hpx_main(int argc, char *argv[]) {
 	return hpx::finalize();
 }
 
+#ifndef HPX_LITE
 int main(int argc, char *argv[]) {
 
 	std::vector<std::string> cfg = { "hpx.commandline.allow_unknown=1" };
@@ -162,3 +167,4 @@ int main(int argc, char *argv[]) {
 	hpx::init(argc, argv, cfg);
 }
 
+#endif

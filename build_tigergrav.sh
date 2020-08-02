@@ -16,8 +16,8 @@ rm -r CMakeFiles
 
 
 cmake -DCMAKE_PREFIX_PATH="$HOME/local/$1/hpx" \
-      -DCMAKE_CXX_COMPILER=g++  \
-      -DCMAKE_C_COMPILER=gcc \
+      -DCMAKE_CXX_COMPILER=mpic++  \
+      -DCMAKE_C_COMPILER=mpicc \
       -DHPX_IGNORE_COMPILER_COMPATIBILITY=on \
       -DCMAKE_CXX_FLAGS="" \
       -DCMAKE_C_FLAGS="" \

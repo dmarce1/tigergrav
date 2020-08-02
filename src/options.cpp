@@ -1,8 +1,14 @@
 #include <tigergrav/options.hpp>
 #include <fstream>
 #include <iostream>
+
+
+#ifdef HPX_LITE
+#include <hpx/hpx_lite.hpp>
+#else
 #include <hpx/runtime/actions/plain_action.hpp>
 #include <hpx/async.hpp>
+#endif
 
 HPX_PLAIN_ACTION(options::set, set_options_action);
 #include <boost/program_options.hpp>
@@ -80,7 +86,7 @@ bool options::process_options(int argc, char *argv[]) {
 	for (int i = 1; i < sz; i++) {
 		futs.push_back(hpx::async < set_options_action > (loc[i], *this));
 	}
-	hpx::wait_all(futs);
+	hpx::wait_all(futs.begin(),futs.end());
 #define SHOW( opt ) std::cout << std::string( #opt ) << " = " << std::to_string(opt) << '\n';
 #define SHOW_STR( opt ) std::cout << std::string( #opt ) << " = " << opt << '\n';
 	SHOW(dt_max);

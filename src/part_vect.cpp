@@ -1,10 +1,14 @@
 #include <tigergrav/part_vect.hpp>
 #include <tigergrav/initialize.hpp>
 
+#ifdef HPX_LITE
+#include <hpx/hpx_lite.hpp>
+#else
 #include <hpx/runtime/actions/plain_action.hpp>
 #include <hpx/include/async.hpp>
 #include <hpx/include/serialization.hpp>
 #include <hpx/synchronization/spinlock.hpp>
+#endif
 
 #include <unistd.h>
 #include <thread>
@@ -149,7 +153,7 @@ void part_vect_cache_reset() {
 	for (int i = 0; i < POS_CACHE_SIZE; i++) {
 		pos_cache[i].clear();
 	}
-	hpx::wait_all(futs);
+	hpx::wait_all(futs.begin(),futs.end());
 }
 
 void part_vect_init() {
@@ -170,7 +174,7 @@ void part_vect_init() {
 	part_begin = n * M / N;
 	part_end = (n + 1) * M / N;
 	particles = initial_particle_set(opts.problem, part_end - part_begin, (n + 1) * opts.out_parts / N - n * opts.out_parts / N);
-	hpx::wait_all(futs);
+	hpx::wait_all(futs.begin(),futs.end());
 }
 
 hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {

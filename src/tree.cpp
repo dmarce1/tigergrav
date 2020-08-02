@@ -2,15 +2,31 @@
 #include <tigergrav/time.hpp>
 #include <tigergrav/tree.hpp>
 
-#include <hpx/runtime/actions/plain_action.hpp>
-
 #include <atomic>
 #include <algorithm>
 #include <stack>
 #include <thread>
 #include <unordered_map>
 
-HPX_REGISTER_COMPONENT(hpx::components::component<tree>, tree);
+#ifdef HPX_LITE
+HPX_REGISTER_MINIMAL_COMPONENT_FACTORY(hpx::components::managed_component<tree>, tree);
+
+using get_flop_action_type = tree::get_flop_action;
+using compute_multipoles_action_type = tree::compute_multipoles_action;
+using kick_fmm_action_type = tree::kick_fmm_action;
+using drift_action_type = tree:: drift_action;
+using get_raw_ptr_action_type = tree::get_raw_ptr_action;
+
+HPX_REGISTER_ACTION(get_flop_action_type);
+HPX_REGISTER_ACTION(compute_multipoles_action_type);
+HPX_REGISTER_ACTION(kick_fmm_action_type);
+HPX_REGISTER_ACTION(drift_action_type);
+HPX_REGISTER_ACTION(get_raw_ptr_action_type);
+
+#else
+#include <hpx/runtime/actions/plain_action.hpp>
+HPX_REGISTER_COMPONENT(hpx::components::managed_component<tree>, tree);
+#endif
 
 std::atomic<std::uint64_t> tree::flop(0);
 float tree::theta_inv;
@@ -61,7 +77,7 @@ auto thread_if_avail(F &&f, bool left, int stack_cnt) {
 	}
 }
 
-HPX_PLAIN_ACTION(tree::set_theta,set_theta_action);
+HPX_PLAIN_ACTION(tree::set_theta, set_theta_action);
 
 void tree::set_theta(float t) {
 	set_theta_action action;
@@ -71,9 +87,9 @@ void tree::set_theta(float t) {
 	if (myid == 0) {
 		std::vector<hpx::future<void>> futs;
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async < set_theta_action > (localities[i], t));
+			futs.push_back(hpx::async<set_theta_action>(localities[i], t));
 		}
-		hpx::wait_all(futs);
+		hpx::wait_all(futs.begin(),futs.end());
 	}
 }
 
@@ -558,30 +574,30 @@ void tree::reset_flop() {
 std::unordered_map<raw_id_type, hpx::shared_future<node_attr>, raw_id_type_hash> node_cache[NODE_CACHE_SIZE];
 mutex_type node_cache_mtx[NODE_CACHE_SIZE];
 
-HPX_PLAIN_ACTION (reset_node_cache);
+HPX_PLAIN_ACTION(reset_node_cache);
 
 void reset_node_cache() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async < reset_node_cache_action > (localities[i]));
+			futs.push_back(hpx::async<reset_node_cache_action>(localities[i]));
 		}
 	}
 	for (int i = 0; i < NODE_CACHE_SIZE; i++) {
 		node_cache[i].clear();
 	}
-	hpx::wait_all(futs);
+	hpx::wait_all(futs.begin(),futs.end());
 }
 
 hpx::future<node_attr> get_node_attributes_(raw_id_type id);
 
-HPX_PLAIN_ACTION (get_node_attributes_, get_node_attributes_action);
+HPX_PLAIN_ACTION(get_node_attributes_, get_node_attributes_action);
 
 hpx::future<node_attr> get_node_attributes_(raw_id_type id) {
 	if (myid == id.loc_id) {
 		return hpx::make_ready_future(reinterpret_cast<tree*>(id.ptr)->get_node_attributes());
 	} else {
-		return hpx::async < get_node_attributes_action > (localities[id.loc_id], id);
+		return hpx::async<get_node_attributes_action>(localities[id.loc_id], id);
 	}
 }
 
@@ -601,7 +617,7 @@ hpx::future<node_attr> read_node_cache(raw_id_type id) {
 }
 
 std::pair<multipole_info, range> compute_multipoles_(raw_id_type id, rung_type min_rung, bool do_out, int stack_cnt);
-HPX_PLAIN_ACTION (compute_multipoles_, compute_multipoles_action);
+HPX_PLAIN_ACTION(compute_multipoles_, compute_multipoles_action);
 
 std::pair<multipole_info, range> compute_multipoles_(raw_id_type id, rung_type min_rung, bool do_out, int stack_cnt) {
 	return reinterpret_cast<tree*>(id.ptr)->compute_multipoles(min_rung, do_out, stack_cnt);
@@ -612,7 +628,7 @@ std::pair<multipole_info, range> raw_tree_client::compute_multipoles(rung_type m
 	if (myid == ptr.loc_id) {
 		return reinterpret_cast<tree*>(ptr.ptr)->compute_multipoles(min_rung, do_out, stack_cnt);
 	} else {
-		return hpx::async < compute_multipoles_action > (localities[ptr.loc_id], ptr, min_rung, do_out, stack_cnt).get();
+		return hpx::async<compute_multipoles_action>(localities[ptr.loc_id], ptr, min_rung, do_out, stack_cnt).get();
 	}
 }
 
