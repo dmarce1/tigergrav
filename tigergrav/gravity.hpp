@@ -12,6 +12,12 @@
 struct multi_src {
 	multipole<ireal> m;
 	vect<ireal> x;
+	template<class A>
+	void serialize(A &&arc, unsigned) {
+		arc & m;
+		arc & x;
+	}
+
 };
 
 

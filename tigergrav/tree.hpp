@@ -27,6 +27,7 @@ template<class T>
 using future_type = hpx::future<T>;
 
 class node_attr;
+class multi_src;
 class check_item;
 
 struct statistics {
@@ -108,6 +109,7 @@ public:
 	raw_tree_client() = default;
 	raw_tree_client(raw_id_type ptr_);
 	hpx::future<node_attr> get_node_attributes() const;
+	hpx::future<multi_src> get_multi_srcs() const;
 	int get_locality() const {
 		return ptr.loc_id;
 	}
@@ -133,18 +135,20 @@ struct check_item {
 };
 
 struct node_attr {
-	multipole_info multi;
+	float r;
+	vect<float> x;
 	bool leaf;
 	const_part_iter pbegin;
 	const_part_iter pend;
 	std::array<raw_tree_client, NCHILD> children;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
-		arc & multi;
 		arc & leaf;
 		arc & pbegin;
 		arc & pend;
 		arc & children;
+		arc & r;
+		arc & x;
 	}
 };
 
@@ -182,6 +186,7 @@ public:
 	bool is_leaf() const;
 	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt);
 	node_attr get_node_attributes() const;
+	multi_src get_multi_srcs() const;
 	void drift(float);
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_ccnt);
