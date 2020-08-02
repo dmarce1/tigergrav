@@ -177,7 +177,7 @@ bool tree::refine(int stack_cnt) {
 	}
 }
 
-std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
+multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
 	if (level == 0) {
 		reset_node_cache();
 		part_vect_cache_reset();
@@ -190,7 +190,7 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		multi = part_vect_multipole_info(multi.x, do_out ? 0 : mrung, part_begin, part_end);
 		prange = part_vect_range(part_begin, part_end);
 	} else {
-		std::pair<multipole_info, range> ml, mr;
+		multipole_return ml, mr;
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].compute_multipoles(mrung, do_out, stack_cnt);
 		}, true, stack_cnt);
@@ -199,18 +199,18 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		}, false, stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
-		multi.m() = ml.first.m() + mr.first.m();
+		multi.m() = ml.m.m() + mr.m.m();
 		if (multi.m() != 0.0) {
-			multi.x = (ml.first.x * ml.first.m() + mr.first.x * mr.first.m()) / multi.m();
+			multi.x = (ml.m.x * ml.m.m() + mr.m.x * mr.m.m()) / multi.m();
 		} else {
 			ERROR();
 		}
-		multi.m = (ml.first.m >> (ml.first.x - multi.x)) + (mr.first.m >> (mr.first.x - multi.x));
-		multi.has_active = ml.first.has_active || mr.first.has_active;
-		multi.r = std::max(abs(ml.first.x - multi.x) + ml.first.r, abs(mr.first.x - multi.x) + mr.first.r);
+		multi.m = (ml.m.m >> (ml.m.x - multi.x)) + (mr.m.m >> (mr.m.x - multi.x));
+		multi.has_active = ml.m.has_active || mr.m.has_active;
+		multi.r = std::max(abs(ml.m.x - multi.x) + ml.m.r, abs(mr.m.x - multi.x) + mr.m.r);
 		for (int dim = 0; dim < NDIM; dim++) {
-			prange.max[dim] = std::max(ml.second.max[dim], mr.second.max[dim]);
-			prange.min[dim] = std::min(ml.second.min[dim], mr.second.min[dim]);
+			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
+			prange.min[dim] = std::min(ml.r.min[dim], mr.r.min[dim]);
 		}
 		ireal rmax = abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.min[1], (ireal) prange.min[2] }));
 		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.min[1], (ireal) prange.min[2] })));
@@ -221,16 +221,16 @@ std::pair<multipole_info, range> tree::compute_multipoles(rung_type mrung, bool 
 		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.max[1], (ireal) prange.max[2] })));
 		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.max[1], (ireal) prange.max[2] })));
 		multi.r = std::min(multi.r, rmax);
-		raw_children[0] = children[0].get_check_item();
-		raw_children[1] = children[1].get_check_item();
+		child_check[0] = ml.c;
+		child_check[1] = mr.c;
 	}
-	return std::make_pair(multi, prange);
+	return multipole_return({multi, prange, get_check_item()});
 }
 
 node_attr tree::get_node_attributes() const {
 	node_attr attr;
-	attr.children[0] = raw_children[0];
-	attr.children[1] = raw_children[1];
+	attr.children[0] = child_check[0];
+	attr.children[1] = child_check[1];
 	return attr;
 }
 

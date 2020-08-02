@@ -29,6 +29,7 @@ using future_type = hpx::future<T>;
 class node_attr;
 class multi_src;
 class check_item;
+class multipole_return;
 
 struct statistics {
 	vect<float> g;
@@ -95,7 +96,7 @@ public:
 	tree_client() = default;
 	tree_client(id_type ptr_);
 	check_item get_check_item() const;
-	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const;
+	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const;
 	void drift(float dt) const;
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_cnt) const;
@@ -148,6 +149,18 @@ struct node_attr {
 	}
 };
 
+struct multipole_return {
+	multipole_info m;
+	range r;
+	check_item c;
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & m;
+		arc & r;
+		arc & c;
+	}
+};
+
 class tree: public hpx::components::managed_component_base<tree> {
 	multipole_info multi;
 	part_iter part_begin;
@@ -156,7 +169,7 @@ class tree: public hpx::components::managed_component_base<tree> {
 	range box;
 	bool leaf;
 	std::array<tree_client, NCHILD> children;
-	std::array<check_item, NCHILD> raw_children;
+	std::array<check_item, NCHILD> child_check;
 
 	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;
@@ -168,7 +181,7 @@ public:
 		arc & part_begin;
 		arc & part_end;
 		arc & children;
-		arc & raw_children;
+		arc & child_check;
 		arc & level;
 		arc & box;
 		arc & leaf;
@@ -180,7 +193,7 @@ public:
 	tree(range, part_iter, part_iter, int level);
 	bool refine(int);
 	bool is_leaf() const;
-	std::pair<multipole_info, range> compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt);
+	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt);
 	node_attr get_node_attributes() const;
 	multi_src get_multi_srcs() const;
 	void drift(float);
@@ -209,7 +222,7 @@ inline check_item tree_client::get_check_item() const {
 	return tree::get_check_item_action()(ptr);
 }
 
-inline std::pair<multipole_info, range> tree_client::compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const {
+inline multipole_return tree_client::compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const {
 	return tree::compute_multipoles_action()(ptr, min_rung, do_out, stack_cnt);
 }
 
