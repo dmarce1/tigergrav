@@ -7,6 +7,7 @@
 #include <hpx/synchronization/spinlock.hpp>
 
 #include <unistd.h>
+#include <thread>
 #include <unordered_map>
 
 using mutex_type = hpx::lcos::local::spinlock;
@@ -21,7 +22,6 @@ static int myid;
 static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_type>>>> pos_cache[POS_CACHE_SIZE];
 static mutex_type pos_cache_mtx[POS_CACHE_SIZE];
 
-
 HPX_PLAIN_ACTION (part_vect_init);
 HPX_PLAIN_ACTION (part_vect_read);
 HPX_PLAIN_ACTION (part_vect_read_position);
@@ -30,6 +30,7 @@ HPX_PLAIN_ACTION (part_vect_range);
 HPX_PLAIN_ACTION (part_vect_cache_reset);
 HPX_PLAIN_ACTION (part_vect_center_of_mass);
 HPX_PLAIN_ACTION (part_vect_multipole_info);
+HPX_PLAIN_ACTION (part_vect_drift);
 
 inline particle& parts(part_iter i) {
 	const int j = i - part_begin;
@@ -38,6 +39,37 @@ inline particle& parts(part_iter i) {
 //		abort();
 //	}
 	return particles[j];
+}
+
+void part_vect_drift(float dt) {
+	std::vector<hpx::future<void>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async < part_vect_drift_action > (localities[i], dt));
+		}
+	}
+	const part_iter chunk_size = (part_end - part_begin) / std::thread::hardware_concurrency();
+	for (part_iter i = part_begin; i < part_end; i += chunk_size) {
+		auto func = [i, chunk_size, dt]() {
+			const auto end = std::min(part_end, i + chunk_size);
+			for (int j = i; j < end; j++) {
+				const vect<double> dx = parts(j).v * dt;
+				vect<double> x = pos_to_double(parts(j).x);
+				x += dx;
+				for (int dim = 0; dim < NDIM; dim++) {
+					while (x[dim] >= 1.0) {
+						x[dim] -= 1.0;
+					}
+					while (x[dim] < 0.0) {
+						x[dim] += 1.0;
+					}
+				}
+				parts(j).x = double_to_pos(x);
+			}
+		};
+		futs.push_back(hpx::async(std::move(func)));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
 std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e) {

@@ -550,37 +550,7 @@ kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool 
 
 void tree::drift(float dt) {
 	if (level == 0) {
-		printf("drift\n");
-	}
-
-	if (is_leaf()) {
-		auto parts = part_vect_read(part_begin, part_end).get();
-		for (auto i = parts.begin(); i != parts.end(); i++) {
-			const vect<double> dx = i->v * dt;
-			vect<double> x = pos_to_double(i->x);
-			x += dx;
-			for (int dim = 0; dim < NDIM; dim++) {
-				while (x[dim] >= 1.0) {
-					x[dim] -= 1.0;
-				}
-				while (x[dim] < 0.0) {
-					x[dim] += 1.0;
-				}
-			}
-			i->x = double_to_pos(x);
-		}
-		part_vect_write(part_begin, part_end, std::move(parts));
-	} else {
-		auto rcl = thread_if_avail([=]() {
-			children[0].drift(dt);
-			return 1;
-		}, part_end - part_begin, level, true, 8);
-		auto rcr = thread_if_avail([=]() {
-			children[1].drift(dt);
-			return 1;
-		}, part_end - part_begin, level, false, 8);
-		rcl.get();
-		rcr.get();
+		part_vect_drift(dt);
 	}
 }
 

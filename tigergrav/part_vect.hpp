@@ -21,4 +21,5 @@ int part_vect_locality_id(part_iter);
 void part_vect_cache_reset();
 std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e);
 multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_iter b, part_iter e);
+void part_vect_drift(float dt);
 
