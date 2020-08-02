@@ -28,6 +28,11 @@ constexpr int LP = 35;
 struct force {
 	float phi;
 	vect<float> g;
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & phi;
+		arc & g;
+	}
 };
 
 template<class T>

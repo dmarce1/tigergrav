@@ -29,14 +29,14 @@ static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_typ
 static mutex_type pos_cache_mtx[POS_CACHE_SIZE];
 
 HPX_PLAIN_ACTION(part_vect_init);
-HPX_PLAIN_ACTION(part_vect_read);
 HPX_PLAIN_ACTION(part_vect_read_position);
-HPX_PLAIN_ACTION(part_vect_write);
 HPX_PLAIN_ACTION(part_vect_range);
 HPX_PLAIN_ACTION(part_vect_cache_reset);
 HPX_PLAIN_ACTION(part_vect_center_of_mass);
 HPX_PLAIN_ACTION(part_vect_multipole_info);
 HPX_PLAIN_ACTION(part_vect_drift);
+HPX_PLAIN_ACTION(part_vect_read_active_positions);
+HPX_PLAIN_ACTION(part_vect_kick);
 
 inline particle& parts(part_iter i) {
 	const int j = i - part_begin;
@@ -45,6 +45,85 @@ inline particle& parts(part_iter i) {
 //		abort();
 //	}
 	return particles[j];
+}
+
+kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &&f) {
+	kick_return rc;
+	const auto opts = options::get();
+	const float eps = 10.0 * std::numeric_limits<float>::min();
+	const float m = 1.0 / opts.problem_size;
+	rc.rung = 0;
+	part_iter j = 0;
+	if (do_out) {
+		rc.stats.zero();
+	}
+	for (auto i = b; i != std::min(e, part_end); i++) {
+		if (parts(i).rung >= min_rung || do_out) {
+			if (parts(i).rung >= min_rung) {
+				if (parts(i).rung != 0) {
+					const float dt = rung_to_dt(parts(i).rung);
+					parts(i).v = parts(i).v + f[j].g * (0.5 * dt);
+				}
+				const float a = abs(f[j].g);
+				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
+				rung_type rung = dt_to_rung(dt);
+				rung = std::max(rung, min_rung);
+				rc.rung = std::max(rc.rung, rung);
+				dt = rung_to_dt(rung);
+				parts(i).rung = std::max(std::max(rung, rung_type(parts(i).rung - 1)), (rung_type) 1);
+				parts(i).v = parts(i).v + f[j].g * (0.5 * dt);
+			}
+			if (do_out) {
+				rc.stats.g = rc.stats.g + f[j].g * m;
+				rc.stats.p = rc.stats.p + parts(i).v * m;
+				rc.stats.pot += 0.5 * m * f[j].phi;
+				rc.stats.kin += 0.5 * m * parts(i).v.dot(parts(i).v);
+				if (parts(i).flags.out) {
+					output out;
+					out.x = pos_to_double(parts(i).x);
+					out.v = parts(i).v;
+					out.g = f[j].g;
+					out.phi = f[j].phi;
+					out.rung = parts(i).rung;
+					rc.out.push_back(out);
+				}
+			}
+			j++;
+		}
+	}
+	const auto k = j;
+	for (; j < f.size(); j++) {
+		f[j - k] = f[j];
+	}
+	f.resize(f.size() - k);
+	if (f.size()) {
+		const auto other = part_vect_kick_action()(localities[myid + 1], part_end, e, min_rung, do_out, std::move(f));
+		rc.stats = rc.stats + other.stats;
+		rc.rung = std::max(rc.rung, other.rung);
+		rc.out.insert(rc.out.end(), other.out.begin(), other.out.end());
+	}
+	return rc;
+}
+
+std::vector<vect<float>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung) {
+	std::vector<vect<float>> x;
+	hpx::future<std::vector<vect<float>>> fut;
+	x.reserve(e - b);
+	if (e > part_end) {
+		fut = hpx::async<part_vect_read_active_positions_action>(localities[myid + 1], part_end, e, rung);
+	}
+	for (part_iter i = b; i < std::min(e, part_end); i++) {
+		if (parts(i).rung >= rung) {
+			x.push_back(pos_to_double(parts(i).x));
+		}
+	}
+	if (e > part_end) {
+		auto other = fut.get();
+		for (const auto &o : other) {
+			x.push_back(o);
+		}
+	}
+	return x;
 }
 
 void part_vect_drift(float dt) {
@@ -116,7 +195,7 @@ multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_i
 	multipole<simd_float> M;
 	vect<simd_float> Xcom;
 	M = simd_float(0.0);
-	for( int dim = 0; dim < NDIM; dim++ ) {
+	for (int dim = 0; dim < NDIM; dim++) {
 		Xcom[dim] = simd_float(com[dim]);
 	}
 	for (part_iter i = b; i < this_end; i += simd_float::size()) {
@@ -203,33 +282,6 @@ void part_vect_init() {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {
-	const auto id = part_vect_locality_id(b);
-	std::vector<particle> these_parts;
-	if (id == myid) {
-		these_parts.reserve(e - b);
-		const auto this_e = std::min(e, part_end);
-		for (int i = b; i < this_e; i++) {
-			these_parts.push_back(parts(i));
-		}
-		if (these_parts.size() != e - b) {
-			auto fut = part_vect_read_action()(localities[myid + 1], b + these_parts.size(), e);
-			auto next_parts = fut.get();
-			for (const auto &p : next_parts) {
-				these_parts.push_back(p);
-			}
-			if (these_parts.size() != e - b) {
-				printf("Error in part_vect_read\n");
-				abort();
-			}
-		}
-	} else {
-		auto fut = part_vect_read_action()(localities[id], b, e);
-		these_parts = fut.get();
-	}
-	return hpx::make_ready_future(these_parts);
-}
-
 inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_iter b, part_iter e) {
 	const int index = (b / sizeof(particle)) % POS_CACHE_SIZE;
 	std::unique_lock<mutex_type> lock(pos_cache_mtx[index]);
@@ -280,30 +332,6 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 		}
 	} else {
 		return part_vect_read_pos_cache(b, e);
-	}
-}
-
-void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts) {
-	const auto id = part_vect_locality_id(b);
-	if (id == myid) {
-		int i = b;
-		for (auto this_part : these_parts) {
-			parts(i) = this_part;
-			i++;
-			if (i == part_end) {
-				break;
-			}
-		}
-		std::vector<particle> next_parts;
-		while (i < e) {
-			next_parts.push_back(these_parts[i - b]);
-			i++;
-		}
-		if (next_parts.size()) {
-			part_vect_write_action()(localities[myid + 1], e - next_parts.size(), e, std::move(next_parts));
-		}
-	} else {
-		part_vect_write_action()(localities[id], b, e, std::move(these_parts));
 	}
 }
 

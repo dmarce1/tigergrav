@@ -274,8 +274,6 @@ struct workspace {
 	std::vector<hpx::future<std::vector<vect<pos_type>>>> esource_futs;
 	std::vector<multi_src> multi_srcs;
 	std::vector<vect<float>> sources;
-	std::vector<vect<float>> x;
-	std::vector<force> f;
 
 };
 
@@ -299,8 +297,6 @@ workspace get_workspace() {
 	this_space.dsource_futs.resize(0);
 	this_space.esource_futs.resize(0);
 	this_space.sources.resize(0);
-	this_space.x.resize(0);
-	this_space.f.resize(0);
 	return std::move(this_space);
 }
 
@@ -336,8 +332,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	auto &dmulti_futs = space.dmulti_futs;
 	auto &emulti_futs = space.emulti_futs;
 	auto &sources = space.sources;
-	auto &x = space.x;
-	auto &f = space.f;
 
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
@@ -503,21 +497,14 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				next_echecklist.resize(0);
 			}
 		}
-		const auto parts = part_vect_read(part_begin, part_end).get();
-		for (auto i = parts.begin(); i != parts.end(); i++) {
-			if (i->rung >= min_rung || do_out) {
-				x.push_back(pos_to_double(i->x));
-			}
-		}
-		f.resize(x.size());
+		const auto x = part_vect_read_active_positions(part_begin, part_end, do_out ? rung_type(0) : min_rung);
+		std::vector<force> f(x.size());
 		int j = 0;
-		for (auto i = parts.begin(); i != parts.end(); i++) {
-			if (i->rung >= min_rung || do_out) {
-				force this_f = L.translate_L2(x[j] - multi.x);
-				f[j].phi = this_f.phi;
-				f[j].g = this_f.g;
-				j++;
-			}
+		for (auto i = x.begin(); i != x.end(); i++) {
+			force this_f = L.translate_L2(x[j] - multi.x);
+			f[j].phi = this_f.phi;
+			f[j].g = this_f.g;
+			j++;
 		}
 		multi_srcs.resize(0);
 		for (auto &v : dmulti_futs) {
@@ -547,60 +534,12 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 			flop += gravity_PP_ewald(f, x, sources);
 		}
-		rc = do_kick(f, min_rung, do_out);
+		rc = part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(f));
 	}
 	trash_workspace(std::move(space));
 	return rc;
 }
 
-kick_return tree::do_kick(const std::vector<force> &f, rung_type min_rung, bool do_out) {
-	const auto opts = options::get();
-	const float eps = 10.0 * std::numeric_limits<float>::min();
-	const float m = 1.0 / opts.problem_size;
-	kick_return rc;
-	rc.rung = 0;
-	int j = 0;
-	if (do_out) {
-		rc.stats.zero();
-	}
-	auto parts = part_vect_read(part_begin, part_end).get();
-	for (auto i = parts.begin(); i != parts.end(); i++) {
-		if (i->rung >= min_rung || do_out) {
-			if (i->rung >= min_rung) {
-				if (i->rung != 0) {
-					const float dt = rung_to_dt(i->rung);
-					i->v = i->v + f[j].g * (0.5 * dt);
-				}
-				const float a = abs(f[j].g);
-				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
-				rung_type rung = dt_to_rung(dt);
-				rung = std::max(rung, min_rung);
-				rc.rung = std::max(rc.rung, rung);
-				dt = rung_to_dt(rung);
-				i->rung = std::max(std::max(rung, rung_type(i->rung - 1)), (rung_type) 1);
-				i->v = i->v + f[j].g * (0.5 * dt);
-			}
-			if (do_out) {
-				rc.stats.g = rc.stats.g + f[j].g * m;
-				rc.stats.p = rc.stats.p + i->v * m;
-				rc.stats.pot += 0.5 * m * f[j].phi;
-				rc.stats.kin += 0.5 * m * i->v.dot(i->v);
-				if (i->flags.out) {
-					output out;
-					out.x = pos_to_double(i->x);
-					out.v = i->v;
-					out.g = f[j].g;
-					out.phi = f[j].phi;
-					out.rung = i->rung;
-					rc.out.push_back(out);
-				}
-			}
-			j++;
-		}
-	}
-	part_vect_write(part_begin, part_end, std::move(parts));
-	return rc;
-}
 
 void tree::drift(float dt) {
 	if (level == 0) {

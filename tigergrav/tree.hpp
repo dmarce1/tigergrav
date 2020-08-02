@@ -31,47 +31,6 @@ class multi_src;
 class check_item;
 class multipole_return;
 
-struct statistics {
-	vect<float> g;
-	vect<float> p;
-	float pot;
-	float kin;
-
-	template<class A>
-	void serialize(A &&arc, unsigned) {
-		arc & g;
-		arc & p;
-		arc & pot;
-		arc & kin;
-	}
-
-	void zero() {
-		pot = kin = 0.0;
-		g = p = vect<float>(0);
-	}
-	statistics operator+(const statistics &other) const {
-		statistics C;
-		C.g = g + other.g;
-		C.p = p + other.p;
-		C.pot = pot + other.pot;
-		C.kin = kin + other.kin;
-		return C;
-	}
-};
-
-struct kick_return {
-	statistics stats;
-	rung_type rung;
-	std::vector<output> out;
-	template<class A>
-	void serialize(A &&arc, unsigned) {
-		arc & stats;
-		arc & rung;
-		arc & out;
-	}
-};
-
-
 struct raw_id_type {
 	int loc_id;
 	std::uint64_t ptr;
@@ -199,7 +158,6 @@ public:
 	void drift(float);
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_ccnt);
-	kick_return do_kick(const std::vector<force> &forces, rung_type min_rung, bool do_out);
 	check_item get_check_item() const;//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine); 				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_flop); 				//
