@@ -382,13 +382,13 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	for (auto &v : dmulti_futs) {
 		multi_srcs.push_back(v.get());
 	}
+	flop += gravity_CC_direct(L, multi.x, multi_srcs);
 	for (auto &v : dsource_futs) {
 		auto s = v.get();
 		for (auto x : s) {
 			sources.push_back(pos_to_double(x));
 		}
 	}
-	flop += gravity_CC_direct(L, multi.x, multi_srcs);
 	flop += gravity_CP_direct(L, multi.x, sources);
 	if (opts.ewald) {
 		multi_srcs.resize(0);
@@ -396,13 +396,13 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		for (auto &v : emulti_futs) {
 			multi_srcs.push_back(v.get());
 		}
+		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
 		for (auto &v : esource_futs) {
 			auto s = v.get();
 			for (auto x : s) {
 				sources.push_back(pos_to_double(x));
 			}
 		}
-		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
 		flop += gravity_CP_ewald(L, multi.x, sources);
 	}
 	for (auto &f : dfuts) {
@@ -519,6 +519,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		for (auto &v : dmulti_futs) {
 			multi_srcs.push_back(v.get());
 		}
+		flop += gravity_PC_direct(f, x, multi_srcs);
 		sources.resize(0);
 		for (auto &v : dsource_futs) {
 			auto s = v.get();
@@ -526,13 +527,13 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				sources.push_back(pos_to_double(x));
 			}
 		}
-		flop += gravity_PC_direct(f, x, multi_srcs);
 		flop += gravity_PP_direct(f, x, sources);
 		if (opts.ewald) {
 			multi_srcs.resize(0);
 			for (auto &v : emulti_futs) {
 				multi_srcs.push_back(v.get());
 			}
+			flop += gravity_PC_ewald(f, x, multi_srcs);
 			sources.resize(0);
 			for (auto &v : esource_futs) {
 				auto s = v.get();
@@ -540,7 +541,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					sources.push_back(pos_to_double(x));
 				}
 			}
-			flop += gravity_PC_ewald(f, x, multi_srcs);
 			flop += gravity_PP_ewald(f, x, sources);
 		}
 		rc = do_kick(f, min_rung, do_out);

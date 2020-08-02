@@ -255,7 +255,7 @@ int server(int argc, char* argv[]) {
 			}
 		}
 		if (!found_stuff) {
-			hpx::this_thread::yield();
+//			hpx::this_thread::yield();
 		}
 	} while (found_stuff || !exit_signal);
 	return EXIT_SUCCESS;
