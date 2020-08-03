@@ -58,6 +58,7 @@ void output_particles(const std::vector<output> &parts, const std::string filena
 		std::vector<float> phi;
 		std::vector<int> rung;
 
+		printf( "SILO out\n");
 		for (auto i = parts.begin(); i != parts.end(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				x[dim].push_back(i->x[dim]);

@@ -146,6 +146,7 @@ int hpx_main(int argc, char *argv[]) {
 				do_out = false;
 			}
 			auto ts = timer();
+			printf( "Drifting\n");
 			root_ptr.drift(dt);
 			printf("drift took %e seconds\n", timer() - ts);
 			ts = timer();
