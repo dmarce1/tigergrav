@@ -114,22 +114,22 @@ bool tree::refine(int stack_cnt) {
 //		sleep(100);
 //	}
 	const auto &opts = options::get();
-	auto myparts = part_vect_read(part_begin, part_end).get();
-	bool abortme = false;
-	for (const auto &p : myparts) {
-		const auto x = pos_to_double(p.x);
-		if (!in_range(x, box)) {
-			printf("Found particle out of range!\n");
-			printf("%e %e %e\n", x[0], x[1], x[2]);
-			for (int dim = 0; dim < NDIM; dim++) {
-				printf("%e %e\n", box.min[dim], box.max[dim]);
-			}
-			abortme = true;
-		}
-	}
-	if( abortme ) {
-		abort();
-	}
+//	auto myparts = part_vect_read(part_begin, part_end).get();
+//	bool abortme = false;
+//	for (const auto &p : myparts) {
+//		const auto x = pos_to_double(p.x);
+//		if (!in_range(x, box)) {
+//			printf("Found particle out of range!\n");
+//			printf("%e %e %e\n", x[0], x[1], x[2]);
+//			for (int dim = 0; dim < NDIM; dim++) {
+//				printf("%e %e\n", box.min[dim], box.max[dim]);
+//			}
+//			abortme = true;
+//		}
+//	}
+//	if (abortme) {
+//		abort();
+//	}
 
 	if (part_end - part_begin > opts.parts_per_node && is_leaf()) {
 		float max_span = 0.0;
@@ -139,7 +139,7 @@ bool tree::refine(int stack_cnt) {
 			prange = box;
 		} else {
 			prange = part_vect_range(part_begin, part_end);
-			}
+		}
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto this_span = prange.max[dim] - prange.min[dim];
@@ -190,6 +190,19 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 	}
 	const auto &opts = options::get();
 	range prange;
+	if (part_end - part_begin == 0) {
+		multipole_return rc;
+		multi.m = 0.0;
+		for (int dim = 0; dim < NDIM; dim++) {
+			multi.x[dim] = 0.5 * (box.max[dim] - box.min[dim]);
+		}
+		multi.has_active = false;
+		multi.r = 0.0;
+		rc.m = multi;
+		rc.r = box;
+		rc.c = get_check_item();
+		return rc;
+	}
 	if (is_leaf()) {
 		multi.x = part_vect_center_of_mass(part_begin, part_end).second;
 		multi = part_vect_multipole_info(multi.x, do_out ? 0 : mrung, part_begin, part_end);
@@ -313,8 +326,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	}
 
 	kick_return rc;
-	if (!multi.has_active && !do_out) {
+	if ((part_end - part_begin == 0) || (!multi.has_active && !do_out)) {
 		rc.rung = 0;
+		rc.stats.zero();
 		return rc;
 	}
 
@@ -338,6 +352,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	next_echecklist.reserve(NCHILD * echecklist.size());
 
 	for (auto c : dchecklist) {
+		if( c.pend == c.pbegin) {
+			continue;
+		}
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
 		const bool far = dx > (multi.r + c.r) * theta_inv;
 		if (far) {
@@ -358,6 +375,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	if (opts.ewald) {
 		for (auto c : echecklist) {
+			if( c.pend == c.pbegin) {
+				continue;
+			}
 			const auto dx = ewald_far_separation(multi.x - c.x, multi.r + c.r);
 			const bool far = dx > (multi.r + c.r) * theta_inv;
 			if (far) {
@@ -443,6 +463,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		while (!dchecklist.empty()) {
 			dfuts.resize(0);
 			for (auto c : dchecklist) {
+				if( c.pend == c.pbegin) {
+					continue;
+				}
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
 				const bool far = dx > (multi.r + c.r) * theta_inv;
 				if (c.opened) {
@@ -472,6 +495,9 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			while (!echecklist.empty()) {
 				efuts.resize(0);
 				for (auto c : echecklist) {
+					if( c.pend == c.pbegin) {
+						continue;
+					}
 					const auto dx = ewald_far_separation(multi.x - c.x, multi.r + c.r);
 					const bool far = dx > (multi.r + c.r) * theta_inv;
 					if (c.opened) {
@@ -540,7 +566,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	trash_workspace(std::move(space));
 	return rc;
 }
-
 
 void tree::drift(float dt) {
 	if (level == 0) {

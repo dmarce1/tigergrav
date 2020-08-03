@@ -151,6 +151,7 @@ int hpx_main(int argc, char *argv[]) {
 			printf("drift took %e seconds\n", timer() - ts);
 			ts = timer();
 			root_ptr = hpx::invalid_id;
+			printf( "Forming tree\n");
 			root_ptr = hpx::new_<tree>(hpx::find_here(),root_box, 0, opts.problem_size, 0).get();
 			while( root_ptr.refine(0)) {
 			}

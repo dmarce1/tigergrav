@@ -71,7 +71,7 @@ mutex_type sort_mutex;
 
 void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, int dim) {
 	if (b == mid || e == mid) {
-		printf( "%i %i %i\n", b, mid, e);
+//		printf("%i %i %i\n", b, mid, e);
 		return;
 	}
 	std::vector<hpx::future<void>> futs;
@@ -85,7 +85,7 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, i
 	bool done = false;
 	for (int round = 0; !done; round++) {
 		int other = round_robin(myid, round, nproc);
-		printf("%i %i %i %i %i\n", b, mid, e, round % nproc, other);
+//		printf("%i %i %i %i %i\n", b, mid, e, round % nproc, other);
 		if (other >= 0 && other >= part_vect_locality_id(mid)) {
 			std::vector<particle> send;
 			send.reserve(chunk_size);
@@ -97,7 +97,7 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, i
 					done = false;
 				}
 			}
-			printf("%i Sending %i to %i\n", myid, send.size(), other);
+	//		printf("%i Sending %i to %i\n", myid, send.size(), other);
 			if (!done) {
 				lock.unlock();
 				auto recv = part_vect_sort_end_action()(localities[other], b, e, mid, xmid, dim, std::move(send));
@@ -182,7 +182,7 @@ std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid
 		}
 	}
 //	if(myid==1)
-	printf("%i used %i\n", myid, j);
+//	printf("%i used %i\n", myid, j);
 	return low;
 }
 
@@ -274,7 +274,7 @@ void part_vect_drift(float dt) {
 			futs.push_back(hpx::async<part_vect_drift_action>(localities[i], dt));
 		}
 	}
-	const part_iter chunk_size = std::max(part_iter(1),(part_end - part_begin) / std::thread::hardware_concurrency());
+	const part_iter chunk_size = std::max(part_iter(1), (part_end - part_begin) / std::thread::hardware_concurrency());
 	for (part_iter i = part_begin; i < part_end; i += chunk_size) {
 		auto func = [i, chunk_size, dt]() {
 			const auto end = std::min(part_end, i + chunk_size);
@@ -522,14 +522,15 @@ part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
 }
 
 part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
-//	printf( "Sorting %i %i on %i %i %i\n", b, e, myid, part_begin, part_end);
+
+//	printf("Sorting %i %i on %i %i %i\n", b, e, myid, part_begin, part_end);
 	if (e == b) {
 		return e;
 	} else {
-		for( auto i = part_begin; i < part_end; i++) {
-//			printf( "%e\n", pos_to_double(parts(i).x[dim]));
+		for (auto i = part_begin; i < part_end; i++) {
+//			printf("%e\n", pos_to_double(parts(i).x[dim]));
 		}
-//		printf( "----\n");
+	//	printf("----\n");
 		if (e <= part_end) {
 			auto lo = b;
 			auto hi = e;
@@ -547,9 +548,10 @@ part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
 				}
 				lo++;
 			}
-			for( auto i = part_begin; i < part_end; i++) {
-//				printf( "%e\n", pos_to_double(parts(i).x[dim]));
+			for (auto i = part_begin; i < part_end; i++) {
+	//			printf("%e\n", pos_to_double(parts(i).x[dim]));
 			}
+	//		printf("****\n");
 			return hi;
 		} else {
 			auto count = part_vect_count_lo(b, e, xmid, dim);
@@ -604,5 +606,5 @@ int part_vect_locality_id(part_iter i) {
 	while (i >= (n + 1) * M / N) {
 		n++;
 	}
-	return n;
+	return std::min(n, N - 1);
 }
