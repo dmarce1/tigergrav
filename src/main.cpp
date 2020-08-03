@@ -73,7 +73,7 @@ int hpx_main(int argc, char *argv[]) {
 			auto start = timer();
 			kr = solve_gravity(root_ptr, min_rung(0), true);
 			auto stop = timer();
-			auto flops = root_ptr.get_flop() / (stop - start + 1.0e-10) / std::pow(1024, 3);
+			auto flops = tree::get_flop() / (stop - start + 1.0e-10) / std::pow(1024, 3);
 			std::sort(kr.out.begin(), kr.out.end());
 			const auto err = compute_error(kr.out, direct);
 			printf("%13.6e %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e \n", theta, stop - start, flops, err.err, err.err99, err.g[0], err.g[1], err.g[2]);
@@ -113,7 +113,7 @@ int hpx_main(int argc, char *argv[]) {
 			printf("%9x ", (int) itime);
 			printf("%9i ", (int) kr.rung);
 			printf("%9i ", (int) min_rung(itime));
-			printf("%13.6e ", root_ptr.get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
+			printf("%13.6e ", tree::get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
 //			tree::reset_flop();
 //			tstart = timer();
 			if (do_out) {

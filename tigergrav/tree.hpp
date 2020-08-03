@@ -59,7 +59,6 @@ public:
 	void drift(float dt) const;
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_cnt) const;
-	std::uint64_t get_flop() const;
 	bool refine(int) const;
 };
 
@@ -145,9 +144,9 @@ public:
 		arc & box;
 		arc & leaf;
 	}
+	static std::uint64_t get_flop();
 	tree() = default;
 	static void set_theta(float);
-	std::uint64_t get_flop();
 	static void reset_flop();
 	tree(range, part_iter, part_iter, int level);
 	bool refine(int);
@@ -160,7 +159,6 @@ public:
 			rung_type min_rung, bool do_output, int stack_ccnt);
 	check_item get_check_item() const;//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine); 				//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_flop); 				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);//
@@ -195,8 +193,4 @@ inline bool tree_client::refine(int stack_cnt) const {
 inline kick_return tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_output, int stack_cnt) const {
 	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output, stack_cnt);
-}
-
-inline std::uint64_t tree_client::get_flop() const {
-	return tree::get_flop_action()(ptr);
 }

@@ -11,7 +11,6 @@
 #ifdef HPX_LITE
 HPX_REGISTER_MINIMAL_COMPONENT_FACTORY(hpx::components::managed_component<tree>, tree);
 
-using get_flop_action_type = tree::get_flop_action;
 using compute_multipoles_action_type = tree::compute_multipoles_action;
 using kick_fmm_action_type = tree::kick_fmm_action;
 using drift_action_type = tree:: drift_action;
@@ -19,7 +18,6 @@ using get_check_item_action_type = tree::get_check_item_action;
 using refine_action_type = tree::refine_action;
 
 HPX_REGISTER_ACTION(refine_action_type);
-HPX_REGISTER_ACTION(get_flop_action_type);
 HPX_REGISTER_ACTION(compute_multipoles_action_type);
 HPX_REGISTER_ACTION(kick_fmm_action_type);
 HPX_REGISTER_ACTION(drift_action_type);
@@ -29,6 +27,8 @@ HPX_REGISTER_ACTION(get_check_item_action_type);
 #include <hpx/runtime/actions/plain_action.hpp>
 HPX_REGISTER_COMPONENT(hpx::components::managed_component<tree>, tree);
 #endif
+
+#define MAX_STACK 8
 
 std::atomic<std::uint64_t> tree::flop(0);
 float tree::theta_inv;
@@ -52,7 +52,7 @@ struct raw_id_type_hash {
 
 template<class F>
 inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
-	const auto static N = options::get().problem_size / localities.size() / (2 * hardware_concurrency);
+	const auto static N = options::get().problem_size / localities.size() / (8 * hardware_concurrency);
 	bool thread;
 //	printf( "%i\n", (int) num_threads);
 //	int count = num_threads++;
@@ -60,7 +60,7 @@ inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
 		thread = true;
 	} else {
 //		num_threads--;
-		if (stack_cnt % 8 == 7) {
+		if (stack_cnt == MAX_STACK - 1) {
 //			num_threads++;
 			thread = true;
 		} else {
@@ -352,7 +352,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	next_echecklist.reserve(NCHILD * echecklist.size());
 
 	for (auto c : dchecklist) {
-		if( c.pend == c.pbegin) {
+		if (c.pend == c.pbegin) {
 			continue;
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
@@ -375,7 +375,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	if (opts.ewald) {
 		for (auto c : echecklist) {
-			if( c.pend == c.pbegin) {
+			if (c.pend == c.pbegin) {
 				continue;
 			}
 			const auto dx = ewald_far_separation(multi.x - c.x, multi.r + c.r);
@@ -463,7 +463,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		while (!dchecklist.empty()) {
 			dfuts.resize(0);
 			for (auto c : dchecklist) {
-				if( c.pend == c.pbegin) {
+				if (c.pend == c.pbegin) {
 					continue;
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
@@ -495,7 +495,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			while (!echecklist.empty()) {
 				efuts.resize(0);
 				for (auto c : echecklist) {
-					if( c.pend == c.pbegin) {
+					if (c.pend == c.pbegin) {
 						continue;
 					}
 					const auto dx = ewald_far_separation(multi.x - c.x, multi.r + c.r);
@@ -573,8 +573,20 @@ void tree::drift(float dt) {
 	}
 }
 
+HPX_PLAIN_ACTION(tree::get_flop, get_flop_action);
+
 std::uint64_t tree::get_flop() {
-	return flop;
+	std::vector<hpx::future<std::uint64_t>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async<get_flop_action>(localities[i]));
+		}
+	}
+	auto total = (std::uint64_t)flop;
+	for (auto &f : futs) {
+		flop += f.get();
+	}
+	return total;
 }
 
 void tree::reset_flop() {
