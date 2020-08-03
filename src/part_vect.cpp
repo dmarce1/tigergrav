@@ -40,10 +40,12 @@ HPX_PLAIN_ACTION(part_vect_kick);
 
 inline particle& parts(part_iter i) {
 	const int j = i - part_begin;
-//	if (j < 0 || j >= particles.size()) {
-//		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
-//		abort();
-//	}
+#ifndef NDEBUG
+	if (j < 0 || j >= particles.size()) {
+		printf("Index out of bounds! %i should be between 0 and %i\n", j, particles.size());
+		abort();
+	}
+#endif
 	return particles[j];
 }
 
@@ -70,6 +72,7 @@ HPX_PLAIN_ACTION(part_vect_sort_end);
 mutex_type sort_mutex;
 
 void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, int dim) {
+	static const auto opts = options::get();
 	if (b == mid || e == mid) {
 //		printf("%i %i %i\n", b, mid, e);
 		return;
@@ -81,37 +84,68 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, i
 		}
 	}
 	int nproc = part_vect_locality_id(e - 1) - part_vect_locality_id(b) + 1;
-	constexpr int chunk_size = 10000;
+	int low_proc = part_vect_locality_id(b);
+	int chunk_size = opts.problem_size / localities.size() / 10 + 1;
 	bool done = false;
+	part_iter begin = std::max(b, part_begin);
 	for (int round = 0; !done; round++) {
-		int other = round_robin(myid, round, nproc);
-//		printf("%i %i %i %i %i\n", b, mid, e, round % nproc, other);
+		int other = round_robin(myid - low_proc, round, nproc) + low_proc;
+//		printf("%i %i %i %i %i %i\n", myid, b, mid, e, round % nproc, other);
 		if (other >= 0 && other >= part_vect_locality_id(mid)) {
 			std::vector<particle> send;
 			send.reserve(chunk_size);
 			done = true;
 			std::unique_lock<mutex_type> lock(sort_mutex);
-			for (part_iter i = std::max(b, part_begin); i < std::min(part_end, mid); i++) {
+//			printf( "--%i %i %i\n",myid, begin,std::min(part_end, mid) );
+			for (part_iter i = begin; i < std::min(part_end, mid); i++) {
 				if (pos_to_double(parts(i).x[dim]) >= xmid) {
 					send.push_back(parts(i));
 					done = false;
+					if (send.size() >= chunk_size) {
+						break;
+					}
 				}
 			}
-	//		printf("%i Sending %i to %i\n", myid, send.size(), other);
 			if (!done) {
+				//			printf("%i Sending %i to %i\n", myid, send.size(), other);
 				lock.unlock();
 				auto recv = part_vect_sort_end_action()(localities[other], b, e, mid, xmid, dim, std::move(send));
 				lock.lock();
 				int j = 0;
-				for (part_iter i = std::max(b, part_begin); i < std::min(part_end, mid); i++) {
-					if (pos_to_double(parts(i).x[dim]) >= xmid) {
-						parts(i) = recv[j++];
+				if (recv.size()) {
+					for (part_iter i = begin; i < std::min(part_end, mid); i++) {
+						begin = i;
+						if (pos_to_double(parts(i).x[dim]) >= xmid) {
+							parts(i) = recv[j++];
+							if (recv.size() == j) {
+								break;
+							}
+						}
 					}
 				}
 			}
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
+}
+
+std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid, float xmid, int dim, std::vector<particle> low) {
+	std::lock_guard<mutex_type> lock(sort_mutex);
+	int j = 0;
+	for (part_iter i = std::max(mid, part_begin); i < std::min(part_end, e); i++) {
+		if (pos_to_double(parts(i).x[dim]) < xmid) {
+			auto tmp = parts(i);
+			parts(i) = low[j];
+			low[j++] = tmp;
+			if (j == low.size()) {
+				break;
+			}
+		}
+	}
+	low.resize(j);
+//	if(myid==1)
+//	printf("%i used %i\n", myid, j);
+	return low;
 }
 
 HPX_PLAIN_ACTION(part_vect_read);
@@ -167,25 +201,6 @@ hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {
 	}
 	return hpx::make_ready_future(these_parts);
 }
-
-std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid, float xmid, int dim, std::vector<particle> low) {
-	std::lock_guard<mutex_type> lock(sort_mutex);
-	int j = 0;
-	for (part_iter i = std::max(mid, part_begin); i < std::min(part_end, e); i++) {
-		if (pos_to_double(parts(i).x[dim]) < xmid) {
-			auto tmp = parts(i);
-			parts(i) = low[j];
-			low[j++] = tmp;
-			if (j == low.size()) {
-				break;
-			}
-		}
-	}
-//	if(myid==1)
-//	printf("%i used %i\n", myid, j);
-	return low;
-}
-
 kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &&f) {
 	kick_return rc;
 	const auto opts = options::get();
@@ -496,9 +511,9 @@ part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
 	}
 	auto this_begin = std::max(b, part_begin);
 	auto this_end = std::min(e, part_end);
-	constexpr part_iter chunk_size = 65536;
+	const part_iter chunk_size = std::max(part_iter(1), (part_end - part_begin) / std::thread::hardware_concurrency());
 	for (part_iter i = this_begin; i < this_end; i += chunk_size) {
-		auto func = [i, this_end, dim, xmid]() {
+		auto func = [i, this_end, dim, xmid, chunk_size]() {
 			const auto end = std::min(i + chunk_size, this_end);
 			part_iter count = 0;
 			for (part_iter j = i; j < end; j++) {
@@ -530,7 +545,7 @@ part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
 		for (auto i = part_begin; i < part_end; i++) {
 //			printf("%e\n", pos_to_double(parts(i).x[dim]));
 		}
-	//	printf("----\n");
+		//	printf("----\n");
 		if (e <= part_end) {
 			auto lo = b;
 			auto hi = e;
@@ -549,9 +564,9 @@ part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
 				lo++;
 			}
 			for (auto i = part_begin; i < part_end; i++) {
-	//			printf("%e\n", pos_to_double(parts(i).x[dim]));
+				//			printf("%e\n", pos_to_double(parts(i).x[dim]));
 			}
-	//		printf("****\n");
+			//		printf("****\n");
 			return hi;
 		} else {
 			auto count = part_vect_count_lo(b, e, xmid, dim);
