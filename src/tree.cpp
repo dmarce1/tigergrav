@@ -584,7 +584,7 @@ std::uint64_t tree::get_flop() {
 	}
 	auto total = (std::uint64_t)flop;
 	for (auto &f : futs) {
-		flop += f.get();
+		total += f.get();
 	}
 	return total;
 }
