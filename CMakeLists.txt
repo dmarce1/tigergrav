@@ -108,7 +108,7 @@ add_hpx_executable(
  )
 
 
-target_link_libraries (tigergrav_lite boost_program_options hpx_lite siloh5 hwloc dl z hdf5)
+target_link_libraries (tigergrav_lite boost_program_options tcmalloc hpx_lite siloh5 hwloc dl z hdf5)
 
 
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
