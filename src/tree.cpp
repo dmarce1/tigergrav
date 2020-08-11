@@ -182,11 +182,12 @@ bool tree::refine(int stack_cnt) {
 	}
 }
 
+
 multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
 	if (level == 0) {
 		reset_node_cache();
 		part_vect_cache_reset();
-		printf("compute_multipoles\n");
+//		printf("compute_multipoles\n");
 	}
 	const auto &opts = options::get();
 	range prange;
@@ -322,7 +323,7 @@ void trash_workspace(workspace &&w) {
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	if (level == 0) {
-		printf("kick_fmm\n");
+//		printf("kick_fmm\n");
 	}
 
 	kick_return rc;
@@ -335,7 +336,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	L = L << (multi.x - Lcom);
 
 	const auto opts = options::get();
-	const float m = 1.0 / opts.problem_size;
+	const float m = opts.m_tot / opts.problem_size;
 	std::vector<check_item> next_dchecklist;
 	std::vector<check_item> next_echecklist;
 	auto space = get_workspace();
@@ -452,9 +453,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			rc.out = std::move(rc_l.out);
 			rc.out.insert(rc.out.end(), rc_r.out.begin(), rc_r.out.end());
 		}
-		if (do_out) {
-			rc.stats = rc_r.stats + rc_l.stats;
-		}
+		rc.stats = rc_r.stats + rc_l.stats;
 	} else {
 		dsource_futs.resize(0);
 		esource_futs.resize(0);
@@ -567,10 +566,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	return rc;
 }
 
-void tree::drift(float dt) {
-	if (level == 0) {
-		part_vect_drift(dt);
-	}
+double tree::drift(float dt) {
+	return part_vect_drift(dt);
 }
 
 HPX_PLAIN_ACTION(tree::get_flop, get_flop_action);

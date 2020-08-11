@@ -44,6 +44,7 @@ bool options::process_options(int argc, char *argv[]) {
 	("dt_max", po::value<double>(&dt_max)->default_value(-1), "maximum timestep size") //
 	("dt_out", po::value<double>(&dt_out)->default_value(-1), "output frequency") //
 	("t_max", po::value<double>(&t_max)->default_value(1.0), "end time") //
+	("m_tot", po::value<double>(&m_tot)->default_value(1.0), "total mass") //
 			;
 
 	boost::program_options::variables_map vm;

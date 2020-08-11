@@ -18,6 +18,7 @@
 #ifndef EXPAN222SION_H_
 #define EXPAN222SION_H_
 
+
 #include <tigergrav/multipole.hpp>
 #include <tigergrav/options.hpp>
 
@@ -25,11 +26,16 @@
 
 constexpr int LP = 35;
 
+//constexpr float EWALD_REAL_N2 = 5;
+//constexpr float EWALD_FOUR_N2 = 10;
+constexpr float EWALD_REAL_N2 = 5;
+constexpr float EWALD_FOUR_N2 = 10;
+
 struct force {
 	float phi;
 	vect<float> g;
 	template<class A>
-	void serialize(A&& arc, unsigned) {
+	void serialize(A &&arc, unsigned) {
 		arc & phi;
 		arc & g;
 	}
@@ -383,7 +389,7 @@ struct ewald_indices: public std::vector<vect<float>> {
 
 struct periodic_parts: public std::vector<expansion<float>> {
 	periodic_parts() {
-		static const ewald_indices indices(9);
+		static const ewald_indices indices(EWALD_FOUR_N2);
 		for (auto i : indices) {
 			vect<float> h = i;
 			const float h2 = h.dot(h);                     // 5 OP
@@ -421,8 +427,8 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
 	const float tiny = std::numeric_limits<float>::min() * 10.0;
 	vect<T> n;
 	vect<float> h;
-	static const ewald_indices indices_real(5);
-	static const ewald_indices indices_four(9);
+	static const ewald_indices indices_real(EWALD_REAL_N2);
+	static const ewald_indices indices_four(EWALD_FOUR_N2);
 	static const T three(3.0);
 	static const T fouroversqrtpi(4.0 / sqrt(M_PI));
 	static const T eight(8.0);

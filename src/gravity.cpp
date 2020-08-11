@@ -46,7 +46,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 	}
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
-	static const simd_float M(1.0 / opts.problem_size);
+	static const simd_float M(opts.m_tot / opts.problem_size);
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
@@ -251,7 +251,7 @@ std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::
 	static const auto half = simd_real(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
-	static const auto m = 1.0 / opts.problem_size;
+	static const auto m = opts.m_tot / opts.problem_size;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
@@ -311,13 +311,13 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 	static const auto half = simd_real(0.5);
 
 	static const auto opts = options::get();
-	static const simd_real M(1.0 / opts.problem_size);
+	static const simd_real M(opts.m_tot / opts.problem_size);
 	simd_real mask;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const ewald_indices indices_real(5);
-	static const ewald_indices indices_four(9);
+	static const ewald_indices indices_real(EWALD_REAL_N2);
+	static const ewald_indices indices_four(EWALD_FOUR_N2);
 	static const periodic_parts periodic;
 	vect<simd_real> X, Y;
 	std::vector<vect<simd_real>> G(x.size(), vect<simd_float>(simd_float(0)));
@@ -544,7 +544,7 @@ std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 	static const auto half = simd_real(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
-	static const auto m = 1.0 / opts.problem_size;
+	static const auto m = opts.m_tot / opts.problem_size;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;

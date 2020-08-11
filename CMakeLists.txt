@@ -23,7 +23,7 @@ find_package(Boost REQUIRED)
 
 
 set(tigergrav_source_files
-	src/expansion.cpp
+	src/cosmo.cpp
 	src/gravity.cpp
 	src/initialize.cpp
 	src/main.cpp
@@ -42,6 +42,7 @@ set(test_source_files
 )
 
 set(tigergrav_header_files
+	tiegrgrav/cosmo.hpp
 	tigergrav/cuda_export.hpp
 	tigergrav/defs.hpp
 	tigergrav/gravity.hpp

@@ -1,6 +1,7 @@
 #include <tigergrav/part_vect.hpp>
 #include <tigergrav/initialize.hpp>
 #include <tigergrav/simd.hpp>
+#include <tigergrav/cosmo.hpp>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -205,42 +206,45 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 	kick_return rc;
 	const auto opts = options::get();
 	const float eps = 10.0 * std::numeric_limits<float>::min();
-	const float m = 1.0 / opts.problem_size;
+	const float scale = opts.ewald ? cosmo_scale().first : 1.0;
+	const float ainv = 1.0 / (scale);
+	const float a3inv = 1.0 / (scale * scale * scale);
+	const float m = opts.m_tot / opts.problem_size;
 	rc.rung = 0;
 	part_iter j = 0;
-	if (do_out) {
-		rc.stats.zero();
-	}
+	rc.stats.zero();
 	for (auto i = b; i != std::min(e, part_end); i++) {
+		rc.stats.p = rc.stats.p + parts(i).v * m;
+		rc.stats.kin += 0.5 * m * parts(i).v.dot(parts(i).v) / (scale * scale);
 		if (parts(i).rung >= min_rung || do_out) {
 			if (parts(i).rung >= min_rung) {
 				if (parts(i).rung != 0) {
 					const float dt = rung_to_dt(parts(i).rung);
-					parts(i).v = parts(i).v + f[j].g * (0.5 * dt);
+					auto &v = parts(i).v;
+					v = v + f[j].g * ainv * 0.5 * dt;
 				}
-				const float a = abs(f[j].g);
+				const float a = abs(f[j].g) * a3inv;
 				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
 				rung_type rung = dt_to_rung(dt);
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
 				dt = rung_to_dt(rung);
 				parts(i).rung = std::max(std::max(rung, rung_type(parts(i).rung - 1)), (rung_type) 1);
-				parts(i).v = parts(i).v + f[j].g * (0.5 * dt);
+				auto &v = parts(i).v;
+				v = v + f[j].g * ainv * 0.5 * dt;
 			}
 			if (do_out) {
 				rc.stats.g = rc.stats.g + f[j].g * m;
-				rc.stats.p = rc.stats.p + parts(i).v * m;
-				rc.stats.pot += 0.5 * m * f[j].phi;
-				rc.stats.kin += 0.5 * m * parts(i).v.dot(parts(i).v);
-				if (parts(i).flags.out) {
-					output out;
-					out.x = pos_to_double(parts(i).x);
-					out.v = parts(i).v;
-					out.g = f[j].g;
-					out.phi = f[j].phi;
-					out.rung = parts(i).rung;
-					rc.out.push_back(out);
-				}
+				rc.stats.pot += 0.5 * m * f[j].phi / scale;
+			}
+			if (do_out && parts(i).flags.out) {
+				output out;
+				out.x = pos_to_double(parts(i).x);
+				out.v = parts(i).v;
+				out.g = f[j].g;
+				out.phi = f[j].phi;
+				out.rung = parts(i).rung;
+				rc.out.push_back(out);
 			}
 			j++;
 		}
@@ -282,19 +286,30 @@ std::vector<vect<float>> part_vect_read_active_positions(part_iter b, part_iter 
 	return x;
 }
 
-void part_vect_drift(float dt) {
-	std::vector<hpx::future<void>> futs;
+double part_vect_drift(float dt) {
+	static const auto opts = options::get();
+	static const auto m = opts.m_tot / opts.problem_size;
+	std::vector<hpx::future<double>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
 			futs.push_back(hpx::async<part_vect_drift_action>(localities[i], dt));
 		}
 	}
+	double ekin = 0.0;
+	const auto a0 = cosmo_scale().first;
+	const auto a1 = cosmo_scale().second;
+	const auto a0inv2 = 1.0 / (a0 * a0);
+	const auto a1inv2 = 1.0 / (a1 * a1);
+	const auto drift_dt = opts.ewald ? 0.5 * (a0inv2 + a1inv2) * dt : 1.0;
 	const part_iter chunk_size = std::max(part_iter(1), (part_end - part_begin) / std::thread::hardware_concurrency());
 	for (part_iter i = part_begin; i < part_end; i += chunk_size) {
-		auto func = [i, chunk_size, dt]() {
+		auto func = [i, chunk_size, drift_dt, a1inv2]() {
+			double this_ekin = 0.0;
 			const auto end = std::min(part_end, i + chunk_size);
 			for (int j = i; j < end; j++) {
-				const vect<double> dx = parts(j).v * dt;
+				const auto v = parts(j).v;
+				this_ekin += 0.5 * m * v.dot(v) * a1inv2;
+				const vect<double> dx = v * drift_dt;
 				vect<double> x = pos_to_double(parts(j).x);
 				x += dx;
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -307,14 +322,18 @@ void part_vect_drift(float dt) {
 				}
 				parts(j).x = double_to_pos(x);
 			}
+			return this_ekin;
 		};
 		futs.push_back(hpx::async(std::move(func)));
 	}
-	hpx::wait_all(futs.begin(), futs.end());
+	for( auto& f : futs) {
+		ekin += f.get();
+	}
+	return ekin;
 }
 
 std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e) {
-	static const auto m = 1.0 / options::get().problem_size;
+	static const auto m = options::get().m_tot / options::get().problem_size;
 	std::pair<float, vect<float>> rc;
 	hpx::future<std::pair<float, vect<float>>> fut;
 	if (e > part_end) {
@@ -339,7 +358,8 @@ std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e)
 }
 
 multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_iter b, part_iter e) {
-	static const auto m = 1.0 / options::get().problem_size;
+	static const auto opts = options::get();
+	static const auto m = opts.m_tot / opts.problem_size;
 	multipole_info rc;
 	hpx::future<multipole_info> fut;
 	if (e > part_end) {

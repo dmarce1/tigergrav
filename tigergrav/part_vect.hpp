@@ -17,10 +17,10 @@ using const_part_iter = std::uint64_t;
 
 
 struct statistics {
-	vect<float> g;
-	vect<float> p;
-	float pot;
-	float kin;
+	vect<double> g;
+	vect<double> p;
+	double pot;
+	double kin;
 
 	template<class A>
 	void serialize(A &&arc, unsigned) {
@@ -32,7 +32,7 @@ struct statistics {
 
 	void zero() {
 		pot = kin = 0.0;
-		g = p = vect<float>(0);
+		g = p = vect<double>(0);
 	}
 	statistics operator+(const statistics &other) const {
 		statistics C;
@@ -69,7 +69,7 @@ int part_vect_locality_id(part_iter);
 void part_vect_cache_reset();
 std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e);
 multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_iter b, part_iter e);
-void part_vect_drift(float dt);
+double part_vect_drift(float dt);
 std::vector<vect<float>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung);
 kick_return part_vect_kick(part_iter b, part_iter e, rung_type rung, bool do_out, std::vector<force>&& f);
 

@@ -56,7 +56,7 @@ public:
 	tree_client(id_type ptr_);
 	check_item get_check_item() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const;
-	void drift(float dt) const;
+	double drift(float dt) const;
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_cnt) const;
 	bool refine(int) const;
@@ -154,7 +154,7 @@ public:
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt);
 	node_attr get_node_attributes() const;
 	multi_src get_multi_srcs() const;
-	void drift(float);
+	double drift(float);
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_ccnt);
 	check_item get_check_item() const;//
@@ -182,7 +182,7 @@ inline multipole_return tree_client::compute_multipoles(rung_type min_rung, bool
 	return tree::compute_multipoles_action()(ptr, min_rung, do_out, stack_cnt);
 }
 
-inline void tree_client::drift(float dt) const {
+inline double tree_client::drift(float dt) const {
 	return tree::drift_action()(ptr, dt);
 }
 

@@ -16,6 +16,7 @@ public:
 	double dt_out;
 	double dt_max;
 	double t_max;
+	double m_tot;
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
@@ -32,6 +33,7 @@ public:
 		arc & dt_out;
 		arc & dt_max;
 		arc & t_max;
+		arc & m_tot;
 	}
 	static options global;
 	static options& get();
