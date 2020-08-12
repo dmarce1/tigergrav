@@ -7,6 +7,8 @@
 using rung_type = std::int8_t;
 using time_type = std::uint32_t;
 
+#define RUNG_MAX 30
+
 inline float time_to_float(time_type t) {
 	static const auto t_max = options::get().t_max;
 	static const auto imax = time_type(1) << time_type(31);

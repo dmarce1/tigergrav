@@ -103,13 +103,19 @@ int hpx_main(int argc, char *argv[]) {
 			}
 		};
 		float pec_energy = 0.0;
+		double etot0;
+		float last_ekin;
 		float ekin;
 		bool do_out = true;
+		bool first_show = true;
 		const auto show = [&]() {
+			if (first_show) {
+				last_ekin = ekin;
+			}
 			auto tmp = cosmo_scale();
 			auto da = tmp.second - tmp.first;
 			auto a = tmp.second;
-			pec_energy += ekin * da;
+			pec_energy += 0.5 * (ekin + last_ekin) * da;
 			//			interaction_statistics istats = root_ptr->get_istats();
 			if (iter % 25 == 0) {
 				printf("%4s %12s %12s %12s %12s %12s %9s %9s %9s %12s ", "i", "t", "tau", "a", "H", "dt", "itime", "max rung", "min act.", "GFLOP");
@@ -129,7 +135,13 @@ int hpx_main(int argc, char *argv[]) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					printf("%12.5e ", kr.stats.p[dim]);
 				}
-				printf("%12.5e %12.5e %12.5e %12.5e ", a*kr.stats.pot, a*ekin, pec_energy, a*(kr.stats.pot + kr.stats.kin)+pec_energy);
+				const auto etot = a * (kr.stats.pot + kr.stats.kin) + pec_energy;
+				if (first_show) {
+					etot0 = etot;
+					first_show = false;
+				}
+				const auto eden = std::max(a * ekin, 1.0e-20);
+				printf("%12.5e %12.5e %12.5e %12.5e %12.5e ", a * kr.stats.pot, a * ekin, pec_energy, etot, (etot - etot0) / eden);
 			} else {
 				for (int dim = 0; dim < NDIM; dim++) {
 					printf("%12s ", "");
@@ -137,14 +149,18 @@ int hpx_main(int argc, char *argv[]) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					printf("%12.5e ", kr.stats.p[dim]);
 				}
-				printf("%12s %12.5e %12s %12s ", "", a*ekin, "", "");
+				printf("%12s %12.5e %12.5e %12s ", "", a * ekin, pec_energy, "");
 			}
 //			printf("%f/%f %f/%f %f/%f %f/%f", istats.CC_direct_pct, istats.CC_ewald_pct, istats.CP_direct_pct, istats.CP_ewald_pct, istats.PC_direct_pct,
 //					istats.PC_ewald_pct, istats.PP_direct_pct, istats.PP_ewald_pct);
 			printf("\n");
+			last_ekin = ekin;
 		};
 		int oi = 1;
 		int si = 1;
+		if (opts.ewald) {
+			cosmo_advance(0.0);
+		}
 		kr = solve_gravity(root_ptr, min_rung(0), do_out);
 		if (do_out) {
 			output_particles(kr.out, "parts.0.silo");

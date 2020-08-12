@@ -9,35 +9,121 @@
 #endif
 #include <cmath>
 
-static double last_a = 1.0;
-static double last_adot = 1.0;
-static double a = 1.0;
-static double adot = 1.0;
-static double tau = 0.0;
-static double t = 0.0;
+double kick_dt1[RUNG_MAX + 1] = {-1.0};
+double kick_dt2[RUNG_MAX + 1] = {-1.0};;
+double drift_dt;
+float this_time = 0.0;
+
+double cosmo_kick_dt1(rung_type i) {
+	return kick_dt1[i];
+}
+
+double cosmo_kick_dt2(rung_type i) {
+	return kick_dt2[i];
+}
+
+double cosmo_drift_dt() {
+	return drift_dt;
+}
+
+cosmos::cosmos() {
+	a = 1.0;
+	adot = 1.0;
+	tau = 0.0;
+	drift_dt = 0.0;
+	kick_dt = 0.0;
+}
+cosmos::cosmos(double a_, double adot_, double tau_) {
+	a = a_;
+	adot = adot_;
+	tau = tau_;
+	drift_dt = 0.0;
+	kick_dt = 0.0;
+}
+void cosmos::advance_to_time(double t0) {
+//	printf( "%e\n", a);
+	static const auto opts = options::get();
+	static const auto c0 = (4.0 / 3.0 * M_PI) * opts.m_tot;
+	const auto da = [](double adot) {
+		return adot;
+	};
+	const auto dadot = [](double a) {
+		return -c0 * 1.0 / (a * a);
+	};
+	const auto dtau = [](double a) {
+		return 1.0 / a;
+	};
+	const auto ddrift_dt = [](double a) {
+		return 1.0 / (a * a);
+	};
+	const auto dkick_dt = [](double a) {
+		return 1.0 / a;
+	};
+	double t = 0.0;
+	bool done = false;
+	bool backwards = t0 < 0.0;
+	const double sgn = backwards ? -1.0 : 1.0;
+//	printf( "----\n");
+	kick_dt = drift_dt = 0.0;
+	do {
+		auto dt = sgn * 1e-3 * a / adot;
+//		printf("-%e %e %e %e %e %e\n", a, adot, t, t0, dt, kick_dt);
+		if (std::abs(t + dt) > std::abs(t0)) {
+			done = true;
+			dt = std::abs(t0 - t) * sgn;
+		}
+		const double dtau1 = dtau(a) * dt;
+		const double da1 = da(adot) * dt;
+		const double dadot1 = dadot(a) * dt;
+		const double ddrift_dt1 = ddrift_dt(a) * dt;
+		const double dkick_dt1 = dkick_dt(a) * dt;
+		const double dtau2 = dtau(a + 0.5 * da1) * dt;
+		const double da2 = da(adot + 0.5 * dadot1) * dt;
+		const double dadot2 = dadot(a + 0.5 * da1) * dt;
+		const double ddrift_dt2 = ddrift_dt(a + 0.5 * da1) * dt;
+		const double dkick_dt2 = dkick_dt(a + 0.5 * da1) * dt;
+		const double dtau3 = dtau(a + 0.5 * da2) * dt;
+		const double da3 = da(adot + 0.5 * dadot2) * dt;
+		const double dadot3 = dadot(a + 0.5 * da2) * dt;
+		const double ddrift_dt3 = ddrift_dt(a + 0.5 * da2) * dt;
+		const double dkick_dt3 = dkick_dt(a + 0.5 * da2) * dt;
+		const double dtau4 = dtau(a + da3) * dt;
+		const double da4 = da(adot + dadot3) * dt;
+		const double dadot4 = dadot(a + da3) * dt;
+		const double ddrift_dt4 = ddrift_dt(a + da3) * dt;
+		const double dkick_dt4 = dkick_dt(a + da3) * dt;
+		tau += (dtau1 + 2.0 * (dtau2 + dtau3) + dtau4) / 6.0;
+		a += (da1 + 2.0 * (da2 + da3) + da4) / 6.0;
+		adot += (dadot1 + 2.0 * (dadot2 + dadot3) + dadot4) / 6.0;
+		drift_dt += (ddrift_dt1 + 2.0 * (ddrift_dt2 + ddrift_dt3) + ddrift_dt4) / 6.0;
+		kick_dt += (dkick_dt1 + 2.0 * (dkick_dt2 + dkick_dt3) + dkick_dt4) / 6.0;
+		t += dt;
+	} while (!done);
+}
+
+static cosmos this_cosmos;
+static cosmos last_cosmos;
+
 static std::vector<hpx::id_type> localities;
 static int myid;
 
 std::pair<double, double> cosmo_scale() {
-	return std::make_pair(last_a, a);
+	return std::make_pair(last_cosmos.get_scale(), this_cosmos.get_scale());
 }
 
-std::pair<double, double> cosmo_Hubble() {
-	return std::make_pair(last_adot / last_a, adot / a);
+double cosmo_Hubble() {
+	return this_cosmos.get_Hubble();
 }
 
 double cosmo_time() {
-	return tau;
+	return this_cosmos.get_tau();
 }
 
 HPX_PLAIN_ACTION(cosmo_advance);
 
 void cosmo_advance(double dt) {
 	static const auto opts = options::get();
-	t += dt;
-	if (a == 1.0) {
-		table_tmax = 1.01 * opts.dt_max;
-		table_dt = table_tmax / N;
+	if (cosmo_scale().first == 1.0) {
 		localities = hpx::find_all_localities();
 		myid = hpx::get_locality_id();
 	}
@@ -47,32 +133,28 @@ void cosmo_advance(double dt) {
 			futs.push_back(hpx::async<cosmo_advance_action>(localities[i], dt));
 		}
 	}
-	last_a = a;
-	last_adot = adot;
-	static const auto c0 = (4.0 / 3.0 * M_PI) * opts.m_tot;
-	const auto da = [=](double adot) {
-		return adot * dt;
-	};
-	const auto dadot = [dt](double a) {
-		return -c0 * dt / (a * a);
-	};
-	const auto dtau = [dt](double a) {
-		return dt / a;
-	};
-	const double dtau1 = dtau(a);
-	const double da1 = da(adot);
-	const double dadot1 = dadot(a);
-	const double dtau2 = dtau(a + 0.5 * da1);
-	const double da2 = da(adot + 0.5 * dadot1);
-	const double dadot2 = dadot(a + 0.5 * da1);
-	const double dtau3 = dtau(a + 0.5 * da2);
-	const double da3 = da(adot + 0.5 * dadot2);
-	const double dadot3 = dadot(a + 0.5 * da2);
-	const double dtau4 = dtau(a + da3);
-	const double da4 = da(adot + dadot3);
-	const double dadot4 = dadot(a + da3);
-	tau += (dtau1 + 2.0 * (dtau2 + dtau3) + dtau4) / 6.0;
-	a += (da1 + 2.0 * (da2 + da3) + da4) / 6.0;
-	adot += (dadot1 + 2.0 * (dadot2 + dadot3) + dadot4) / 6.0;
+	last_cosmos = this_cosmos;
+	this_time += dt;
+	if (dt != 0.0) {
+		this_cosmos.advance_to_time(dt);
+	}
+	for (rung_type i = 0; i <= RUNG_MAX; i++) {
+		const auto dt = rung_to_dt(i);
+		if (this_time >= dt) {
+			cosmos c1 = this_cosmos;
+			c1.advance_to_time(-0.5*dt);
+			kick_dt1[i] = -c1.get_kick_dt();
+//			printf( "%i %e %e\n", i, 0.5 * dt / cosmo_scale().second, kick_dt2[i]);
+		}
+
+		cosmos c2 = this_cosmos;
+		c2.advance_to_time(+0.5*dt);
+		kick_dt2[i] = c2.get_kick_dt();
+	}
+	if (dt != 0.0) {
+		cosmos c1 = last_cosmos;
+		c1.advance_to_time(dt);
+		drift_dt = c1.get_drift_dt();
+	}
 	hpx::wait_all(futs.begin(), futs.end());
 }

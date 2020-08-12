@@ -115,11 +115,11 @@ target_link_libraries (tigergrav_lite boost_program_options tcmalloc hpx_lite si
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_include_directories(tigergrav PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(tigergrav PUBLIC "-DUSE_HPX")
+target_compile_options(tigergrav_lite PUBLIC "-O3")
 target_compile_options(tigergrav PUBLIC "-O3")
 target_compile_options(tigergrav PUBLIC "-march=native")
 target_include_directories(tigergrav_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_compile_options(tigergrav_lite PUBLIC "-DHPX_LITE")
-target_compile_options(tigergrav_lite PUBLIC "-O3")
 target_compile_options(tigergrav_lite PUBLIC "-march=native")
 
 target_include_directories(test PUBLIC ${PROJECT_SOURCE_DIR})

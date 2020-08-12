@@ -220,8 +220,9 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 			if (parts(i).rung >= min_rung) {
 				if (parts(i).rung != 0) {
 					const float dt = rung_to_dt(parts(i).rung);
+					const auto dt1 = opts.ewald ? cosmo_kick_dt1(parts(i).rung) : 0.5 * dt;
 					auto &v = parts(i).v;
-					v = v + f[j].g * ainv * 0.5 * dt;
+					v = v + f[j].g * dt1;
 				}
 				const float a = abs(f[j].g) * a3inv;
 				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
@@ -230,8 +231,9 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				rc.rung = std::max(rc.rung, rung);
 				dt = rung_to_dt(rung);
 				parts(i).rung = std::max(std::max(rung, rung_type(parts(i).rung - 1)), (rung_type) 1);
+				const auto dt2 = opts.ewald ? cosmo_kick_dt2(parts(i).rung) : 0.5 * dt;
 				auto &v = parts(i).v;
-				v = v + f[j].g * ainv * 0.5 * dt;
+				v = v + f[j].g * dt2;
 			}
 			if (do_out) {
 				rc.stats.g = rc.stats.g + f[j].g * m;
@@ -296,11 +298,9 @@ double part_vect_drift(float dt) {
 		}
 	}
 	double ekin = 0.0;
-	const auto a0 = cosmo_scale().first;
 	const auto a1 = cosmo_scale().second;
-	const auto a0inv2 = 1.0 / (a0 * a0);
 	const auto a1inv2 = 1.0 / (a1 * a1);
-	const auto drift_dt = opts.ewald ? 0.5 * (a0inv2 + a1inv2) * dt : 1.0;
+	const auto drift_dt = opts.ewald ? cosmo_drift_dt() : dt;
 	const part_iter chunk_size = std::max(part_iter(1), (part_end - part_begin) / std::thread::hardware_concurrency());
 	for (part_iter i = part_begin; i < part_end; i += chunk_size) {
 		auto func = [i, chunk_size, drift_dt, a1inv2]() {
@@ -326,7 +326,7 @@ double part_vect_drift(float dt) {
 		};
 		futs.push_back(hpx::async(std::move(func)));
 	}
-	for( auto& f : futs) {
+	for (auto &f : futs) {
 		ekin += f.get();
 	}
 	return ekin;
