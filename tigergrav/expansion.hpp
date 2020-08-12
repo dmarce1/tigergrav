@@ -28,8 +28,8 @@ constexpr int LP = 35;
 
 //constexpr float EWALD_REAL_N2 = 5;
 //constexpr float EWALD_FOUR_N2 = 10;
-constexpr float EWALD_REAL_N2 = 5;
-constexpr float EWALD_FOUR_N2 = 10;
+constexpr float EWALD_REAL_N2 = 9;
+constexpr float EWALD_FOUR_N2 = 8;
 
 struct force {
 	float phi;
