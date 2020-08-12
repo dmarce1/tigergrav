@@ -44,6 +44,15 @@ int hpx_main(int argc, char *argv[]) {
 
 	options opts;
 	opts.process_options(argc, argv);
+
+	cosmos cinit;
+	cinit.advance_to_time(-opts.t_max);
+
+	const auto a0 = cinit.get_scale();
+	const auto adot0 = cinit.get_Hubble() * a0;
+	printf("Inializing with a = %e and adot = %e\n", a0, adot0);
+	cosmo_init(a0, adot0);
+
 	tree::set_theta(opts.theta);
 
 	range root_box;

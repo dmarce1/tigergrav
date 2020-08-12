@@ -43,6 +43,7 @@ inline double rung_to_dt(std::int8_t rung) {
 inline rung_type dt_to_rung(float dt) {
 	int rung = 0;
 	while (rung_to_dt(rung) > dt) {
+//		printf( "%i %e\n", rung, dt);
 		rung++;
 		if (rung == std::numeric_limits < rung_type > ::max()) {
 			printf("logic error %s %i\n", __FILE__, __LINE__);

@@ -17,10 +17,12 @@ public:
 	double dt_max;
 	double t_max;
 	double m_tot;
+	double z0;
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
-		arc &  config_file;
+		arc & z0;
+		arc & config_file;
 		arc & problem;
 		arc & ewald;
 		arc & solver_test;

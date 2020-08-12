@@ -9,8 +9,9 @@
 #endif
 #include <cmath>
 
-double kick_dt1[RUNG_MAX + 1] = {-1.0};
-double kick_dt2[RUNG_MAX + 1] = {-1.0};;
+double kick_dt1[RUNG_MAX + 1] = { -1.0 };
+double kick_dt2[RUNG_MAX + 1] = { -1.0 };
+
 double drift_dt;
 float this_time = 0.0;
 
@@ -42,12 +43,12 @@ cosmos::cosmos(double a_, double adot_, double tau_) {
 }
 void cosmos::advance_to_time(double t0) {
 //	printf( "%e\n", a);
-	static const auto opts = options::get();
-	static const auto c0 = (4.0 / 3.0 * M_PI) * opts.m_tot;
+	const auto opts = options::get();
+	const auto c0 = (4.0 / 3.0 * M_PI) * opts.m_tot;
 	const auto da = [](double adot) {
 		return adot;
 	};
-	const auto dadot = [](double a) {
+	const auto dadot = [c0](double a) {
 		return -c0 * 1.0 / (a * a);
 	};
 	const auto dtau = [](double a) {
@@ -67,7 +68,7 @@ void cosmos::advance_to_time(double t0) {
 	kick_dt = drift_dt = 0.0;
 	do {
 		auto dt = sgn * 1e-3 * a / adot;
-//		printf("-%e %e %e %e %e %e\n", a, adot, t, t0, dt, kick_dt);
+	//	printf("*%e %e %e %e %e %e\n", a, adot, t, t0, dt, kick_dt);
 		if (std::abs(t + dt) > std::abs(t0)) {
 			done = true;
 			dt = std::abs(t0 - t) * sgn;
@@ -101,6 +102,22 @@ void cosmos::advance_to_time(double t0) {
 	} while (!done);
 }
 
+double cosmos::advance_to_scale(double a0) {
+	int iters = 0;
+	double t = 0.0;
+	do {
+		const auto dt = (a0 - a) / adot / 10.0;
+//		printf("%e %e %e %e\n", t, a, a0, adot);
+		advance_to_time(dt);
+		t += dt;
+		iters++;
+		if( iters > 1000) {
+			printf( "Unable to find t=0 scale factor\n");
+		}
+	} while (std::abs(a0 / a - 1.0) > 1.0e-10);
+	return t;
+}
+
 static cosmos this_cosmos;
 static cosmos last_cosmos;
 
@@ -120,13 +137,9 @@ double cosmo_time() {
 }
 
 HPX_PLAIN_ACTION(cosmo_advance);
+HPX_PLAIN_ACTION(cosmo_init);
 
 void cosmo_advance(double dt) {
-	static const auto opts = options::get();
-	if (cosmo_scale().first == 1.0) {
-		localities = hpx::find_all_localities();
-		myid = hpx::get_locality_id();
-	}
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
@@ -142,13 +155,13 @@ void cosmo_advance(double dt) {
 		const auto dt = rung_to_dt(i);
 		if (this_time >= dt) {
 			cosmos c1 = this_cosmos;
-			c1.advance_to_time(-0.5*dt);
+			c1.advance_to_time(-0.5 * dt);
 			kick_dt1[i] = -c1.get_kick_dt();
 //			printf( "%i %e %e\n", i, 0.5 * dt / cosmo_scale().second, kick_dt2[i]);
 		}
 
 		cosmos c2 = this_cosmos;
-		c2.advance_to_time(+0.5*dt);
+		c2.advance_to_time(+0.5 * dt);
 		kick_dt2[i] = c2.get_kick_dt();
 	}
 	if (dt != 0.0) {
@@ -156,5 +169,20 @@ void cosmo_advance(double dt) {
 		c1.advance_to_time(dt);
 		drift_dt = c1.get_drift_dt();
 	}
+	hpx::wait_all(futs.begin(), futs.end());
+}
+
+
+void cosmo_init( double a0, double adot0) {
+	std::vector<hpx::future<void>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async<cosmo_init_action>(localities[i], a0, adot0));
+		}
+	}
+	this_cosmos = cosmos(a0,adot0,0.0);
+	last_cosmos = this_cosmos;
+	localities = hpx::find_all_localities();
+	myid = hpx::get_locality_id();
 	hpx::wait_all(futs.begin(), futs.end());
 }

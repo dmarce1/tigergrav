@@ -1,4 +1,5 @@
 #include <tigergrav/options.hpp>
+#include <tigergrav/cosmo.hpp>
 #include <fstream>
 #include <iostream>
 
@@ -43,7 +44,8 @@ bool options::process_options(int argc, char *argv[]) {
 	("soft_len", po::value<double>(&soft_len)->default_value(-1), "softening parameter") //
 	("dt_max", po::value<double>(&dt_max)->default_value(-1), "maximum timestep size") //
 	("dt_out", po::value<double>(&dt_out)->default_value(-1), "output frequency") //
-	("t_max", po::value<double>(&t_max)->default_value(1.0), "end time") //
+	("z0", po::value<double>(&z0)->default_value(50.0), "") //
+	("t_max", po::value<double>(&t_max)->default_value(-1.0), "end time") //
 	("m_tot", po::value<double>(&m_tot)->default_value(1.0), "total mass") //
 			;
 
@@ -68,8 +70,16 @@ bool options::process_options(int argc, char *argv[]) {
 	if (soft_len == -1) {
 		soft_len = 0.02 * std::pow(problem_size, -1.0 / 3.0);
 	}
-	if (problem == "two_body") {
-		problem_size = 2;
+	if( out_parts < 0) {
+		out_parts = problem_size;
+	}
+	const auto loc = hpx::find_all_localities();
+	const auto sz = loc.size();
+	std::vector<hpx::future<void>> futs;
+	set(*this);
+	if( t_max < 0.0 ) {
+		cosmos c;
+		t_max = -c.advance_to_scale(1.0 / (1.0 + z0));
 	}
 	if( dt_max < 0.0) {
 		dt_max = t_max / 64.0;
@@ -77,12 +87,6 @@ bool options::process_options(int argc, char *argv[]) {
 	if( dt_out < 0.0) {
 		dt_out = dt_max;
 	}
-	if( out_parts < 0) {
-		out_parts = problem_size;
-	}
-	const auto loc = hpx::find_all_localities();
-	const auto sz = loc.size();
-	std::vector<hpx::future<void>> futs;
 	set(*this);
 	for (int i = 1; i < sz; i++) {
 		futs.push_back(hpx::async < set_options_action > (loc[i], *this));
