@@ -228,7 +228,6 @@ public:
 	friend simd_float fmadd(const simd_float &a, const simd_float &b, const simd_float &c);
 	friend simd_float round(const simd_float);
 
-	friend simd_float exp(const simd_float &a);
 	friend simd_float sin(const simd_float &a);
 	friend simd_float cos(const simd_float &a);
 	friend simd_float abs(const simd_float &a);
@@ -375,12 +374,16 @@ inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {
 //#endif
 }
 
-inline simd_float exp(const simd_float &a) { 	// 22
+inline simd_float exp(simd_float a) { 	// 24
 	static const simd_float c0 = 1.0 / std::log(2);
+	static const auto hi = simd_float(88);
+	static const auto lo = simd_float(-88);
+	a = min(a,hi);
+	a = max(a,lo);
 	return two_pow(a * c0);
 }
 
-inline simd_float erfexp(const simd_float &x, simd_float *e) {				// 48
+inline simd_float erfexp(const simd_float &x, simd_float *e) {				// 50
 	simd_float v;
 	const simd_float p(0.3275911);
 	const simd_float a1(0.254829592);

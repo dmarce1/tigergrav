@@ -22,14 +22,22 @@
 #include <tigergrav/multipole.hpp>
 #include <tigergrav/options.hpp>
 
+#include <algorithm>
 #include <vector>
 
 constexpr int LP = 35;
 
 //constexpr float EWALD_REAL_N2 = 5;
 //constexpr float EWALD_FOUR_N2 = 10;
-constexpr float EWALD_REAL_N2 = 9;
-constexpr float EWALD_FOUR_N2 = 8;
+constexpr float EWALD_REAL_N2 = 17;
+constexpr float EWALD_FOUR_N2 = 9;
+//36 8.55046
+//38 9.06660
+//40 1.01544
+//42 7.19136
+//44 8.73753
+//46 1.01339
+//50 7.953
 
 struct force {
 	float phi;
@@ -384,6 +392,9 @@ struct ewald_indices: public std::vector<vect<float>> {
 				}
 			}
 		}
+		std::sort(this->begin(), this->end(), [](vect<float>& a, vect<float>& b) {
+			return a.dot(a) > b.dot(b);
+		});
 	}
 };
 

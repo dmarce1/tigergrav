@@ -300,7 +300,6 @@ std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::
 	return 408 * cnt1 + simd_float::size() * LP;
 }
 
-
 std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
 	if (x.size() == 0) {
 		return 0;
@@ -355,8 +354,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 			const float huge = std::numeric_limits<float>::max() / 10.0 / (nmax * nmax * nmax);
 			const float tiny = std::numeric_limits<float>::min() * 10.0;
 			static const simd_float two(2);
-			static const simd_float twopi(2*M_PI);
-			static const simd_float pioverfour(M_PI/4.0);
+			static const simd_float twopi(2 * M_PI);
+			static const simd_float pioverfour(M_PI / 4.0);
 			static const simd_float fouroversqrtpi(4.0 / sqrt(M_PI));
 			static const simd_float phi0(2.8372975);
 			vect<float> h;
@@ -364,7 +363,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 			simd_real phi = 0.0;
 			vect<simd_real> g;
 			g = simd_real(0);
-			for (int i = 0; i < indices_real.size(); i++) {					// 76 * 123 = 9348
+			for (int i = 0; i < indices_real.size(); i++) {					// 78
 				h = indices_real[i];
 				n = h;
 				const vect<simd_real> dx = dX0 - n;                         // 3 OP
@@ -374,7 +373,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 				const simd_real r2inv = rinv * rinv;						// 1
 				const simd_real r3inv = r2inv * rinv;						// 1
 				simd_float expfac;
-				const simd_real erfc = one - erfexp(two * r, &expfac);		// 49
+				const simd_real erfc = one - erfexp(two * r, &expfac);		// 51
 				const simd_real d0 = -erfc * rinv;							// 2
 				const simd_real expfactor = fouroversqrtpi * r * expfac;	// 2
 				const simd_real d1 = (expfactor + erfc) * r3inv;			// 2
@@ -383,7 +382,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 					g[a] -= (dX0[a] - n[a]) * d1;							// 9
 				}
 			}
-			for (int i = 0; i < indices_four.size(); i++) {					// 48 * 93 = 4464
+			for (int i = 0; i < indices_four.size(); i++) {					// 48
 				const expansion<float> &H = periodic[i];
 				h = indices_four[i];
 				simd_real hdotdx = dX0[0] * h[0];							// 1
@@ -403,7 +402,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 			phi = pioverfour + phi + rinv;									// 2
 			const simd_real sw = r > simd_float(0);							// 1
 			phi = phi0 * (simd_real(1.0) - sw) + phi * sw;					// 4
-			const auto rinv3 =  rinv * rinv * rinv;							// 2
+			const auto rinv3 = rinv * rinv * rinv;							// 2
 			for (int dim = 0; dim < NDIM; dim++) {
 				g[dim] = g[dim] + dX0[dim] * rinv3;							// 6
 			}
@@ -418,7 +417,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 		f[i].phi += Phi[i].sum();
 	}
 	y.resize(cnt1);
-	return (13847 * cnt1 + simd_float::size() * 4) * x.size();
+	return ((35 + indices_real.size() * 78 + indices_four.size() * 48) * cnt1 + simd_float::size() * 4) * x.size();
 }
 
 std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<multi_src> &y) {
