@@ -26,6 +26,7 @@ set(tigergrav_source_files
 	src/cosmo.cpp
 	src/gravity.cpp
 	src/initialize.cpp
+	src/load.cpp
 	src/main.cpp
 	src/new.cpp
 	src/output.cpp
@@ -47,6 +48,7 @@ set(tigergrav_header_files
 	tigergrav/defs.hpp
 	tigergrav/gravity.hpp
 	tigergrav/initialize.hpp
+	tigergrac/load.hpp
 	tigergrav/multipole.hpp
 	tigergrav/output.hpp
 	tigergrav/options.hpp

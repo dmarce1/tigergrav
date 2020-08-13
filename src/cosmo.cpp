@@ -44,12 +44,13 @@ cosmos::cosmos(double a_, double adot_, double tau_) {
 void cosmos::advance_to_time(double t0) {
 //	printf( "%e\n", a);
 	const auto opts = options::get();
-	const auto c0 = (4.0 / 3.0 * M_PI) * opts.m_tot;
+	const auto omega_lambda = opts.omega_lambda;
+	const auto omega_m = opts.omega_m;
 	const auto da = [](double adot) {
 		return adot;
 	};
-	const auto dadot = [c0](double a) {
-		return -c0 * 1.0 / (a * a);
+	const auto dadot = [omega_m, omega_lambda](double a) {
+		return -0.5 * omega_m / (a * a) + a * omega_lambda;
 	};
 	const auto dtau = [](double a) {
 		return 1.0 / a;
@@ -68,7 +69,7 @@ void cosmos::advance_to_time(double t0) {
 	kick_dt = drift_dt = 0.0;
 	do {
 		auto dt = sgn * 1e-3 * a / adot;
-	//	printf("*%e %e %e %e %e %e\n", a, adot, t, t0, dt, kick_dt);
+		//	printf("*%e %e %e %e %e %e\n", a, adot, t, t0, dt, kick_dt);
 		if (std::abs(t + dt) > std::abs(t0)) {
 			done = true;
 			dt = std::abs(t0 - t) * sgn;
@@ -111,8 +112,8 @@ double cosmos::advance_to_scale(double a0) {
 		advance_to_time(dt);
 		t += dt;
 		iters++;
-		if( iters > 1000) {
-			printf( "Unable to find t=0 scale factor\n");
+		if (iters > 1000) {
+			printf("Unable to find t=0 scale factor\n");
 		}
 	} while (std::abs(a0 / a - 1.0) > 1.0e-10);
 	return t;
@@ -125,15 +126,35 @@ static std::vector<hpx::id_type> localities;
 static int myid;
 
 std::pair<double, double> cosmo_scale() {
-	return std::make_pair(last_cosmos.get_scale(), this_cosmos.get_scale());
+	static const auto opts = options::get();
+	if (opts.cosmic) {
+		return std::make_pair(last_cosmos.get_scale(), this_cosmos.get_scale());
+	} else {
+		return std::make_pair(1.0, 1.0);
+	}
 }
 
 double cosmo_Hubble() {
-	return this_cosmos.get_Hubble();
+	static const auto opts = options::get();
+	if (opts.cosmic) {
+		return this_cosmos.get_Hubble();
+	} else {
+		return 0.0;
+	}
 }
 
 double cosmo_time() {
 	return this_cosmos.get_tau();
+}
+
+double cosmo_adoubledot() {
+	static const auto opts = options::get();
+	if (opts.cosmic) {
+		const auto a = this_cosmos.get_scale();
+		return -0.5 * opts.omega_m / (a * a) + a * opts.omega_lambda;
+	} else {
+		return 0.0;
+	}
 }
 
 HPX_PLAIN_ACTION(cosmo_advance);
@@ -172,15 +193,14 @@ void cosmo_advance(double dt) {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-
-void cosmo_init( double a0, double adot0) {
+void cosmo_init(double a0, double adot0) {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
 			futs.push_back(hpx::async<cosmo_init_action>(localities[i], a0, adot0));
 		}
 	}
-	this_cosmos = cosmos(a0,adot0,0.0);
+	this_cosmos = cosmos(a0, adot0, 0.0);
 	last_cosmos = this_cosmos;
 	localities = hpx::find_all_localities();
 	myid = hpx::get_locality_id();

@@ -182,7 +182,6 @@ bool tree::refine(int stack_cnt) {
 	}
 }
 
-
 multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
 	if (level == 0) {
 		reset_node_cache();
@@ -208,6 +207,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 		multi.x = part_vect_center_of_mass(part_begin, part_end).second;
 		multi = part_vect_multipole_info(multi.x, do_out ? 0 : mrung, part_begin, part_end);
 		prange = part_vect_range(part_begin, part_end);
+		flop += (part_end - part_begin) * 64;
 	} else {
 		multipole_return ml, mr;
 		auto rcl = thread_if_avail([=](int stack_cnt) {
@@ -579,7 +579,7 @@ std::uint64_t tree::get_flop() {
 			futs.push_back(hpx::async<get_flop_action>(localities[i]));
 		}
 	}
-	auto total = (std::uint64_t)flop;
+	auto total = (std::uint64_t) flop;
 	for (auto &f : futs) {
 		total += f.get();
 	}

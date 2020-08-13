@@ -8,37 +8,48 @@
 #include <hpx/include/components.hpp>
 #endif
 
+#include <tigergrav/options.hpp>
+#include <tigergrav/load.hpp>
+
 part_vect initial_particle_set(std::string pn, int N, int Nout) {
+	const auto opts = options::get();
 	part_vect parts;
-	parts.reserve(N);
-	srand(hpx::get_locality_id() * 0xA3CF98A7);
-	if (pn == "cosmos") {
-		for (int i = 0; i < N; i++) {
-			particle p;
-			for (int dim = 0; dim < NDIM; dim++) {
-				p.x[dim] = double_to_pos(rand1());
-				p.v[dim] = 0.0;
+	if (opts.init_file == "") {
+		parts.reserve(N);
+		srand(hpx::get_locality_id() * 0xA3CF98A7);
+		if (pn == "cosmos") {
+			for (int i = 0; i < N; i++) {
+				particle p;
+				for (int dim = 0; dim < NDIM; dim++) {
+					p.x[dim] = double_to_pos(rand1());
+					p.v[dim] = 0.0;
+				}
+				parts.push_back(std::move(p));
 			}
-			parts.push_back(std::move(p));
+		} else if (pn == "two_body") {
+			parts.resize(2);
+			for (int i = 0; i < 2; i++) {
+				parts[i].x = double_to_pos(vect<float>(0.5));
+				parts[i].v = vect<float>(0.0);
+			}
+			parts[0].x[0] = double_to_pos(0.75);
+			parts[0].v[1] = 1.0 / std::sqrt(2);
+			parts[1].x[0] = double_to_pos(0.25);
+			parts[1].v[1] = -1.0 / std::sqrt(2);
+		} else {
+			printf("Problem %s unknown\n", pn.c_str());
+			abort();
 		}
-	} else if (pn == "two_body") {
-		parts.resize(2);
-		for (int i = 0; i < 2; i++) {
-			parts[i].x = double_to_pos(vect<float>(0.5));
-			parts[i].v = vect<float>(0.0);
+		int j = 0;
+		for (auto i = parts.begin(); i != parts.end(); i++, j++) {
+			i->rung = 0;
+			i->flags.out = j < Nout;
 		}
-		parts[0].x[0] = double_to_pos(0.75);
-		parts[0].v[1] = 1.0 / std::sqrt(2);
-		parts[1].x[0] = double_to_pos(0.25);
-		parts[1].v[1] = -1.0 / std::sqrt(2);
 	} else {
-		printf("Problem %s unknown\n", pn.c_str());
-		abort();
-	}
-	int j = 0;
-	for (auto i = parts.begin(); i != parts.end(); i++, j++) {
-		i->rung = 0;
-		i->flags.out = j < Nout;
+		parts = load_particles(opts.init_file);
+		if( parts.size() != N ) {
+			printf( "Size mismatch in initialize.cpp %li %i\n", parts.size(), N);
+		}
 	}
 	return parts;
 }

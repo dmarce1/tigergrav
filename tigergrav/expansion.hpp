@@ -29,8 +29,8 @@ constexpr int LP = 35;
 
 //constexpr float EWALD_REAL_N2 = 5;
 //constexpr float EWALD_FOUR_N2 = 10;
-constexpr float EWALD_REAL_N2 = 17;
-constexpr float EWALD_FOUR_N2 = 9;
+constexpr float EWALD_REAL_N2 = 5;
+constexpr float EWALD_FOUR_N2 = 10;
 //36 8.55046
 //38 9.06660
 //40 1.01544
@@ -430,7 +430,7 @@ struct periodic_parts: public std::vector<expansion<float>> {
 };
 
 template<class T>
-inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
+inline expansion<T> green_ewald(const vect<T> &X) {		// 336 + 418 * NREAL + 50 * NFOUR
 	static const periodic_parts periodic;
 	expansion<T> D;
 	D = 0.0;
@@ -442,6 +442,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
 	static const ewald_indices indices_four(EWALD_FOUR_N2);
 	static const T three(3.0);
 	static const T fouroversqrtpi(4.0 / sqrt(M_PI));
+	static const T two(2.0);
 	static const T eight(8.0);
 	static const T fifteen(15.0);
 	static const T thirtyfive(35.0);
@@ -449,7 +450,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
 	static const T fiftysix(56.0);
 	static const T sixtyfour(64.0);
 	static const T onehundredfive(105.0);
-	for (int i = 0; i < indices_real.size(); i++) {		// 416 X 93 = 38688
+	for (int i = 0; i < indices_real.size(); i++) {		// 418 X NREAL
 		h = indices_real[i];
 		n = h;
 		const vect<T> dx = X - n;				// 3
@@ -464,7 +465,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
 		const T r7inv = r2inv * r5inv;			// 1
 		const T r9inv = r2inv * r7inv;			// 1
 		T expfac;
-		const T erfc = T(1) - erfexp(2.0 * r, &expfac);			// 50
+		const T erfc = T(1) - erfexp(two * r, &expfac);			// 50
 		const T expfactor = fouroversqrtpi * r * expfac;		// 2
 		const T d0 = -erfc * rinv;								// 2
 		const T d1 = (expfactor + erfc) * r3inv;		// 2
@@ -473,7 +474,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
 		const T d4 = -fmadd(expfactor, fmadd(eight * T(r2), (thirtyfive + fmadd(fiftysix, r2, sixtyfour * r4)), onehundredfive), onehundredfive * erfc) * r9inv;// 12
 		green_deriv(D, d0, d1, d2, d3, d4, dx);			// 314
 	}
-	for (int i = 0; i < indices_four.size(); i++) {		// 50 x 123 = 6150
+	for (int i = 0; i < indices_four.size(); i++) {		// 50 x NFOUR
 		h = indices_four[i];
 		const auto H = periodic[i];
 		T hdotdx = X[0] * h[0];		// 1
@@ -522,11 +523,11 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 47247 OPS
 
 // 43009,703
 template<class T>
-inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<T> dX, bool ewald = false) { // 670/47581
+inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<T> dX, bool ewald = false) { // 670/700 + 418 * NREAL + 50 * NFOUR
 	static const expansion_factors<T> expansion_factor;
 	expansion<T> D;
 	if (ewald) {
-		D = green_ewald(dX);		// 43065
+		D = green_ewald(dX);		// // 336 + 418 * NREAL + 50 * NFOUR
 	} else {
 		D = green_direct(dX);        // 336
 	}

@@ -43,6 +43,7 @@ double cosmo_kick_dt1(rung_type);
 double cosmo_kick_dt2(rung_type);
 double cosmo_drift_dt();
 double cosmo_Hubble();
+double cosmo_adoubledot();
 double cosmo_time();
 void cosmo_init( double, double );
 void cosmo_advance(double dt);

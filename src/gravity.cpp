@@ -144,7 +144,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = vect<float>(1.0);
+		y[j].x = vect<float>(2.0);
 	}
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int n = 0; n < MP; n++) {
@@ -209,7 +209,7 @@ std::uint64_t gravity_CC_direct(expansion<float> &L, const vect<ireal> &x, std::
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = vect<ireal>(1.0);
+		y[j].x = vect<ireal>(2.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -265,7 +265,7 @@ std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::
 	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = vect<ireal>(1.0);
+		y[j] = vect<ireal>(2.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -300,6 +300,10 @@ std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::
 	return 408 * cnt1 + simd_float::size() * LP;
 }
 
+
+static const ewald_indices indices_real(EWALD_REAL_N2);
+static const ewald_indices indices_four(EWALD_FOUR_N2);
+
 std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<float>> &x, std::vector<vect<float>> &y) {
 	if (x.size() == 0) {
 		return 0;
@@ -315,8 +319,6 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const ewald_indices indices_real(EWALD_REAL_N2);
-	static const ewald_indices indices_four(EWALD_FOUR_N2);
 //	printf( "%i %i \n", indices_real.size(), indices_four.size() );
 
 	static const periodic_parts periodic;
@@ -468,7 +470,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 					dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
 				}
 			}
-			auto this_f = multipole_interaction(M, dX, true);	//47428
+			auto this_f = multipole_interaction(M, dX, true);	//700 + 418 * NREAL + 50 * NFOUR
 
 			for (int dim = 0; dim < NDIM; dim++) {
 				G[i][dim] += this_f.second[dim];  // 6 OP
@@ -483,7 +485,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 		f[i].phi += Phi[i].sum();
 	}
 	y.resize(cnt1);
-	return (47457 * cnt1 + simd_float::size() * 4) * x.size();
+	return ((729 + 418 * indices_real.size() + 50 * indices_four.size())* cnt1 + simd_float::size() * 4) * x.size();
 }
 
 std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
@@ -532,14 +534,14 @@ std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 				dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
 			}
 		}
-		multipole_interaction(Lacc, M, dX, true);												// 47581 OP
+		multipole_interaction(Lacc, M, dX, true);												// 700 + 418 * NREAL + 50 * NFOUR
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
 	y.resize(cnt1);
-	return 47602 * cnt1 + LP * simd_float::size();
+	return (721 + 418 * indices_real.size() + 50 * indices_four.size()) * cnt1 + LP * simd_float::size();
 }
 
 std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
@@ -589,13 +591,13 @@ std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 				dX[dim] = copysign(min(absdx, one - absdx), dX[dim] * (half - absdx));  // 15 OP
 			}
 		}
-		multipole_interaction(Lacc, M, dX, true);										// 47301 OP
+		multipole_interaction(Lacc, M, dX, true);										// 700 + 418 * NREAL + 50 * NFOUR
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
 	y.resize(cnt1);
-	return 47322 * cnt1 + LP * simd_float::size();
+	return (721 + 418 * indices_real.size() + 50 * indices_four.size()) * cnt1 + LP * simd_float::size();
 }
 

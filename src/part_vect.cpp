@@ -206,7 +206,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 	kick_return rc;
 	const auto opts = options::get();
 	const float eps = 10.0 * std::numeric_limits<float>::min();
-	const float scale = opts.ewald ? cosmo_scale().first : 1.0;
+	const float scale = opts.cosmic ? cosmo_scale().first : 1.0;
 	const float ainv = 1.0 / (scale);
 	const float a3inv = 1.0 / (scale * scale * scale);
 	const float m = opts.m_tot / opts.problem_size;
@@ -220,7 +220,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 			if (parts(i).rung >= min_rung) {
 				if (parts(i).rung != 0) {
 					const float dt = rung_to_dt(parts(i).rung);
-					const auto dt1 = opts.ewald ? cosmo_kick_dt1(parts(i).rung) : 0.5 * dt;
+					const auto dt1 = opts.cosmic ? cosmo_kick_dt1(parts(i).rung) : 0.5 * dt;
 					auto &v = parts(i).v;
 					v = v + f[j].g * dt1;
 				}
@@ -298,9 +298,9 @@ double part_vect_drift(float dt) {
 		}
 	}
 	double ekin = 0.0;
-	const auto a1 = cosmo_scale().second;
+	const auto a1 = opts.cosmic ? cosmo_scale().second : 1.0;
 	const auto a1inv2 = 1.0 / (a1 * a1);
-	const auto drift_dt = opts.ewald ? cosmo_drift_dt() : dt;
+	const auto drift_dt = opts.cosmic ? cosmo_drift_dt() : dt;
 	const part_iter chunk_size = std::max(part_iter(1), (part_end - part_begin) / std::thread::hardware_concurrency());
 	for (part_iter i = part_begin; i < part_end; i += chunk_size) {
 		auto func = [i, chunk_size, drift_dt, a1inv2]() {
@@ -380,7 +380,7 @@ multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_i
 		for (int k = 0; k < simd_float::size(); k++) {
 			if (i + k < this_end) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					X[dim][k] = pos_to_double(parts(i + k).x[dim]);
+					X[dim][k] = pos_to_double(parts(i + k).x[dim]);		// 3 OP
 				}
 				mass[k] = m;
 			} else {
@@ -391,13 +391,13 @@ multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_i
 			}
 		}
 		const auto dx = X - Xcom;
-		M() += mass;
+		M() += mass;													// 1 OP
 		for (int j = 0; j < NDIM; j++) {
 			for (int k = 0; k <= j; k++) {
-				const auto Xjk = dx[j] * dx[k];
-				M(j, k) += mass * Xjk;
+				const auto Xjk = dx[j] * dx[k];							// 6 OP
+				M(j, k) += mass * Xjk;									// 12 OP
 				for (int l = 0; l <= k; l++) {
-					M(j, k, l) += mass * Xjk * dx[l];
+					M(j, k, l) += mass * Xjk * dx[l];					// 30 OP
 				}
 			}
 		}
@@ -408,7 +408,7 @@ multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_i
 	rc.r = 0.0;
 	rc.has_active = false;
 	for (part_iter i = b; i < this_end; i++) {
-		rc.r = std::max(rc.r, (ireal) abs(pos_to_double(parts(i).x) - rc.x));
+		rc.r = std::max(rc.r, (ireal) abs(pos_to_double(parts(i).x) - rc.x)); // 12 OP
 		if (parts(i).rung >= mrung) {
 			rc.has_active = true;
 		}

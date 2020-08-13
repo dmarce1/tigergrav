@@ -45,13 +45,21 @@ int hpx_main(int argc, char *argv[]) {
 	options opts;
 	opts.process_options(argc, argv);
 
-	cosmos cinit;
-	cinit.advance_to_time(-opts.t_max);
-
-	const auto a0 = cinit.get_scale();
-	const auto adot0 = cinit.get_Hubble() * a0;
-	printf("Inializing with a = %e and adot = %e\n", a0, adot0);
-	cosmo_init(a0, adot0);
+	float tau_max;
+	float dtau_out;
+	if (opts.cosmic) {
+		cosmos cinit;
+		cinit.advance_to_scale(1.0 / (1.0 + opts.z0));
+		tau_max = -cinit.get_tau();
+		const auto a0 = cinit.get_scale();
+		const auto adot0 = cinit.get_Hubble() * a0;
+		printf("Inializing with a = %e, adot = %e, tau = %e\n", a0, adot0, tau_max);
+		cosmo_init(a0, adot0);
+	} else {
+		cosmo_init(1.0, 0.0);
+		tau_max = opts.t_max;
+	}
+	dtau_out = opts.t_max / opts.nout;
 
 	tree::set_theta(opts.theta);
 
@@ -72,7 +80,7 @@ int hpx_main(int argc, char *argv[]) {
 		auto kr = solve_gravity(root_ptr, min_rung(0), true);
 		std::sort(kr.out.begin(), kr.out.end());
 		const auto direct = kr.out;
-		printf("%12s %12s %12s %12s %12s %12s %12s %12s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
+		printf("%11s %11s %11s %11s %11s %11s %11s %11s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
 			root_ptr = hpx::new_<tree>(hpx::find_here(), root_box, 0, opts.problem_size, 0).get();
 			while (root_ptr.refine(0)) {
@@ -85,7 +93,7 @@ int hpx_main(int argc, char *argv[]) {
 			auto flops = tree::get_flop() / (stop - start + 1.0e-10) / std::pow(1024, 3);
 			std::sort(kr.out.begin(), kr.out.end());
 			const auto err = compute_error(kr.out, direct);
-			printf("%12.5e %12.5e %12.5e %12.5e %12.5e %12.5e %12.5e %12.5e \n", theta, stop - start, flops, err.err, err.err99, err.g[0], err.g[1], err.g[2]);
+			printf("%11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e \n", theta, stop - start, flops, err.err, err.err99, err.g[0], err.g[1], err.g[2]);
 		}
 	} else {
 
@@ -105,18 +113,13 @@ int hpx_main(int argc, char *argv[]) {
 
 		tstart = timer();
 
-		const auto system_cmd = [](std::string cmd) {
-			if (system(cmd.c_str()) != 0) {
-				printf("Unable to execute system command %s\n", cmd.c_str());
-				abort();
-			}
-		};
 		float pec_energy = 0.0;
 		double etot0;
 		float last_ekin;
 		float ekin;
 		bool do_out = true;
 		bool first_show = true;
+		double z = 1.0 / cosmo_scale().second - 1.0;
 		const auto show = [&]() {
 			if (first_show) {
 				last_ekin = ekin;
@@ -127,38 +130,39 @@ int hpx_main(int argc, char *argv[]) {
 			pec_energy += 0.5 * (ekin + last_ekin) * da;
 			//			interaction_statistics istats = root_ptr->get_istats();
 			if (iter % 25 == 0) {
-				printf("%4s %12s %12s %12s %12s %12s %9s %9s %9s %12s ", "i", "t", "tau", "a", "H", "dt", "itime", "max rung", "min act.", "GFLOP");
-				printf(" %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s\n", "gx", "gy", "gz", "px", "py", "pz", "epot", "ekin", "epec", "etot");
+				printf("%4s %11s %11s %11s %11s %11s %11s %11s %9s %9s %9s %11s ", "i", "t", "tau", "z", "a", "H", "adotdot", "dt", "itime", "max rung",
+						"min act.", "GFLOP");
+				printf(" %11s %11s %11s %11s %11s %11s %11s %11s %11s %11s\n", "gx", "gy", "gz", "px", "py", "pz", "epot", "ekin", "epec", "etot");
 			}
-			printf("%4i %12.5e %12.5e %12.5e %12.5e %12.5e  ", iter, t, cosmo_time(), a, cosmo_Hubble(), dt);
+			printf("%4i %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e  ", iter, t, cosmo_time(), z, a, cosmo_Hubble(), cosmo_adoubledot(), dt);
 			printf("%9x ", (int) itime);
 			printf("%9i ", (int) kr.rung);
 			printf("%9i ", (int) min_rung(itime));
-			printf("%12.5e ", tree::get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
+			printf("%11.4e ", tree::get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
 //			tree::reset_flop();
 //			tstart = timer();
 			if (do_out) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					printf("%12.5e ", kr.stats.g[dim]);
+					printf("%11.4e ", kr.stats.g[dim]);
 				}
 				for (int dim = 0; dim < NDIM; dim++) {
-					printf("%12.5e ", kr.stats.p[dim]);
+					printf("%11.4e ", kr.stats.p[dim]);
 				}
 				const auto etot = a * (kr.stats.pot + kr.stats.kin) + pec_energy;
 				if (first_show) {
 					etot0 = etot;
 					first_show = false;
 				}
-				const auto eden = std::max(a * ekin, 1.0e-20);
-				printf("%12.5e %12.5e %12.5e %12.5e %12.5e ", a * kr.stats.pot, a * ekin, pec_energy, etot, (etot - etot0) / eden);
+				const auto eden = std::max(a * ekin, std::abs(etot0));
+				printf("%11.4e %11.4e %11.4e %11.4e %11.4e ", a * kr.stats.pot, a * ekin, pec_energy, etot, (etot - etot0) / eden);
 			} else {
 				for (int dim = 0; dim < NDIM; dim++) {
-					printf("%12s ", "");
+					printf("%11s ", "");
 				}
 				for (int dim = 0; dim < NDIM; dim++) {
-					printf("%12.5e ", kr.stats.p[dim]);
+					printf("%11.4e ", kr.stats.p[dim]);
 				}
-				printf("%12s %12.5e %12.5e %12s ", "", a * ekin, pec_energy, "");
+				printf("%11s %11.4e %11.4e %11s ", "", a * ekin, pec_energy, "");
 			}
 //			printf("%f/%f %f/%f %f/%f %f/%f", istats.CC_direct_pct, istats.CC_ewald_pct, istats.CP_direct_pct, istats.CP_ewald_pct, istats.PC_direct_pct,
 //					istats.PC_ewald_pct, istats.PP_direct_pct, istats.PP_ewald_pct);
@@ -167,27 +171,29 @@ int hpx_main(int argc, char *argv[]) {
 		};
 		int oi = 1;
 		int si = 1;
-		if (opts.ewald) {
+		if (opts.cosmic) {
 			cosmo_advance(0.0);
 		}
 		kr = solve_gravity(root_ptr, min_rung(0), do_out);
+		ekin = kr.stats.kin;
 		if (do_out) {
 			output_particles(kr.out, "parts.0.silo");
 		}
 		dt = rung_to_dt(kr.rung);
 		while (t < opts.t_max) {
 			show();
-			if ((t + dt) / opts.dt_out >= oi) {
+			auto ts = timer();
+//			printf( "Drifting\n");
+			if (opts.cosmic) {
+				cosmo_advance(dt);
+			}
+			z = 1.0 / cosmo_scale().second - 1.0;
+			if ((t + dt) / dtau_out >= oi) {
 				do_out = true;
-				printf("Doing output\n");
+				printf("Doing output #%i\n", oi);
 				oi++;
 			} else {
 				do_out = false;
-			}
-			auto ts = timer();
-//			printf( "Drifting\n");
-			if (opts.ewald) {
-				cosmo_advance(dt);
 			}
 			ekin = root_ptr.drift(dt);
 //			printf("drift took %e seconds\n", timer() - ts);
@@ -199,6 +205,10 @@ int hpx_main(int argc, char *argv[]) {
 			}
 //			printf("Tree took %e seconds\n", timer() - ts);
 			itime = inc(itime, kr.rung);
+			if (time_to_double(itime) >= opts.t_max) {
+				oi = opts.nout + 1;
+				do_out = true;
+			}
 			kr = solve_gravity(root_ptr, min_rung(itime), do_out);
 			if (do_out) {
 				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
