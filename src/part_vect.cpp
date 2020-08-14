@@ -30,8 +30,12 @@ static int myid;
 static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_type>>>> pos_cache[POS_CACHE_SIZE];
 static mutex_type pos_cache_mtx[POS_CACHE_SIZE];
 
+static std::unordered_map<part_iter, hpx::shared_future<std::vector<particle_group_info>>> group_cache[POS_CACHE_SIZE];
+static mutex_type group_cache_mtx[POS_CACHE_SIZE];
+
 HPX_PLAIN_ACTION(part_vect_init);
 HPX_PLAIN_ACTION(part_vect_read_position);
+HPX_PLAIN_ACTION(part_vect_read_group);
 HPX_PLAIN_ACTION(part_vect_range);
 HPX_PLAIN_ACTION(part_vect_cache_reset);
 HPX_PLAIN_ACTION(part_vect_center_of_mass);
@@ -260,11 +264,11 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 	for (auto i = b; i != std::min(e, part_end); i++) {
 		rc.stats.p = rc.stats.p + parts(i).v * m;
 		rc.stats.kin += 0.5 * m * parts(i).v.dot(parts(i).v) / (scale * scale);
-		if (parts(i).rung >= min_rung || do_out) {
-			if (parts(i).rung >= min_rung) {
-				if (parts(i).rung != 0) {
-					const float dt = rung_to_dt(parts(i).rung);
-					const auto dt1 = opts.cosmic ? cosmo_kick_dt1(parts(i).rung) : 0.5 * dt;
+		if (parts(i).flags.rung >= min_rung || do_out) {
+			if (parts(i).flags.rung >= min_rung) {
+				if (parts(i).flags.rung != 0) {
+					const float dt = rung_to_dt(parts(i).flags.rung);
+					const auto dt1 = opts.cosmic ? cosmo_kick_dt1(parts(i).flags.rung) : 0.5 * dt;
 					auto &v = parts(i).v;
 					v = v + f[j].g * (dt1 * sgn * opts.G);
 					if (opts.glass) {
@@ -277,8 +281,8 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
 				dt = rung_to_dt(rung);
-				parts(i).rung = std::max(std::max(rung, rung_type(parts(i).rung - 1)), (rung_type) 1);
-				const auto dt2 = opts.ewald ? cosmo_kick_dt2(parts(i).rung) : 0.5 * dt;
+				parts(i).flags.rung = std::max(std::max(rung, rung_type(parts(i).flags.rung - 1)), (rung_type) 1);
+				const auto dt2 = opts.ewald ? cosmo_kick_dt2(parts(i).flags.rung) : 0.5 * dt;
 				auto &v = parts(i).v;
 				v = v + f[j].g * (dt2 * sgn * opts.G);
 				if (opts.glass) {
@@ -295,7 +299,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				out.v = parts(i).v;
 				out.g = f[j].g;
 				out.phi = f[j].phi;
-				out.rung = parts(i).rung;
+				out.rung = parts(i).flags.rung;
 				rc.out.push_back(out);
 			}
 			j++;
@@ -325,7 +329,7 @@ std::vector<vect<float>> part_vect_read_active_positions(part_iter b, part_iter 
 		fut = hpx::async<part_vect_read_active_positions_action>(localities[myid + 1], part_end, e, rung);
 	}
 	for (part_iter i = b; i < std::min(e, part_end); i++) {
-		if (parts(i).rung >= rung) {
+		if (parts(i).flags.rung >= rung) {
 			x.push_back(pos_to_double(parts(i).x));
 		}
 	}
@@ -459,7 +463,7 @@ multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_i
 	rc.has_active = false;
 	for (part_iter i = b; i < this_end; i++) {
 		rc.r = std::max(rc.r, (ireal) abs(pos_to_double(parts(i).x) - rc.x)); // 12 OP
-		if (parts(i).rung >= mrung) {
+		if (parts(i).flags.rung >= mrung) {
 			rc.has_active = true;
 		}
 	}
@@ -529,6 +533,28 @@ inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_it
 	});
 }
 
+
+inline hpx::future<std::vector<particle_group_info>> part_vect_read_group_cache(part_iter b, part_iter e) {
+	const int index = (b / sizeof(particle)) % POS_CACHE_SIZE;
+	std::unique_lock<mutex_type> lock(group_cache_mtx[index]);
+	auto iter = group_cache[index].find(b);
+	if (iter == group_cache[index].end()) {
+		hpx::lcos::local::promise<hpx::future<std::vector<particle_group_info>>> promise;
+		auto fut = promise.get_future();
+		group_cache[index][b] = fut.then([b](decltype(fut) f) {
+			return f.get().get();
+		});
+		lock.unlock();
+		promise.set_value(hpx::async<part_vect_read_group_action>(localities[part_vect_locality_id(b)], b, e));
+	}
+	return hpx::async(hpx::launch::deferred, [b, index]() {
+		std::unique_lock<mutex_type> lock(group_cache_mtx[index]);
+		auto future = group_cache[index][b];
+		lock.unlock();
+		return future.get();
+	});
+}
+
 hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, part_iter e) {
 	if (b >= part_begin && b < part_end) {
 		if (e <= part_end) {
@@ -558,6 +584,45 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 		}
 	} else {
 		return part_vect_read_pos_cache(b, e);
+	}
+}
+
+
+hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, part_iter e) {
+	if (b >= part_begin && b < part_end) {
+		if (e <= part_end) {
+			return hpx::async(hpx::launch::deferred, [=]() {
+				std::vector<particle_group_info> these_parts;
+				these_parts.reserve(e - b);
+				for (int i = b; i < e; i++) {
+					particle_group_info p;
+					p.x = pos_to_double(parts(i).x);
+					p.id= parts(i).flags.group;
+					these_parts.push_back(p);
+				}
+				return these_parts;
+			});
+		} else {
+			auto fut = part_vect_read_group_cache(part_end, e);
+			return hpx::async(hpx::launch::deferred, [=](decltype(fut) f) {
+				std::vector<particle_group_info> these_parts;
+				these_parts.reserve(e - b);
+				for (int i = b; i < part_end; i++) {
+					particle_group_info p;
+					p.x = pos_to_double(parts(i).x);
+					p.id= parts(i).flags.group;
+					these_parts.push_back(p);
+				}
+				auto next_parts = f.get();
+				for (const auto &p : next_parts) {
+					these_parts.push_back(p);
+				}
+				return these_parts;
+			}, std::move(fut));
+
+		}
+	} else {
+		return part_vect_read_group_cache(b, e);
 	}
 }
 

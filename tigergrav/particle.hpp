@@ -13,25 +13,39 @@
 
 #include <vector>
 
-
 struct particle {
 	vect<pos_type> x;
 	vect<float> v;
-	rung_type rung;
 	struct {
-		std::uint8_t out :1;
+		std::uint64_t out :1;
+		std::uint64_t rung :7;
+		std::uint64_t group :56;
 	} flags;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
-		int tmp;
+		std::uint64_t tmp;
 		arc & x;
 		arc & v;
-		arc & rung;
 		tmp = flags.out;
 		arc & tmp;
 		flags.out = tmp;
+		tmp = flags.rung;
+		arc & tmp;
+		flags.rung = tmp;
+		tmp = flags.group;
+		arc & tmp;
+		flags.group = tmp;
 	}
+};
 
+struct particle_group_info {
+	vect<float> x;
+	std::uint64_t id;
+	template<class A>
+	void serialize(A &&arc, unsigned) {
+		arc & x;
+		arc & id;
+	}
 };
 
 using part_vect = std::vector<particle>;

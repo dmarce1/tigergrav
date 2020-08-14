@@ -64,7 +64,7 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 		}
 		int j = 0;
 		for (auto i = parts.begin(); i != parts.end(); i++, j++) {
-			i->rung = 0;
+			i->flags.rung = 0;
 			i->flags.out = j < Nout;
 		}
 
