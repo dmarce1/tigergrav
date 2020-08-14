@@ -27,28 +27,29 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 				parts.push_back(std::move(p));
 			}
 		} else if (pn == "grid") {
-			auto nx = std::pow(N,1.0/3.0) + 1;
-			if( nx*nx*nx > N) {
+			auto nx = std::pow(N, 1.0 / 3.0) + 1;
+			if (nx * nx * nx > N) {
 				nx--;
 			}
-			if( nx * nx * nx != N ) {
-				printf( "Problem size must be 2^n\n");
+			if (nx * nx * nx != N) {
+				printf("Problem size must be 2^n\n");
 				abort();
 			}
-			const auto dx = std::numeric_limits<pos_type>::max() / nx;
+			const auto xmax = std::numeric_limits<pos_type>::max();
+			const auto dx = xmax / nx;
 			int l = 0;
 			parts.resize(N);
-			for( int i = 0; i < nx; i++) {
-				for( int j = 0; j < nx; j++) {
-					for( int k = 0; k < nx; k++) {
-						parts[l].x[0] = i * dx + dx / 2 ;
-						parts[l].x[1] = j * dx  + dx / 2;
-						parts[l].x[2] = k * dx + dx / 2;
+			for (int i = 0; i < nx; i++) {
+				for (int j = 0; j < nx; j++) {
+					for (int k = 0; k < nx; k++) {
+						parts[l].x[0] = i * dx + rand1() * 0.0025 * xmax;
+						parts[l].x[1] = j * dx + rand1() * 0.0025 * xmax;
+						parts[l].x[2] = k * dx + rand1() * 0.0025 * xmax;
 						parts[l++].v = vect<float>(0.0);
 					}
 				}
 			}
-		} else if( opts.problem == "two_body") {
+		} else if (opts.problem == "two_body") {
 			parts.resize(2);
 			parts[0].v = parts[1].v = vect<float>(0.0);
 			parts[0].x[0] = double_to_pos(0.25);
@@ -69,8 +70,8 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 
 	} else {
 		parts = load_particles(opts.init_file);
-		if( parts.size() != N ) {
-			printf( "Size mismatch in initialize.cpp %li %i\n", parts.size(), N);
+		if (parts.size() != N) {
+			printf("Size mismatch in initialize.cpp %li %i\n", parts.size(), N);
 		}
 	}
 	return parts;

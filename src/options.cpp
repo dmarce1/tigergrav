@@ -45,7 +45,9 @@ bool options::process_options(int argc, char *argv[]) {
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
 	("problem_size", po::value<std::uint64_t>(&problem_size)->default_value(4096), "number of particles") //
 	("theta", po::value<double>(&theta)->default_value(0.5), "separation parameter") //
-	("box_size", po::value<double>(&box_size)->default_value(DEFAULT_BOX_SIZE), "size of box in centimeters") //
+	("code_to_cm", po::value<double>(&code_to_cm)->default_value(4.40811e26), "size of box in centimeters") //
+	("code_to_cm_per_s", po::value<double>(&code_to_cm_per_s)->default_value(3e10), "code time units") //
+	("code_to_g", po::value<double>(&code_to_g)->default_value(1.988e43), "code mass units") //
 	("eta", po::value<double>(&eta)->default_value(0.2), "accuracy parameter") //
 	("soft_len", po::value<double>(&soft_len)->default_value(-1), "softening parameter") //
 	("dt_max", po::value<double>(&dt_max)->default_value(-1), "maximum timestep size") //
@@ -90,16 +92,21 @@ bool options::process_options(int argc, char *argv[]) {
 	if (!cosmic && t_max < 0.0) {
 		t_max = 1.0;
 	}
+	const auto Gcgs = 6.67259e-8;
+	const auto ccgs = 2.99792458e+10;
+	const auto Hcgs = 3.2407789e-18;
+	code_to_s = code_to_cm / code_to_cm_per_s;
+	H0 = Hcgs * code_to_s;
+	G = Gcgs / pow(code_to_cm, 3) * code_to_g * pow(code_to_s, 2);
+	clight = ccgs / code_to_cm * code_to_s;
+	m_tot = omega_m * 3.0 * H0 * H0 / (8 * M_PI * G);
+	cosmo_init(1.0,H0);
+	set(*this);
 	if (init_file == "") {
-		if (m_tot < 0.0) {
-			const auto H0 = box_size / DEFAULT_BOX_SIZE;
-			m_tot = 0.5 * omega_m * H0 * H0;
-		}
 		if (cosmic) {
 			if (t_max < 0.0) {
 				cosmos c;
 				t_max = -c.advance_to_scale(1.0 / (1.0 + z0));
-//		printf( "%e %e\n", t_max, c.get_scale());
 			}
 		}
 	} else {
@@ -108,12 +115,11 @@ bool options::process_options(int argc, char *argv[]) {
 		omega_m = header.Omega0;
 		z0 = header.redshift;
 		omega_lambda = header.OmegaLambda;
-		const auto H0 = box_size / DEFAULT_BOX_SIZE;
-		m_tot = 0.5 * omega_m * H0 * H0;
+		const auto H0 = code_to_cm / DEFAULT_BOX_SIZE;
 		problem_size = header.npartTotal[1] + (header.npartTotal[2] * ((std::uint64_t) 1 << (std::uint64_t) 32));
 		out_parts = problem_size;
-		cosmos c;
 		set(*this);
+		cosmos c;
 		t_max = -c.advance_to_scale(1.0 / (1.0 + z0));
 	}
 	if (dt_max < 0.0) {
@@ -126,11 +132,19 @@ bool options::process_options(int argc, char *argv[]) {
 	hpx::wait_all(futs.begin(), futs.end());
 #define SHOW( opt ) std::cout << std::string( #opt ) << " = " << std::to_string(opt) << '\n';
 #define SHOW_STR( opt ) std::cout << std::string( #opt ) << " = " << opt << '\n';
+	printf( "code_to_s = %e\n", code_to_s);
+	printf( "code_to_g = %e\n", code_to_g);
+	printf( "code_to_cm = %e\n", code_to_cm);
+	printf( "code_to_cm_per_s = %e\n", code_to_cm_per_s);
+	printf( "H0 = %e\n",H0);
+	printf( "G  = %e\n",G);
+	printf( "c  = %e\n",clight);
 	SHOW(cosmic);
 	SHOW(dt_max);
 	SHOW(ewald);
 	SHOW(eta);
-	SHOW(m_tot);
+	printf("m_tot = %e\n", m_tot);
+	printf("particle_mass = %e\n", m_tot / problem_size);
 	SHOW(omega_lambda);
 	SHOW(omega_m);
 	SHOW(out_parts);

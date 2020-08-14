@@ -30,7 +30,7 @@ double cosmo_drift_dt() {
 
 cosmos::cosmos() {
 	const auto opts = options::get();
-	const auto H0 = opts.box_size / DEFAULT_BOX_SIZE;
+	const auto H0 = opts.H0;
 	a = 1.0;
 	adot = H0;
 	tau = 0.0;
@@ -43,11 +43,12 @@ cosmos::cosmos(double a_, double adot_, double tau_) {
 	tau = tau_;
 	drift_dt = 0.0;
 	kick_dt = 0.0;
+	printf( "adot = %e\n", adot);
 }
 void cosmos::advance_to_time(double t0) {
 //	printf( "%e\n", a);
 	const auto opts = options::get();
-	const auto H0 = opts.box_size / DEFAULT_BOX_SIZE;
+	const auto H0 = opts.H0;
 	const auto omega_lambda = opts.omega_lambda;
 	const auto omega_m = opts.omega_m;
 	const auto da = [](double adot) {
@@ -152,9 +153,9 @@ double cosmo_time() {
 }
 
 double cosmo_adoubledot() {
-	static const auto opts = options::get();
+	const auto opts = options::get();
 	if (opts.cosmic) {
-		const auto H0 = opts.box_size / DEFAULT_BOX_SIZE;
+		const auto H0 = opts.H0;
 		const auto a = this_cosmos.get_scale();
 		return H0 * H0 * (-0.5 * opts.omega_m / (a * a) + a * opts.omega_lambda);
 	} else {

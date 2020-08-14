@@ -266,12 +266,12 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 					const float dt = rung_to_dt(parts(i).rung);
 					const auto dt1 = opts.cosmic ? cosmo_kick_dt1(parts(i).rung) : 0.5 * dt;
 					auto &v = parts(i).v;
-					v = v + f[j].g * (dt1 * sgn);
+					v = v + f[j].g * (dt1 * sgn * opts.G);
 					if (opts.glass) {
 						v = v / (1.0 + glass_drag * dt1);
 					}
 				}
-				const float a = abs(f[j].g) * a3inv;
+				const float a = abs(f[j].g * opts.G) * a3inv;
 				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
 				rung_type rung = dt_to_rung(dt);
 				rung = std::max(rung, min_rung);
@@ -280,14 +280,14 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				parts(i).rung = std::max(std::max(rung, rung_type(parts(i).rung - 1)), (rung_type) 1);
 				const auto dt2 = opts.ewald ? cosmo_kick_dt2(parts(i).rung) : 0.5 * dt;
 				auto &v = parts(i).v;
-				v = v + f[j].g * (dt2 * sgn);
+				v = v + f[j].g * (dt2 * sgn * opts.G);
 				if (opts.glass) {
 					v = v / (1.0 + glass_drag * dt2);
 				}
 			}
 			if (do_out) {
-				rc.stats.g = rc.stats.g + f[j].g * m;
-				rc.stats.pot += 0.5 * m * f[j].phi / scale;
+				rc.stats.g = rc.stats.g + f[j].g * m * opts.G;
+				rc.stats.pot += 0.5 * m * f[j].phi * opts.G / scale;
 			}
 			if (do_out && parts(i).flags.out) {
 				output out;

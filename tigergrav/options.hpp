@@ -20,14 +20,26 @@ public:
 	double t_max;
 	double m_tot;
 	double z0;
+	double G;
+	double H0;
+	double clight;
 	double omega_m;
 	double omega_lambda;
-	double box_size;
+	double code_to_cm;
+	double code_to_cm_per_s;
+	double code_to_s;
+	double code_to_g;
 	std::string init_file;
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
-		arc & box_size;
+		arc & H0;
+		arc & G;
+		arc & clight;
+		arc & code_to_cm_per_s;
+		arc & code_to_cm;
+		arc & code_to_s;
+		arc & code_to_g;
 		arc & glass;
 		arc & cosmic;
 		arc & init_file;
