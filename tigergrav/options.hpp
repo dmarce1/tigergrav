@@ -12,6 +12,7 @@ public:
 	int nout;
 	std::uint64_t problem_size;
 	bool cosmic;
+	bool glass;
 	double theta;
 	double eta;
 	double soft_len;
@@ -21,10 +22,13 @@ public:
 	double z0;
 	double omega_m;
 	double omega_lambda;
+	double box_size;
 	std::string init_file;
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc & box_size;
+		arc & glass;
 		arc & cosmic;
 		arc & init_file;
 		arc & nout;

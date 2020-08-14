@@ -57,7 +57,7 @@ public:
 	check_item get_check_item() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int stack_cnt) const;
 	double drift(float dt) const;
-	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
+	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 			rung_type min_rung, bool do_output, int stack_cnt) const;
 	bool refine(int) const;
 };
@@ -155,7 +155,7 @@ public:
 	node_attr get_node_attributes() const;
 	multi_src get_multi_srcs() const;
 	double drift(float);
-	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
+	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 			rung_type min_rung, bool do_output, int stack_ccnt);
 	check_item get_check_item() const;//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine); 				//
@@ -190,7 +190,7 @@ inline bool tree_client::refine(int stack_cnt) const {
 	return tree::refine_action()(ptr, stack_cnt);
 }
 
-inline kick_return tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
+inline kick_return tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_output, int stack_cnt) const {
 	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output, stack_cnt);
 }

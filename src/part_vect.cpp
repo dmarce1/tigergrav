@@ -1,6 +1,7 @@
 #include <tigergrav/part_vect.hpp>
 #include <tigergrav/initialize.hpp>
 #include <tigergrav/simd.hpp>
+#include <tigergrav/load.hpp>
 #include <tigergrav/cosmo.hpp>
 
 #ifdef HPX_LITE
@@ -71,6 +72,47 @@ HPX_PLAIN_ACTION(part_vect_sort_begin);
 HPX_PLAIN_ACTION(part_vect_sort_end);
 
 mutex_type sort_mutex;
+
+void part_vect_write_glass() {
+	if (localities.size() > 1) {
+		printf("Error: Cannot write glass file with multipole nodes!\n");
+		abort();
+	}
+	const auto N = part_end - part_begin;
+	const auto Nmax = std::numeric_limits<int>::max();
+	if (N > Nmax) {
+		printf("Unable to write glass file larger than %i", Nmax);
+		abort();
+	}
+	int dummy;
+	io_header_1 header;
+	for (int i = 0; i < 6; i++) {
+		header.npart[i] = header.npartTotal[i] = 0.0;
+	}
+	header.npartTotal[1] = header.npart[1] = N;
+	header.BoxSize = 1.0;
+	FILE *fp = fopen("glass.bin", "wb");
+	if (fp == NULL) {
+		printf("Unable to write glass.bin\n");
+		abort();
+	}
+	dummy = sizeof(header);
+	fwrite(&dummy, sizeof(dummy), 1, fp);
+	fwrite(&header, sizeof(header), 1, fp);
+	fwrite(&dummy, sizeof(dummy), 1, fp);
+	dummy = N * NDIM * sizeof(float);
+	fwrite(&dummy, sizeof(dummy), 1, fp);
+	for (int i = 0; i < N; i++) {
+		vect<float> x = pos_to_double(parts(i).x);
+		for (int d = 0; d < NDIM; d++) {
+			fwrite(&(x[d]), sizeof(float), 1, fp);
+		}
+	}
+	fwrite(&dummy, sizeof(dummy), 1, fp);
+
+	fclose(fp);
+
+}
 
 void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, int dim) {
 	static const auto opts = options::get();
@@ -210,9 +252,11 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 	const float ainv = 1.0 / (scale);
 	const float a3inv = 1.0 / (scale * scale * scale);
 	const float m = opts.m_tot / opts.problem_size;
+	const float sgn = opts.glass ? -1.0 : 1.0;
 	rc.rung = 0;
 	part_iter j = 0;
 	rc.stats.zero();
+	constexpr float glass_drag = 2.0;
 	for (auto i = b; i != std::min(e, part_end); i++) {
 		rc.stats.p = rc.stats.p + parts(i).v * m;
 		rc.stats.kin += 0.5 * m * parts(i).v.dot(parts(i).v) / (scale * scale);
@@ -222,7 +266,10 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 					const float dt = rung_to_dt(parts(i).rung);
 					const auto dt1 = opts.cosmic ? cosmo_kick_dt1(parts(i).rung) : 0.5 * dt;
 					auto &v = parts(i).v;
-					v = v + f[j].g * dt1;
+					v = v + f[j].g * (dt1 * sgn);
+					if (opts.glass) {
+						v = v / (1.0 + glass_drag * dt1);
+					}
 				}
 				const float a = abs(f[j].g) * a3inv;
 				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
@@ -233,7 +280,10 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				parts(i).rung = std::max(std::max(rung, rung_type(parts(i).rung - 1)), (rung_type) 1);
 				const auto dt2 = opts.ewald ? cosmo_kick_dt2(parts(i).rung) : 0.5 * dt;
 				auto &v = parts(i).v;
-				v = v + f[j].g * dt2;
+				v = v + f[j].g * (dt2 * sgn);
+				if (opts.glass) {
+					v = v / (1.0 + glass_drag * dt2);
+				}
 			}
 			if (do_out) {
 				rc.stats.g = rc.stats.g + f[j].g * m;

@@ -38,20 +38,22 @@ bool options::process_options(int argc, char *argv[]) {
 	("problem", po::value<std::string>(&problem)->default_value("cosmos"), "problem type") //
 	("solver_test", po::value<bool>(&solver_test)->default_value(0), "test gravity solver") //
 	("cosmic", po::value<bool>(&cosmic)->default_value(1), "Use Friedman equation") //
+	("glass", po::value<bool>(&glass)->default_value(0), "Produce glass file") //
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("nout", po::value<int>(&nout)->default_value(64), "number of outputs") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
 	("problem_size", po::value<std::uint64_t>(&problem_size)->default_value(4096), "number of particles") //
 	("theta", po::value<double>(&theta)->default_value(0.5), "separation parameter") //
+	("box_size", po::value<double>(&box_size)->default_value(DEFAULT_BOX_SIZE), "size of box in centimeters") //
 	("eta", po::value<double>(&eta)->default_value(0.2), "accuracy parameter") //
 	("soft_len", po::value<double>(&soft_len)->default_value(-1), "softening parameter") //
 	("dt_max", po::value<double>(&dt_max)->default_value(-1), "maximum timestep size") //
 	("z0", po::value<double>(&z0)->default_value(50.0), "") //
 	("t_max", po::value<double>(&t_max)->default_value(-1.0), "end time") //
 	("m_tot", po::value<double>(&m_tot)->default_value(-1.0), "total mass") //
-	("omega_lambda", po::value<double>(&omega_lambda)->default_value(0.3033), "Omega_lambda parameter") //
-	("omega_m", po::value<double>(&omega_m)->default_value(0.1434), "Omega_m parameter (used to set mtot if mtot not set)") //
+	("omega_lambda", po::value<double>(&omega_lambda)->default_value(0.7), "Omega_lambda parameter") //
+	("omega_m", po::value<double>(&omega_m)->default_value(0.3), "Omega_m parameter (used to set mtot if mtot not set)") //
 			;
 
 	boost::program_options::variables_map vm;
@@ -82,12 +84,16 @@ bool options::process_options(int argc, char *argv[]) {
 	const auto sz = loc.size();
 	std::vector<hpx::future<void>> futs;
 	set(*this);
+	if (glass) {
+		cosmic = false;
+	}
 	if (!cosmic && t_max < 0.0) {
 		t_max = 1.0;
 	}
 	if (init_file == "") {
 		if (m_tot < 0.0) {
-			m_tot = 0.5 * omega_m;
+			const auto H0 = box_size / DEFAULT_BOX_SIZE;
+			m_tot = 0.5 * omega_m * H0 * H0;
 		}
 		if (cosmic) {
 			if (t_max < 0.0) {
@@ -102,10 +108,12 @@ bool options::process_options(int argc, char *argv[]) {
 		omega_m = header.Omega0;
 		z0 = header.redshift;
 		omega_lambda = header.OmegaLambda;
-		m_tot = 0.5 * omega_m;
+		const auto H0 = box_size / DEFAULT_BOX_SIZE;
+		m_tot = 0.5 * omega_m * H0 * H0;
 		problem_size = header.npartTotal[1] + (header.npartTotal[2] * ((std::uint64_t) 1 << (std::uint64_t) 32));
 		out_parts = problem_size;
 		cosmos c;
+		set(*this);
 		t_max = -c.advance_to_scale(1.0 / (1.0 + z0));
 	}
 	if (dt_max < 0.0) {

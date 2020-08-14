@@ -58,7 +58,7 @@ struct kick_return {
 	}
 };
 
-
+void part_vect_write_glass();
 void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts);
 hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e);
 void part_vect_init();

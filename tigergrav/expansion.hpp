@@ -29,8 +29,8 @@ constexpr int LP = 35;
 
 //constexpr float EWALD_REAL_N2 = 5;
 //constexpr float EWALD_FOUR_N2 = 10;
-constexpr float EWALD_REAL_N2 = 5;
-constexpr float EWALD_FOUR_N2 = 10;
+constexpr float EWALD_REAL_N2 = 17;
+constexpr float EWALD_FOUR_N2 = 9;
 //36 8.55046
 //38 9.06660
 //40 1.01544

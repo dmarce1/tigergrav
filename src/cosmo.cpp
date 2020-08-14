@@ -1,5 +1,6 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/cosmo.hpp>
+#include <tigergrav/defs.hpp>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -28,8 +29,10 @@ double cosmo_drift_dt() {
 }
 
 cosmos::cosmos() {
+	const auto opts = options::get();
+	const auto H0 = opts.box_size / DEFAULT_BOX_SIZE;
 	a = 1.0;
-	adot = 1.0;
+	adot = H0;
 	tau = 0.0;
 	drift_dt = 0.0;
 	kick_dt = 0.0;
@@ -44,13 +47,14 @@ cosmos::cosmos(double a_, double adot_, double tau_) {
 void cosmos::advance_to_time(double t0) {
 //	printf( "%e\n", a);
 	const auto opts = options::get();
+	const auto H0 = opts.box_size / DEFAULT_BOX_SIZE;
 	const auto omega_lambda = opts.omega_lambda;
 	const auto omega_m = opts.omega_m;
 	const auto da = [](double adot) {
 		return adot;
 	};
-	const auto dadot = [omega_m, omega_lambda](double a) {
-		return -0.5 * omega_m / (a * a) + a * omega_lambda;
+	const auto dadot = [omega_m, omega_lambda, H0](double a) {
+		return H0 * H0 * (-0.5 * omega_m / (a * a) + a * omega_lambda);
 	};
 	const auto dtau = [](double a) {
 		return 1.0 / a;
@@ -150,8 +154,9 @@ double cosmo_time() {
 double cosmo_adoubledot() {
 	static const auto opts = options::get();
 	if (opts.cosmic) {
+		const auto H0 = opts.box_size / DEFAULT_BOX_SIZE;
 		const auto a = this_cosmos.get_scale();
-		return -0.5 * opts.omega_m / (a * a) + a * opts.omega_lambda;
+		return H0 * H0 * (-0.5 * opts.omega_m / (a * a) + a * opts.omega_lambda);
 	} else {
 		return 0.0;
 	}

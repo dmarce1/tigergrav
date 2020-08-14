@@ -26,7 +26,7 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 	root_ptr.compute_multipoles(mrung, do_out, 0);
 //	printf("Multipoles took %e seconds\n", timer() - start);
 	start = timer();
-	expansion<float> L;
+	expansion<double> L;
 	L = 0.0;
 	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
 	auto rc = root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
@@ -117,6 +117,8 @@ int hpx_main(int argc, char *argv[]) {
 		double etot0;
 		float last_ekin;
 		float ekin;
+		float epot;
+		float last_epot;
 		bool do_out = true;
 		bool first_show = true;
 		double z = 1.0 / cosmo_scale().second - 1.0;
@@ -132,7 +134,7 @@ int hpx_main(int argc, char *argv[]) {
 			if (iter % 25 == 0) {
 				printf("%4s %11s %11s %11s %11s %11s %11s %11s %9s %9s %9s %11s ", "i", "t", "tau", "z", "a", "H", "adotdot", "dt", "itime", "max rung",
 						"min act.", "GFLOP");
-				printf(" %11s %11s %11s %11s %11s %11s %11s %11s %11s %11s\n", "gx", "gy", "gz", "px", "py", "pz", "epot", "ekin", "epec", "etot");
+				printf(" %11s %11s %11s %11s  %11s %11s\n", "g", "p", "epot", "ekin", "epec", "etot");
 			}
 			printf("%4i %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e  ", iter, t, cosmo_time(), z, a, cosmo_Hubble(), cosmo_adoubledot(), dt);
 			printf("%9x ", (int) itime);
@@ -142,26 +144,19 @@ int hpx_main(int argc, char *argv[]) {
 //			tree::reset_flop();
 //			tstart = timer();
 			if (do_out) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					printf("%11.4e ", kr.stats.g[dim]);
-				}
-				for (int dim = 0; dim < NDIM; dim++) {
-					printf("%11.4e ", kr.stats.p[dim]);
-				}
+				printf("%11.4e ", abs(kr.stats.g));
+				printf("%11.4e ", abs(kr.stats.p));
 				const auto etot = a * (kr.stats.pot + kr.stats.kin) + pec_energy;
 				if (first_show) {
 					etot0 = etot;
 					first_show = false;
 				}
 				const auto eden = std::max(a * ekin, std::abs(etot0));
-				printf("%11.4e %11.4e %11.4e %11.4e %11.4e ", a * kr.stats.pot, a * ekin, pec_energy, etot, (etot - etot0) / eden);
+				printf("%11.4e %11.4e %11.4e %11.4e %11.4e ", a * kr.stats.pot, a * ekin, pec_energy, etot,
+						opts.glass ? (epot - last_epot) / epot : (etot - etot0) / eden);
 			} else {
-				for (int dim = 0; dim < NDIM; dim++) {
-					printf("%11s ", "");
-				}
-				for (int dim = 0; dim < NDIM; dim++) {
-					printf("%11.4e ", kr.stats.p[dim]);
-				}
+				printf("%11s ", "");
+				printf("%11.4e ", abs(kr.stats.p));
 				printf("%11s %11.4e %11.4e %11s ", "", a * ekin, pec_energy, "");
 			}
 //			printf("%f/%f %f/%f %f/%f %f/%f", istats.CC_direct_pct, istats.CC_ewald_pct, istats.CP_direct_pct, istats.CP_ewald_pct, istats.PC_direct_pct,
@@ -175,6 +170,7 @@ int hpx_main(int argc, char *argv[]) {
 			cosmo_advance(0.0);
 		}
 		kr = solve_gravity(root_ptr, min_rung(0), do_out);
+		last_epot = epot = kr.stats.pot;
 		ekin = kr.stats.kin;
 		if (do_out) {
 			output_particles(kr.out, "parts.0.silo");
@@ -211,11 +207,21 @@ int hpx_main(int argc, char *argv[]) {
 			}
 			kr = solve_gravity(root_ptr, min_rung(itime), do_out);
 			if (do_out) {
+				last_epot = epot;
+				epot = kr.stats.pot;
 				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
 			}
 			t = time_to_double(itime);
 			dt = rung_to_dt(kr.rung);
 			iter++;
+			if (iter > 10 && opts.glass || t >= opts.t_max) {
+				if (std::abs(epot / last_epot - 1.0) < 5.0e-5 && ekin < 5.0e-11) {
+					printf( "Writing glass file\n");
+					part_vect_write_glass();
+					printf( "Glass file written\n");
+					break;
+				}
+			}
 		}
 		show();
 //	root_ptr->output(t, oi);

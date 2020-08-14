@@ -13,7 +13,7 @@
 //#define USE_AVX
 
 
-
+#define DEFAULT_BOX_SIZE (1.23456790123457e28)
 
 #ifdef INDIRECT_DOUBLE
 using ireal = double;

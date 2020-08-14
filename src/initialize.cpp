@@ -26,16 +26,37 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 				}
 				parts.push_back(std::move(p));
 			}
-		} else if (pn == "two_body") {
-			parts.resize(2);
-			for (int i = 0; i < 2; i++) {
-				parts[i].x = double_to_pos(vect<float>(0.5));
-				parts[i].v = vect<float>(0.0);
+		} else if (pn == "grid") {
+			auto nx = std::pow(N,1.0/3.0) + 1;
+			if( nx*nx*nx > N) {
+				nx--;
 			}
-			parts[0].x[0] = double_to_pos(0.75);
-			parts[0].v[1] = 1.0 / std::sqrt(2);
-			parts[1].x[0] = double_to_pos(0.25);
-			parts[1].v[1] = -1.0 / std::sqrt(2);
+			if( nx * nx * nx != N ) {
+				printf( "Problem size must be 2^n\n");
+				abort();
+			}
+			const auto dx = std::numeric_limits<pos_type>::max() / nx;
+			int l = 0;
+			parts.resize(N);
+			for( int i = 0; i < nx; i++) {
+				for( int j = 0; j < nx; j++) {
+					for( int k = 0; k < nx; k++) {
+						parts[l].x[0] = i * dx + dx / 2 ;
+						parts[l].x[1] = j * dx  + dx / 2;
+						parts[l].x[2] = k * dx + dx / 2;
+						parts[l++].v = vect<float>(0.0);
+					}
+				}
+			}
+		} else if( opts.problem == "two_body") {
+			parts.resize(2);
+			parts[0].v = parts[1].v = vect<float>(0.0);
+			parts[0].x[0] = double_to_pos(0.25);
+			parts[1].x[0] = double_to_pos(0.75);
+			parts[0].x[1] = double_to_pos(0.5);
+			parts[1].x[1] = double_to_pos(0.5);
+			parts[0].x[2] = double_to_pos(0.5);
+			parts[1].x[2] = double_to_pos(0.5);
 		} else {
 			printf("Problem %s unknown\n", pn.c_str());
 			abort();
@@ -45,6 +66,7 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 			i->rung = 0;
 			i->flags.out = j < Nout;
 		}
+
 	} else {
 		parts = load_particles(opts.init_file);
 		if( parts.size() != N ) {

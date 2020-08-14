@@ -320,7 +320,7 @@ void trash_workspace(workspace &&w) {
 	workspaces.push(std::move(w));
 }
 
-kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<float> L,
+kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	if (level == 0) {
 //		printf("kick_fmm\n");

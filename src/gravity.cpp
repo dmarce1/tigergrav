@@ -97,8 +97,8 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 			}
 			const simd_float r2 = dX.dot(dX);																				// 1 OP
 			const simd_float zero_mask = r2 > simd_float(0);
-			const simd_float rinv = zero_mask * rsqrt(r2 + tiny);       													// 2 OP
 			const simd_float r = sqrt(r2);																					// 1 OP
+			const simd_float rinv = zero_mask * r / (r2 + tiny);       													// 2 OP
 			const simd_float rinv3 = rinv * rinv * rinv;   																	// 2 OP
 			const simd_float sw_far = H < r;   																				// 1 OP
 			const simd_float sw_near = simd_float(1) - sw_far;																// 1 OP
@@ -120,6 +120,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 		}
 		f[i].phi += Phi[i].sum();
 	}
+
 	y.resize(cnt1);
 	return (65 * cnt1 + simd_float::size() * 4) * x.size();
 }
@@ -187,7 +188,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 	return (546 * cnt1 + simd_float::size() * 4) * x.size();
 }
 
-std::uint64_t gravity_CC_direct(expansion<float> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -243,7 +244,7 @@ std::uint64_t gravity_CC_direct(expansion<float> &L, const vect<ireal> &x, std::
 	return 691 * cnt1 + LP * simd_float::size();
 }
 
-std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
+std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -410,6 +411,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 			}
 			Phi[I] += M * phi * mask;										// 3
 			G[I] += g * M * mask;											// 9
+//			printf( "%e %e %e %e %e\n", g[0][0], X[0][0], Y[0][0], X[0][0] - Y[0][0], dX0[0][0]);
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
@@ -488,7 +490,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 	return ((729 + 418 * indices_real.size() + 50 * indices_four.size())* cnt1 + simd_float::size() * 4) * x.size();
 }
 
-std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -544,7 +546,7 @@ std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<ireal> &x, std::v
 	return (721 + 418 * indices_real.size() + 50 * indices_four.size()) * cnt1 + LP * simd_float::size();
 }
 
-std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
+std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
