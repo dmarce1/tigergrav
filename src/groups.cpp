@@ -2,6 +2,8 @@
 #include <tigergrav/groups.hpp>
 #include <tigergrav/options.hpp>
 
+#include <cmath>
+
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
 #else
@@ -19,11 +21,13 @@ mutex_type mtx;
 
 static std::vector<hpx::id_type> localities;
 static int myid = -1;
+static double a;
 static double ainv;
 static double ainv2;
 
 HPX_PLAIN_ACTION(groups_reset);
 HPX_PLAIN_ACTION(groups_finish1);
+HPX_PLAIN_ACTION(groups_finish2);
 HPX_PLAIN_ACTION(groups_output);
 
 void groups_output(int oi) {
@@ -46,8 +50,11 @@ void groups_output(int oi) {
 	bool found_some = false;
 	for (const auto &entry : map) {
 		const auto &g = entry.second;
-		if( g.N >= 10 && g.T + g.W < 0.0) {
-			fprintf(fp, "%16li %5i %12e %12e %12e %12e %12e %12e %12e %12e\n", entry.first, g.N, g.T, g.W, g.x[0], g.x[1], g.x[2], g.v[0], g.v[1], g.v[2]);
+		if (g.N >= 10 && g.T + g.W < 0.0) {
+			const auto verr = (2.0 * g.T + g.W) / (g.T + std::abs(g.W));
+			const auto vdisp = abs(g.dv);
+			const auto v = abs(g.v);
+			fprintf(fp, "%16li %5i %12e %12e %12e %12e %12e %12e %12e\n", entry.first, g.N, g.rmax, g.rc, g.T, g.W, verr, v, vdisp);
 			found_some = true;
 		}
 	}
@@ -71,7 +78,8 @@ void groups_reset() {
 	}
 
 	map.clear();
-	ainv = 1.0 / cosmo_scale().second;
+	a = cosmo_scale().second;
+	ainv = 1.0 / a;
 	ainv2 = ainv * ainv;
 	hpx::wait_all(futs.begin(), futs.end());
 }
@@ -83,9 +91,8 @@ void groups_add_particle1(gmember p) {
 	auto &g = map[p.id];
 	g.N++;
 	g.W += 0.5 * m * p.phi * ainv * opts.G;
-	g.T += 0.5 * m * p.v.dot(p.v) * ainv2;
 	g.x += p.x;
-	g.v += p.v;
+	g.v += p.v * ainv;
 
 }
 
@@ -102,8 +109,57 @@ void groups_finish1() {
 	}
 
 	for (auto &entry : map) {
-		entry.second.x /= entry.second.N;
-		entry.second.v /= entry.second.N;
+		const auto N = entry.second.N;
+		entry.second.x /= N;
+		entry.second.v /= N;
+		entry.second.T /= N;
+		entry.second.W /= N;
+
+	}
+
+	hpx::wait_all(futs.begin(), futs.end());
+}
+
+void groups_add_particle2(particle p) {
+	static const auto opts = options::get();
+	static const auto m = opts.m_tot / opts.problem_size;
+	std::lock_guard<mutex_type> lock(mtx);
+	auto &g = map[p.flags.group];
+	const auto dv = (p.v * ainv - g.v);
+	g.T += 0.5 * m * dv.dot(dv);
+	for (int dim = 0; dim < NDIM; dim++) {
+		g.dv[dim] += dv[dim] * dv[dim];
+	}
+	const float r = a * abs(pos_to_double(p.x) - g.x);
+	g.rmax = std::max(g.rmax, r);
+	g.radii.push_back(r);
+
+}
+
+void groups_finish2() {
+	if (myid == -1) {
+		myid = hpx::get_locality_id();
+		localities = hpx::find_all_localities();
+	}
+	std::vector<hpx::future<void>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async<groups_finish2_action>(localities[i]));
+		}
+	}
+
+	for (auto &entry : map) {
+		const auto N = entry.second.N;
+		entry.second.T /= N;
+		entry.second.dv /= N;
+		for (int dim = 0; dim < NDIM; dim++) {
+			entry.second.dv[dim] = std::sqrt(entry.second.dv[dim]);
+		}
+		auto& radii = entry.second.radii;
+		std::sort(radii.begin(),radii.end());
+		const int mid = radii.size() / 2 + radii.size() % 1;
+		entry.second.rc = radii[mid];
+		radii = std::vector<float>();
 	}
 
 	hpx::wait_all(futs.begin(), futs.end());

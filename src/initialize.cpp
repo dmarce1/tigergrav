@@ -42,9 +42,9 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 			for (int i = 0; i < nx; i++) {
 				for (int j = 0; j < nx; j++) {
 					for (int k = 0; k < nx; k++) {
-						parts[l].x[0] = i * dx + rand1() * 0.0025 * xmax;
-						parts[l].x[1] = j * dx + rand1() * 0.0025 * xmax;
-						parts[l].x[2] = k * dx + rand1() * 0.0025 * xmax;
+						parts[l].x[0] = i * dx + rand1() * dx * 0.5;
+						parts[l].x[1] = j * dx + rand1() * dx * 0.5;
+						parts[l].x[2] = k * dx + rand1() * dx * 0.5;
 						parts[l++].v = vect<float>(0.0);
 					}
 				}

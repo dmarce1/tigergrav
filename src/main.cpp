@@ -41,6 +41,8 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 	auto rc = root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
 	if( do_out) {
 		groups_finish1();
+		part_vect_find_groups2();
+		groups_finish2();
 	}
 //	printf("fmm took %e seconds\n", timer() - start);
 	return rc;

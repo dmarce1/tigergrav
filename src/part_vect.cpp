@@ -322,7 +322,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 	rc.stats.zero();
 	constexpr float glass_drag = 2.0;
 	for (auto i = b; i != std::min(e, part_end); i++) {
-		rc.stats.p = rc.stats.p + parts(i).v * m;
+		rc.stats.p = rc.stats.p + parts(i).v / opts.problem_size / (scale * scale);
 		rc.stats.kin += 0.5 * m * parts(i).v.dot(parts(i).v) / (scale * scale);
 		if (parts(i).flags.rung >= min_rung || do_out) {
 			if (parts(i).flags.rung >= min_rung) {
@@ -350,7 +350,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				}
 			}
 			if (do_out) {
-				rc.stats.g = rc.stats.g + f[j].g * m * opts.G;
+				rc.stats.g = rc.stats.g + f[j].g * opts.G / opts.problem_size / (scale * scale * scale);
 				rc.stats.pot += 0.5 * m * f[j].phi * opts.G / scale;
 			}
 			if (do_out && parts(i).flags.out) {
@@ -398,6 +398,40 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 		hpx::wait_all(futs.begin(), futs.end());
 	}
 	return rc;
+}
+
+void part_vect_group_proc2(std::vector<particle> ps) {
+	for (const auto &p : ps) {
+		groups_add_particle2(p);
+	}
+}
+
+HPX_PLAIN_ACTION(part_vect_group_proc2);
+HPX_PLAIN_ACTION(part_vect_find_groups2);
+
+void part_vect_find_groups2() {
+	std::vector<hpx::future<void>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async<part_vect_find_groups2_action>(localities[i]));
+		}
+	}
+	std::unordered_map<int, std::vector<particle>> group_proc;
+	for (auto i = part_begin; i != part_end; i++) {
+		particle p = parts(i);
+		if (p.flags.group != DEFAULT_GROUP) {
+			int proc = part_vect_locality_id(p.flags.group);
+			if (proc == myid) {
+				groups_add_particle2(p);
+			} else {
+				group_proc[proc].push_back(p);
+			}
+		}
+	}
+	for (auto &other : group_proc) {
+		futs.push_back(hpx::async<part_vect_group_proc2_action>(localities[other.first], std::move(other.second)));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
 std::vector<vect<float>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung) {

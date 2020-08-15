@@ -6,15 +6,20 @@ struct group {
 	int N;
 	float W;
 	float T;
+	float rmax;
+	float rc;
 	vect<float> x;
 	vect<float> v;
-
+	vect<float> dv;
+	std::vector<float> radii;
 	group() {
 		N = 0;
 		W = 0.0;
 		T = 0.0;
+		rmax = 0.0;
 		x = vect<float>(0.0);
 		v = vect<float>(0.0);
+		dv = vect<float>(0.0);
 	}
 };
 
@@ -45,3 +50,5 @@ void groups_reset();
 void groups_output(int i);
 void groups_finish1();
 void groups_add_particle1(gmember p);
+void groups_finish2();
+void groups_add_particle2(particle p);
