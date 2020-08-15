@@ -116,7 +116,6 @@ bool options::process_options(int argc, char *argv[]) {
 		omega_m = header.Omega0;
 		z0 = header.redshift;
 		omega_lambda = header.OmegaLambda;
-		const auto H0 = code_to_cm / DEFAULT_BOX_SIZE;
 		problem_size = header.npartTotal[1] + (header.npartTotal[2] * ((std::uint64_t) 1 << (std::uint64_t) 32));
 		out_parts = problem_size;
 		set(*this);

@@ -228,14 +228,14 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
 			prange.min[dim] = std::min(ml.r.min[dim], mr.r.min[dim]);
 		}
-		ireal rmax = abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.min[1], (ireal) prange.min[2] }));
-		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.min[1], (ireal) prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.max[1], (ireal) prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.max[1], (ireal) prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.min[1], (ireal) prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.min[1], (ireal) prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.min[0], (ireal) prange.max[1], (ireal) prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<ireal>( { (ireal) prange.max[0], (ireal) prange.max[1], (ireal) prange.max[2] })));
+		float rmax = abs(multi.x - vect<float>( { (float) prange.min[0], (float) prange.min[1], (float) prange.min[2] }));
+		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.max[0], (float) prange.min[1], (float) prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.min[0], (float) prange.max[1], (float) prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.max[0], (float) prange.max[1], (float) prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.min[0], (float) prange.min[1], (float) prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.max[0], (float) prange.min[1], (float) prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.min[0], (float) prange.max[1], (float) prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.max[0], (float) prange.max[1], (float) prange.max[2] })));
 		multi.r = std::min(multi.r, rmax);
 		child_check[0] = ml.c;
 		child_check[1] = mr.c;
@@ -317,7 +317,7 @@ void trash_workspace(workspace &&w) {
 	workspaces.push(std::move(w));
 }
 
-kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
+kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<float> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;

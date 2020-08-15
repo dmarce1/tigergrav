@@ -12,15 +12,3 @@
 #define USE_AVX2
 //#define USE_AVX
 
-
-#define DEFAULT_BOX_SIZE (1.23456790123457e28)
-
-#ifdef INDIRECT_DOUBLE
-using ireal = double;
-#define simd_real simd_double
-#define SIMD_REAL_LEN SIMD_DOUBLE_LEN
-#else
-using ireal = float;
-#define simd_real  simd_float
-#define SIMD_REAL_LEN SIMD_FLOAT_LEN
-#endif

@@ -10,8 +10,8 @@
 #include <map>
 
 struct multi_src {
-	multipole<ireal> m;
-	vect<ireal> x;
+	multipole<float> m;
+	vect<float> x;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & m;
@@ -22,9 +22,9 @@ struct multi_src {
 
 
 struct multipole_info {
-	multipole<ireal> m;
-	vect<ireal> x;
-	ireal r;
+	multipole<float> m;
+	vect<float> x;
+	float r;
 	bool has_active;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
@@ -38,12 +38,12 @@ struct multipole_info {
 
 std::uint64_t gravity_PP_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_PC_direct(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_CC_direct(expansion<double>&, const vect<ireal> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y);
+std::uint64_t gravity_CC_direct(expansion<double>&, const vect<float> &x, std::vector<multi_src> &y);
+std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<float> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_PP_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<vect<float>> &y);
 std::uint64_t gravity_PC_ewald(std::vector<force> &g, const std::vector<vect<float>> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_CC_ewald(expansion<double>&, const vect<ireal> &x, std::vector<multi_src> &y);
-std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y);
+std::uint64_t gravity_CC_ewald(expansion<double>&, const vect<float> &x, std::vector<multi_src> &y);
+std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<float> &x, std::vector<vect<float>> &y);
 
 
 float ewald_near_separation(const vect<float> x);

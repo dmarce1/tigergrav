@@ -78,7 +78,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<fl
 				Y[dim][k] = y[j + k][dim];
 			}
 		}
-		if (j + simd_real::size() > cnt1) {
+		if (j + simd_float::size() > cnt1) {
 			for (int k = cnt1; k < cnt2; k++) {
 				M[k - j] = 0.0;
 			}
@@ -226,46 +226,46 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<fl
 	return (546 * cnt1 + simd_float::size() * 4) * x.size();
 }
 
-std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<float> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = simd_float(1.0);
+	static const auto half = simd_float(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	multipole<simd_real> M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
+	static const simd_float H(h);
+	static const simd_float H2(h2);
+	vect<simd_float> X, Y;
+	multipole<simd_float> M;
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
+	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = vect<ireal>(2.0);
+		y[j].x = vect<float>(2.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
+		X[dim] = simd_float(x[dim]);
 	}
-	for (int j = 0; j < cnt1; j += simd_real::size()) {
+	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int n = 0; n < MP; n++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				M[n][k] = y[j + k].m[n];
 			}
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
+		vect<simd_float> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
@@ -282,47 +282,47 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<ireal> &x, std:
 	return 691 * cnt1 + LP * simd_float::size();
 }
 
-std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
+std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<float> &x, std::vector<vect<float>> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = simd_float(1.0);
+	static const auto half = simd_float(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	simd_real M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
+	static const simd_float H(h);
+	static const simd_float H2(h2);
+	vect<simd_float> X, Y;
+	simd_float M;
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
+	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = vect<ireal>(2.0);
+		y[j] = vect<float>(2.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
+		X[dim] = simd_float(x[dim]);
 	}
 	M = m;
-	for (int j = 0; j < cnt1; j += simd_real::size()) {
+	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				Y[dim][k] = y[j + k][dim];
 			}
 		}
-		if (j + simd_real::size() > cnt1) {
+		if (j + simd_float::size() > cnt1) {
 			for (int k = cnt1; k < cnt2; k++) {
 				M[k - j] = 0.0;
 			}
 		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
+		vect<simd_float> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
@@ -348,43 +348,43 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 	}
 	std::uint64_t flop = 0;
 
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = simd_float(1.0);
+	static const auto half = simd_float(0.5);
 
 	static const auto opts = options::get();
-	static const simd_real M(opts.m_tot / opts.problem_size);
-	simd_real mask;
+	static const simd_float M(opts.m_tot / opts.problem_size);
+	simd_float mask;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
 //	printf( "%i %i \n", indices_real.size(), indices_four.size() );
 
 	static const periodic_parts periodic;
-	vect<simd_real> X, Y;
-	std::vector<vect<simd_real>> G(x.size(), vect<simd_float>(simd_float(0)));
-	std::vector<simd_real> Phi(x.size(), simd_float(0.0));
+	vect<simd_float> X, Y;
+	std::vector<vect<simd_float>> G(x.size(), vect<simd_float>(simd_float(0)));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
+	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j] = vect<float>(0.0);
 	}
-	for (int J = 0; J < cnt1; J += simd_real::size()) {
+	for (int J = 0; J < cnt1; J += simd_float::size()) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				Y[dim][k] = y[J + k][dim];
 			}
 		}
-		mask = simd_real(1);
-		for (int k = std::min((int) (cnt1 - J), (int) simd_real::size()); k < simd_real::size(); k++) {
+		mask = simd_float(1);
+		for (int k = std::min((int) (cnt1 - J), (int) simd_float::size()); k < simd_float::size(); k++) {
 			mask[k] = 0.0;
 		}
 		for (int I = 0; I < x.size(); I++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_real(x[I][dim]);
+				X[dim] = simd_float(x[I][dim]);
 			}
 
-			vect<simd_real> dX0 = X - Y;             		// 3 OP
+			vect<simd_float> dX0 = X - Y;             		// 3 OP
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX0[dim]);										// 3 OP
 				dX0[dim] = copysign(min(absdx, one - absdx), dX0[dim] * (half - absdx));  // 15 OP
@@ -399,25 +399,25 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 			static const simd_float fouroversqrtpi(4.0 / sqrt(M_PI));
 			static const simd_float phi0(2.8372975);
 			vect<float> h;
-			vect<simd_real> n;
-			simd_real phi = 0.0;
-			vect<simd_real> g;
-			g = simd_real(0);
+			vect<simd_float> n;
+			simd_float phi = 0.0;
+			vect<simd_float> g;
+			g = simd_float(0);
 			for (int i = 0; i < indices_real.size(); i++) {					// 78
 				h = indices_real[i];
 				n = h;
-				const vect<simd_real> dx = dX0 - n;                         // 3 OP
-				const simd_real r2 = dx.dot(dx);							// 3
-				const simd_real r = sqrt(r2);                      			// 1
-				const simd_real mask = r < 3.6;
-				const simd_real rinv = mask * r / (r2 + tiny);						// 2
-				const simd_real r2inv = rinv * rinv;						// 1
-				const simd_real r3inv = r2inv * rinv;						// 1
+				const vect<simd_float> dx = dX0 - n;                         // 3 OP
+				const simd_float r2 = dx.dot(dx);							// 3
+				const simd_float r = sqrt(r2);                      			// 1
+				const simd_float mask = r < 3.6;
+				const simd_float rinv = mask * r / (r2 + tiny);						// 2
+				const simd_float r2inv = rinv * rinv;						// 1
+				const simd_float r3inv = r2inv * rinv;						// 1
 				simd_float expfac;
-				const simd_real erfc = one - erfexp(two * r, &expfac);		// 51
-				const simd_real d0 = -erfc * rinv;							// 2
-				const simd_real expfactor = fouroversqrtpi * r * expfac;	// 2
-				const simd_real d1 = (expfactor + erfc) * r3inv;			// 2
+				const simd_float erfc = one - erfexp(two * r, &expfac);		// 51
+				const simd_float d0 = -erfc * rinv;							// 2
+				const simd_float expfactor = fouroversqrtpi * r * expfac;	// 2
+				const simd_float d1 = (expfactor + erfc) * r3inv;			// 2
 				phi += d0; 													// 1
 				for (int a = 0; a < NDIM; a++) {
 					g[a] -= (dX0[a] - n[a]) * d1;							// 9
@@ -426,23 +426,23 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<flo
 			for (int i = 0; i < indices_four.size(); i++) {					// 48
 				const expansion<float> &H = periodic[i];
 				h = indices_four[i];
-				simd_real hdotdx = dX0[0] * h[0];							// 1
+				simd_float hdotdx = dX0[0] * h[0];							// 1
 				for (int dim = 1; dim < NDIM; dim++) {
 					hdotdx += dX0[dim] * h[dim];							// 4
 				}
-				const simd_real omega = twopi * hdotdx;						// 1
-				simd_real s, c;
+				const simd_float omega = twopi * hdotdx;						// 1
+				simd_float s, c;
 				sincos(omega, &s, &c);										// 34
 				phi += H() * c;												// 2
 				for (int dim = 0; dim < NDIM; dim++) {
 					g[dim] -= H(dim) * s;									// 6
 				}
 			}
-			const simd_real r = abs(dX0);									// 5
-			const simd_real rinv = r / (r * r + tiny);						// 3
+			const simd_float r = abs(dX0);									// 5
+			const simd_float rinv = r / (r * r + tiny);						// 3
 			phi = pioverfour + phi + rinv;									// 2
-			const simd_real sw = r > simd_float(0);							// 1
-			phi = phi0 * (simd_real(1.0) - sw) + phi * sw;					// 4
+			const simd_float sw = r > simd_float(0);							// 1
+			phi = phi0 * (simd_float(1.0) - sw) + phi * sw;					// 4
 			const auto rinv3 = rinv * rinv * rinv;							// 2
 			for (int dim = 0; dim < NDIM; dim++) {
 				g[dim] = g[dim] + dX0[dim] * rinv3;							// 6
@@ -468,42 +468,42 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 	}
 	std::uint64_t flop = 0;
 
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = simd_float(1.0);
+	static const auto half = simd_float(0.5);
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
 	static const bool ewald = opts.ewald;
 	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	multipole<simd_real> M;
-	std::vector<vect<simd_real>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_real> Phi(x.size(), simd_float(0.0));
+	static const simd_float H(h);
+	static const simd_float H2(h2);
+	vect<simd_float> X, Y;
+	multipole<simd_float> M;
+	std::vector<vect<simd_float>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
+	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
 		y[j].x = vect<float>(1.0);
 	}
-	for (int j = 0; j < cnt1; j += simd_real::size()) {
+	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int n = 0; n < MP; n++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				M[n][k] = y[j + k].m[n];
 			}
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
 		for (int i = 0; i < x.size(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_real(x[i][dim]);
+				X[dim] = simd_float(x[i][dim]);
 			}
 
-			vect<simd_real> dX = X - Y;             		// 3 OP
+			vect<simd_float> dX = X - Y;             		// 3 OP
 			if (ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto absdx = abs(dX[dim]);										// 3 OP
@@ -528,46 +528,46 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<flo
 	return ((729 + 418 * indices_real.size() + 50 * indices_four.size()) * cnt1 + simd_float::size() * 4) * x.size();
 }
 
-std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<float> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = simd_float(1.0);
+	static const auto half = simd_float(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	multipole<simd_real> M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
+	static const simd_float H(h);
+	static const simd_float H2(h2);
+	vect<simd_float> X, Y;
+	multipole<simd_float> M;
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
+	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = vect<ireal>(1.0);
+		y[j].x = vect<float>(1.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
+		X[dim] = simd_float(x[dim]);
 	}
-	for (int j = 0; j < cnt1; j += simd_real::size()) {
+	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int n = 0; n < MP; n++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				M[n][k] = y[j + k].m[n];
 			}
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				Y[dim][k] = y[j + k].x[dim];
 			}
 		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
+		vect<simd_float> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
@@ -584,47 +584,47 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<ireal> &x, std::
 	return (721 + 418 * indices_real.size() + 50 * indices_four.size()) * cnt1 + LP * simd_float::size();
 }
 
-std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<ireal> &x, std::vector<vect<float>> &y) {
+std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<float> &x, std::vector<vect<float>> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
-	static const auto one = simd_real(1.0);
-	static const auto half = simd_real(0.5);
+	static const auto one = simd_float(1.0);
+	static const auto half = simd_float(0.5);
 	std::uint64_t flop = 0;
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_real H(h);
-	static const simd_real H2(h2);
-	vect<simd_real> X, Y;
-	simd_real M;
-	expansion<simd_real> Lacc;
-	Lacc = simd_real(0);
+	static const simd_float H(h);
+	static const simd_float H2(h2);
+	vect<simd_float> X, Y;
+	simd_float M;
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_real::size()) / simd_real::size()) * simd_real::size();
+	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = vect<ireal>(1.0);
+		y[j] = vect<float>(1.0);
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = simd_real(x[dim]);
+		X[dim] = simd_float(x[dim]);
 	}
 	M = m;
-	for (int j = 0; j < cnt1; j += simd_real::size()) {
+	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_real::size(); k++) {
+			for (int k = 0; k < simd_float::size(); k++) {
 				Y[dim][k] = y[j + k][dim];
 			}
 		}
-		if (j + simd_real::size() > cnt1) {
+		if (j + simd_float::size() > cnt1) {
 			for (int k = cnt1; k < cnt2; k++) {
 				M[k - j] = 0.0;
 			}
 		}
-		vect<simd_real> dX = X - Y;             										// 3 OP
+		vect<simd_float> dX = X - Y;             										// 3 OP
 		if (ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto absdx = abs(dX[dim]);										// 3 OP
