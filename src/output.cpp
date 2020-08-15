@@ -15,6 +15,7 @@
 #include <fenv.h>
 
 error compute_error(std::vector<output> test, std::vector<output> direct) {
+	static const auto opts = options::get();
 	error err;
 	std::multiset<double> top_errs;
 	err.err = 0.0;
@@ -32,7 +33,7 @@ error compute_error(std::vector<output> test, std::vector<output> direct) {
 		const auto dg = abs(test[i].g - direct[i].g);
 		const auto gd = abs(test[i].g);
 		const auto this_err = dg / gd;
-		err.g = err.g + test[i].g;
+		err.g = err.g + test[i].g * opts.G / opts.problem_size;
 		err.err += this_err;
 		if (top_errs.size() < test.size() / 100) {
 			top_errs.insert(this_err);
