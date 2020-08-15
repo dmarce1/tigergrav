@@ -48,7 +48,7 @@ bool options::process_options(int argc, char *argv[]) {
 	("code_to_cm", po::value<double>(&code_to_cm)->default_value(4.40811e26), "size of box in centimeters") //
 	("code_to_cm_per_s", po::value<double>(&code_to_cm_per_s)->default_value(3e10), "code time units") //
 	("code_to_g", po::value<double>(&code_to_g)->default_value(1.988e43), "code mass units") //
-	("link_len", po::value<double>(&eta)->default_value(0.2), "linking length paramter") //
+	("link_len", po::value<double>(&link_len)->default_value(0.2), "linking length paramter") //
 	("eta", po::value<double>(&eta)->default_value(0.2), "accuracy parameter") //
 	("soft_len", po::value<double>(&soft_len)->default_value(-1), "softening parameter") //
 	("dt_max", po::value<double>(&dt_max)->default_value(-1), "maximum timestep size") //

@@ -79,7 +79,8 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 			if (dx2 < L2 && dx2 != 0.0) {
 				auto this_id = parts(i).flags.group;
 				if (this_id == DEFAULT_GROUP) {
-					parts(i).flags.group = this_id = i - part_begin;
+					this_id = i - part_begin;
+					parts(i).flags.group = this_id;
 				}
 				if (this_id != other.id) {
 					rc = true;
