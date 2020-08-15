@@ -458,7 +458,8 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 336 + 418 * NREAL + 50 *
 		const T r4 = r2 * r2;					// 1
 		const T r6 = r2 * r4;					// 1
 		const T r = sqrt(r2);					// 1
-		const T rinv = r / (r2 + tiny);			// 2
+		const T mask = r < 3.6;
+		const T rinv = mask * r / (r2 + tiny);			// 2
 		const T r2inv = rinv * rinv;			// 1
 		const T r3inv = r2inv * rinv;			// 1
 		const T r5inv = r2inv * r3inv;			// 1
