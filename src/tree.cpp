@@ -319,6 +319,9 @@ void trash_workspace(workspace &&w) {
 
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
+	static const auto opts = options::get();
+	static const auto h = opts.soft_len;
+	static const float m = opts.m_tot / opts.problem_size;
 	if (level == 0) {
 		reset_node_cache();
 		part_vect_cache_reset();
@@ -333,8 +336,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	L = L << (multi.x - Lcom);
 
-	const auto opts = options::get();
-	const float m = opts.m_tot / opts.problem_size;
 	std::vector<check_item> next_dchecklist;
 	std::vector<check_item> next_echecklist;
 	auto space = get_workspace();
@@ -355,7 +356,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			continue;
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
-		const bool far = dx > (multi.r + c.r) * theta_inv;
+		const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 		if (far) {
 			if (c.opened) {
 				dsource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));
@@ -378,7 +379,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				continue;
 			}
 			const auto dx = ewald_far_separation(multi.x - c.x, multi.r + c.r);
-			const bool far = dx > (multi.r + c.r) * theta_inv;
+			const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 			if (far) {
 				if (c.opened) {
 					esource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));
@@ -464,7 +465,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					continue;
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
-				const bool far = dx > (multi.r + c.r) * theta_inv;
+				const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 				if (c.opened) {
 					dsource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));
 				} else {
@@ -496,7 +497,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 						continue;
 					}
 					const auto dx = ewald_far_separation(multi.x - c.x, multi.r + c.r);
-					const bool far = dx > (multi.r + c.r) * theta_inv;
+					const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 					if (c.opened) {
 						esource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));
 					} else {
@@ -565,6 +566,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 }
 
 bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
+	static const auto opts = options::get();
+	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
 	if (level == 0) {
 		reset_node_cache();
 		part_vect_cache_reset();
@@ -574,7 +577,6 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		return false;
 	}
 
-	const auto opts = options::get();
 	std::vector<check_item> next_checklist;
 	std::vector<hpx::future<node_attr>> futs;
 	std::vector<particle_group_info> sources;
@@ -587,7 +589,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			continue;
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
-		const bool far = dx > (multi.r + c.r) * theta_inv;
+		const bool far = dx > (multi.r + c.r + 2.0 * L) * theta_inv;
 		if (!far) {
 			if (c.is_leaf) {
 				c.opened = true;
@@ -623,7 +625,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 					continue;
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
-				const bool far = dx > (multi.r + c.r) * theta_inv;
+				const bool far = dx > (multi.r + c.r + 2.0 * L) * theta_inv;
 				if (c.opened) {
 					source_futs.push_back(part_vect_read_group(c.pbegin, c.pend));
 				} else if (!far) {

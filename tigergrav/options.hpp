@@ -29,10 +29,12 @@ public:
 	double code_to_cm_per_s;
 	double code_to_s;
 	double code_to_g;
+	double link_len;
 	std::string init_file;
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc & link_len;
 		arc & H0;
 		arc & G;
 		arc & clight;

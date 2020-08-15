@@ -24,15 +24,18 @@ double timer(void) {
 
 kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 	auto start = timer();
+	static const auto opts = options::get();
 	root_ptr.compute_multipoles(mrung, do_out, 0);
 	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
 	if (do_out) {
 		auto tstart = timer();
 		printf( "Finding groups\n");
 		part_vect_init_groups();
+		tree::set_theta(1.0);
 		do {
 		} while (root_ptr.find_groups(root_list,0));
 		groups_reset();
+		tree::set_theta(opts.theta);
 		printf( "Done finding groups in %e seconds\n", timer() - tstart);
 
 	}

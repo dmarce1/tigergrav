@@ -60,7 +60,7 @@ inline particle& parts(part_iter i) {
 
 bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_info> others) {
 	static const auto opts = options::get();
-	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * 0.2;
+	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
 	static const auto L2 = L * L;
 	const auto this_end = std::min(e, part_end);
 	bool rc = false;
