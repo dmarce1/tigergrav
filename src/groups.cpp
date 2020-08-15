@@ -91,6 +91,7 @@ void groups_add_particle1(gmember p) {
 	auto &g = map[p.id];
 	if (g.N == 0) {
 		g.x = p.x;
+		g.N++;
 	} else {
 		auto x0 = p.x / g.N;
 		auto dx = g.x - x0;
@@ -100,8 +101,16 @@ void groups_add_particle1(gmember p) {
 		}
 		x0 += dx;
 		g.x += x0;
+		g.N++;
+		for( int dim = 0; dim < NDIM; dim++) {
+			while( g.x[dim] < 0.0 ) {
+				g.x[dim] += g.N;
+			}
+			while( g.x[dim] > g.N) {
+				g.x[dim] -= g.N;
+			}
+		}
 	}
-	g.N++;
 	g.W += 0.5 * m * p.phi * ainv * opts.G;
 	g.v += p.v * ainv;
 
