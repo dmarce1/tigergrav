@@ -27,12 +27,14 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 	root_ptr.compute_multipoles(mrung, do_out, 0);
 	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
 	if (do_out) {
+		auto tstart = timer();
 		printf( "Finding groups\n");
 		part_vect_init_groups();
 		do {
 		} while (root_ptr.find_groups(root_list,0));
-		printf( "Done finding groups\n");
 		groups_reset();
+		printf( "Done finding groups in %e seconds\n", timer() - tstart);
+
 	}
 //	printf("Multipoles took %e seconds\n", timer() - start);
 	start = timer();

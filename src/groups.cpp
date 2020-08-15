@@ -89,9 +89,20 @@ void groups_add_particle1(gmember p) {
 	static const auto m = opts.m_tot / opts.problem_size;
 	std::lock_guard<mutex_type> lock(mtx);
 	auto &g = map[p.id];
+	if (g.N == 0) {
+		g.x = p.x;
+	} else {
+		auto x0 = p.x / g.N;
+		auto dx = g.x - x0;
+		for (int dim = 0; dim < NDIM; dim++) {
+			const float absdx = std::abs(dx[dim]);
+			dx[dim] = std::copysign(std::min(absdx, (float)1.0 - absdx), dx[dim] * ((float)0.5 - absdx));
+		}
+		x0 += dx;
+		g.x += x0;
+	}
 	g.N++;
 	g.W += 0.5 * m * p.phi * ainv * opts.G;
-	g.x += p.x;
 	g.v += p.v * ainv;
 
 }
@@ -130,7 +141,11 @@ void groups_add_particle2(particle p) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		g.dv[dim] += dv[dim] * dv[dim];
 	}
-	const float r = a * abs(pos_to_double(p.x) - g.x);
+	auto dx = pos_to_double(p.x) - g.x;
+	for (int dim = 0; dim < NDIM; dim++) {
+		dx[dim] = std::min(std::abs(dx[dim]), 1.0 - std::abs(dx[dim]));
+	}
+	const float r = a * dx.dot(dx);
 	g.rmax = std::max(g.rmax, r);
 	g.radii.push_back(r);
 
@@ -155,8 +170,8 @@ void groups_finish2() {
 		for (int dim = 0; dim < NDIM; dim++) {
 			entry.second.dv[dim] = std::sqrt(entry.second.dv[dim]);
 		}
-		auto& radii = entry.second.radii;
-		std::sort(radii.begin(),radii.end());
+		auto &radii = entry.second.radii;
+		std::sort(radii.begin(), radii.end());
 		const int mid = radii.size() / 2 + radii.size() % 1;
 		entry.second.rc = radii[mid];
 		radii = std::vector<float>();

@@ -71,7 +71,10 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 	for (auto i = b; i != this_end; i++) {
 		const vect<float> this_x = pos_to_double(parts(i).x);
 		for (const auto &other : others) {
-			const vect<float> dx = this_x - other.x;
+			vect<float> dx = this_x - other.x;
+			for (int d = 0; d < NDIM; d++) {
+				dx[d] = std::min(std::abs(dx[d]), (float) 1.0 - std::abs(dx[d]));
+			}
 			const auto dx2 = dx.dot(dx);
 			if (dx2 < L2 && dx2 != 0.0) {
 				auto this_id = parts(i).flags.group;
