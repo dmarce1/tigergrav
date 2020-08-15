@@ -7,6 +7,7 @@
 
 #include <tigergrav/options.hpp>
 #include <tigergrav/output.hpp>
+#include <tigergrav/particle.hpp>
 #include <silo.h>
 
 #include <set>
@@ -57,6 +58,7 @@ void output_particles(const std::vector<output> &parts, const std::string filena
 		std::array<std::vector<float>, NDIM> v;
 		std::vector<float> phi;
 		std::vector<int> rung;
+		std::vector<std::uint64_t> group;
 
 		printf( "SILO out\n");
 		for (auto i = parts.begin(); i != parts.end(); i++) {
@@ -64,6 +66,11 @@ void output_particles(const std::vector<output> &parts, const std::string filena
 				x[dim].push_back(i->x[dim]);
 				g[dim].push_back(i->g[dim]);
 				v[dim].push_back(i->v[dim]);
+			}
+			if( i->id == DEFAULT_GROUP) {
+				group.push_back(-1);
+			} else {
+				group.push_back(i->id);
 			}
 			rung.push_back(i->rung);
 			phi.push_back(i->phi);
@@ -82,6 +89,7 @@ void output_particles(const std::vector<output> &parts, const std::string filena
 		}
 		DBPutPointvar1(db, "phi", "points", phi.data(), nparts, DB_FLOAT, NULL);
 		DBPutPointvar1(db, "rung", "points", rung.data(), nparts, DB_INT, NULL);
+		DBPutPointvar1(db, "group_id", "points", group.data(), nparts, DB_LONG_LONG, NULL);
 		DBClose(db);}
 	).join();
 }

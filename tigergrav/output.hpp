@@ -8,6 +8,7 @@ struct output {
 	vect<double> x;
 	vect<float> v;
 	vect<float> g;
+	std::uint64_t id;
 	float phi;
 	int rung;
 	bool operator<(const output &other) {

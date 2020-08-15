@@ -13,6 +13,8 @@
 
 #include <vector>
 
+#define DEFAULT_GROUP ((std::uint64_t) (0xFFFFFFFFFFFFFF))
+
 struct particle {
 	vect<pos_type> x;
 	vect<float> v;

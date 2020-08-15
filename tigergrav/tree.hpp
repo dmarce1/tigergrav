@@ -59,6 +59,7 @@ public:
 	double drift(float dt) const;
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 			rung_type min_rung, bool do_output, int stack_cnt) const;
+	bool find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
 	bool refine(int) const;
 };
 
@@ -157,9 +158,13 @@ public:
 	double drift(float);
 	kick_return kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 			rung_type min_rung, bool do_output, int stack_ccnt);
+
+	bool find_groups(std::vector<check_item> checklist, int stack_ccnt);
+
 	check_item get_check_item() const;//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine); 				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,find_groups);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_check_item);
@@ -193,4 +198,8 @@ inline bool tree_client::refine(int stack_cnt) const {
 inline kick_return tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_output, int stack_cnt) const {
 	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output, stack_cnt);
+}
+
+inline bool tree_client::find_groups(std::vector<check_item> dchecklist, int stack_cnt) const {
+	return tree::find_groups_action()(ptr, std::move(dchecklist), stack_cnt);
 }

@@ -9,7 +9,6 @@
 #define VECT_HPP_
 
 #include <tigergrav/defs.hpp>
-#include <tigergrav/cuda_export.hpp>
 
 #include <array>
 #include <atomic>
@@ -24,33 +23,33 @@ class general_vect {
 	std::array<T, N> v;
 #endif
 public:
-	CUDA_EXPORT general_vect() {
-		for( int d = 0; d < NDIM; d++) {
+	general_vect() {
+		for (int d = 0; d < NDIM; d++) {
 			v[d] = std::numeric_limits<T>::signaling_NaN();
 		}
 	}
-	CUDA_EXPORT general_vect(std::array<T, N> a);
-	CUDA_EXPORT general_vect(T a);
-	CUDA_EXPORT T& operator[](int i);
-	CUDA_EXPORT T operator[](int i) const;
-	CUDA_EXPORT general_vect operator-() const;
-	CUDA_EXPORT general_vect operator-(const general_vect &other) const;
-	CUDA_EXPORT general_vect operator+(const general_vect &other) const;
-	CUDA_EXPORT general_vect operator*(T r) const;
-	CUDA_EXPORT general_vect operator/(T r) const;
-	CUDA_EXPORT general_vect operator-=(const general_vect &other) ;
-	CUDA_EXPORT general_vect operator+=(const general_vect &other) ;
-	CUDA_EXPORT general_vect operator*=(T r);
-	CUDA_EXPORT general_vect operator/=(T r);
-	CUDA_EXPORT bool operator<(const general_vect &other) const;
-	CUDA_EXPORT bool operator<=(const general_vect &other) const;
-	CUDA_EXPORT bool operator>(const general_vect &other) const;
-	CUDA_EXPORT bool operator>=(const general_vect &other) const;
-	CUDA_EXPORT bool operator==(const general_vect &other) const;
-	CUDA_EXPORT bool operator!=(const general_vect &other) const;
-	CUDA_EXPORT T dot(const general_vect &other) const;
+	general_vect(std::array<T, N> a);
+	general_vect(T a);
+	T& operator[](int i);
+	T operator[](int i) const;
+	general_vect operator-() const;
+	general_vect operator-(const general_vect &other) const;
+	general_vect operator+(const general_vect &other) const;
+	general_vect operator*(T r) const;
+	general_vect operator/(T r) const;
+	general_vect operator-=(const general_vect &other);
+	general_vect operator+=(const general_vect &other);
+	general_vect operator*=(T r);
+	general_vect operator/=(T r);
+	bool operator<(const general_vect &other) const;
+	bool operator<=(const general_vect &other) const;
+	bool operator>(const general_vect &other) const;
+	bool operator>=(const general_vect &other) const;
+	bool operator==(const general_vect &other) const;
+	bool operator!=(const general_vect &other) const;
+	T dot(const general_vect &other) const;
 	template<class U>
-	CUDA_EXPORT operator general_vect<U,N>() const;
+	operator general_vect<U,N>() const;
 	template<class Arc>
 	void serialize(Arc &&a, unsigned) {
 		a & v;
@@ -60,16 +59,16 @@ public:
 
 template<class T, int N>
 template<class U>
-CUDA_EXPORT inline general_vect<T,N>::operator general_vect<U,N>() const {
-	general_vect<U,N> a;
-	for( int i = 0; i < N; i++) {
+inline general_vect<T, N>::operator general_vect<U,N>() const {
+	general_vect<U, N> a;
+	for (int i = 0; i < N; i++) {
 		a[i] = (U) v[i];
 	}
 	return a;
 }
 
 template<class T, int N>
-CUDA_EXPORT bool inline general_vect<T, N>::operator<(const general_vect &other) const {
+bool inline general_vect<T, N>::operator<(const general_vect &other) const {
 	for (int n = 0; n < N; n++) {
 		if ((*this)[n] < other[n]) {
 			return true;
@@ -81,27 +80,27 @@ CUDA_EXPORT bool inline general_vect<T, N>::operator<(const general_vect &other)
 }
 
 template<class T, int N>
-CUDA_EXPORT bool inline general_vect<T, N>::operator<=(const general_vect &other) const {
+bool inline general_vect<T, N>::operator<=(const general_vect &other) const {
 	return *this < other || *this == other;
 }
 
 template<class T, int N>
-CUDA_EXPORT bool inline general_vect<T, N>::operator>(const general_vect &other) const {
+bool inline general_vect<T, N>::operator>(const general_vect &other) const {
 	return !(*this <= other);
 }
 
 template<class T, int N>
-CUDA_EXPORT bool inline general_vect<T, N>::operator>=(const general_vect &other) const {
+bool inline general_vect<T, N>::operator>=(const general_vect &other) const {
 	return !(*this < other);
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N>::general_vect(std::array<T, N> a) :
+inline general_vect<T, N>::general_vect(std::array<T, N> a) :
 		v(a) {
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N>::general_vect(T a) {
+inline general_vect<T, N>::general_vect(T a) {
 
 	for (int i = 0; i < N; i++) {
 		v[i] = a;
@@ -109,7 +108,7 @@ CUDA_EXPORT inline general_vect<T, N>::general_vect(T a) {
 }
 
 template<class T, int N>
-CUDA_EXPORT inline bool general_vect<T, N>::operator==(const general_vect<T, N> &other) const {
+inline bool general_vect<T, N>::operator==(const general_vect<T, N> &other) const {
 
 	for (int dim = 0; dim < NDIM; dim++) {
 		if ((*this)[dim] != other[dim]) {
@@ -120,22 +119,22 @@ CUDA_EXPORT inline bool general_vect<T, N>::operator==(const general_vect<T, N> 
 }
 
 template<class T, int N>
-CUDA_EXPORT inline bool general_vect<T, N>::operator!=(const general_vect<T, N> &other) const {
+inline bool general_vect<T, N>::operator!=(const general_vect<T, N> &other) const {
 	return !((*this) == other);
 }
 
 template<class T, int N>
-CUDA_EXPORT inline T& general_vect<T, N>::operator[](int i) {
+inline T& general_vect<T, N>::operator[](int i) {
 	return v[i];
 }
 
 template<class T, int N>
-CUDA_EXPORT inline T general_vect<T, N>::operator[](int i) const {
+inline T general_vect<T, N>::operator[](int i) const {
 	return v[i];
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator-() const {
+inline general_vect<T, N> general_vect<T, N>::operator-() const {
 	general_vect<T, N> result;
 
 	for (int dim = 0; dim < N; dim++) {
@@ -145,7 +144,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator-() const {
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator-(const general_vect<T, N> &other) const {
+inline general_vect<T, N> general_vect<T, N>::operator-(const general_vect<T, N> &other) const {
 	general_vect<T, N> result;
 
 	for (int dim = 0; dim < N; dim++) {
@@ -155,7 +154,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator-(const genera
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator-=(const general_vect<T, N> &other) {
+inline general_vect<T, N> general_vect<T, N>::operator-=(const general_vect<T, N> &other) {
 
 	for (int dim = 0; dim < N; dim++) {
 		v[dim] -= other[dim];
@@ -164,7 +163,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator-=(const gener
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator+=(const general_vect<T, N> &other) {
+inline general_vect<T, N> general_vect<T, N>::operator+=(const general_vect<T, N> &other) {
 
 	for (int dim = 0; dim < N; dim++) {
 		v[dim] += other[dim];
@@ -173,7 +172,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator+=(const gener
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator*=(T r)  {
+inline general_vect<T, N> general_vect<T, N>::operator*=(T r) {
 
 	for (int dim = 0; dim < N; dim++) {
 		v[dim] *= r;
@@ -182,7 +181,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator*=(T r)  {
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator/=(T r)  {
+inline general_vect<T, N> general_vect<T, N>::operator/=(T r) {
 
 	for (int dim = 0; dim < N; dim++) {
 		v[dim] /= r;
@@ -191,7 +190,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator/=(T r)  {
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator+(const general_vect<T, N> &other) const {
+inline general_vect<T, N> general_vect<T, N>::operator+(const general_vect<T, N> &other) const {
 	general_vect<T, N> result;
 
 	for (int dim = 0; dim < N; dim++) {
@@ -201,7 +200,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator+(const genera
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator*(T r) const {
+inline general_vect<T, N> general_vect<T, N>::operator*(T r) const {
 	general_vect<T, N> result;
 
 	for (int dim = 0; dim < N; dim++) {
@@ -211,7 +210,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator*(T r) const {
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator/(T r) const {
+inline general_vect<T, N> general_vect<T, N>::operator/(T r) const {
 	general_vect<T, N> result;
 
 	for (int dim = 0; dim < N; dim++) {
@@ -221,7 +220,7 @@ CUDA_EXPORT inline general_vect<T, N> general_vect<T, N>::operator/(T r) const {
 }
 
 template<class T, int N>
-CUDA_EXPORT inline T general_vect<T, N>::dot(const general_vect<T, N> &other) const {
+inline T general_vect<T, N>::dot(const general_vect<T, N> &other) const {
 	T result = v[0] * other[0];
 
 	for (int dim = 1; dim < N; dim++) {
@@ -231,12 +230,12 @@ CUDA_EXPORT inline T general_vect<T, N>::dot(const general_vect<T, N> &other) co
 }
 
 template<class T, int N>
-CUDA_EXPORT inline T abs(const general_vect<T, N> &v) {
+inline T abs(const general_vect<T, N> &v) {
 	return sqrt(v.dot(v));
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> abs(const general_vect<T, N> &a, const general_vect<T, N> &b) {
+inline general_vect<T, N> abs(const general_vect<T, N> &a, const general_vect<T, N> &b) {
 	general_vect<T, N> c;
 
 	for (int i = 0; i < N; i++) {
@@ -246,7 +245,7 @@ CUDA_EXPORT inline general_vect<T, N> abs(const general_vect<T, N> &a, const gen
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> max(const general_vect<T, N> &a, const general_vect<T, N> &b) {
+inline general_vect<T, N> max(const general_vect<T, N> &a, const general_vect<T, N> &b) {
 	general_vect<T, N> c;
 
 	for (int i = 0; i < N; i++) {
@@ -256,7 +255,7 @@ CUDA_EXPORT inline general_vect<T, N> max(const general_vect<T, N> &a, const gen
 }
 
 template<class T, int N>
-CUDA_EXPORT inline general_vect<T, N> min(const general_vect<T, N> &a, const general_vect<T, N> &b) {
+inline general_vect<T, N> min(const general_vect<T, N> &a, const general_vect<T, N> &b) {
 	general_vect<T, N> c;
 
 	for (int i = 0; i < N; i++) {

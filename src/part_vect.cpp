@@ -3,6 +3,7 @@
 #include <tigergrav/simd.hpp>
 #include <tigergrav/load.hpp>
 #include <tigergrav/cosmo.hpp>
+#include <tigergrav/groups.hpp>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -43,6 +44,8 @@ HPX_PLAIN_ACTION(part_vect_multipole_info);
 HPX_PLAIN_ACTION(part_vect_drift);
 HPX_PLAIN_ACTION(part_vect_read_active_positions);
 HPX_PLAIN_ACTION(part_vect_kick);
+HPX_PLAIN_ACTION(part_vect_init_groups);
+HPX_PLAIN_ACTION(part_vect_find_groups);
 
 inline particle& parts(part_iter i) {
 	const int j = i - part_begin;
@@ -53,6 +56,53 @@ inline particle& parts(part_iter i) {
 	}
 #endif
 	return particles[j];
+}
+
+bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_info> others) {
+	static const auto opts = options::get();
+	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * 0.2;
+	static const auto L2 = L * L;
+	const auto this_end = std::min(e, part_end);
+	bool rc = false;
+	hpx::future<bool> fut;
+	if (this_end != e) {
+		fut = hpx::async<part_vect_find_groups_action>(localities[myid + 1], this_end, e, others);
+	}
+	for (auto i = b; i != this_end; i++) {
+		const vect<float> this_x = pos_to_double(parts(i).x);
+		for (const auto &other : others) {
+			const vect<float> dx = this_x - other.x;
+			const auto dx2 = dx.dot(dx);
+			if (dx2 < L2 && dx2 != 0.0) {
+				auto this_id = parts(i).flags.group;
+				if (this_id == DEFAULT_GROUP) {
+					parts(i).flags.group = this_id = i - part_begin;
+				}
+				if (this_id != other.id) {
+					rc = true;
+					parts(i).flags.group = std::min(this_id, other.id);
+				}
+			}
+		}
+	}
+	if (this_end != e) {
+		const bool other_rc = fut.get();
+		rc = rc || other_rc;
+	}
+	return rc;
+}
+
+void part_vect_init_groups() {
+	std::vector<hpx::future<void>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async<part_vect_init_groups_action>(localities[i]));
+		}
+	}
+	for (auto i = part_begin; i != part_end; i++) {
+		parts(i).flags.group = DEFAULT_GROUP;
+	}
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
 int round_robin(int me, int round, int N) {
@@ -248,6 +298,15 @@ hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {
 	}
 	return hpx::make_ready_future(these_parts);
 }
+
+void part_vect_group_proc1(std::vector<gmember> ps) {
+	for (const auto &p : ps) {
+		groups_add_particle1(p);
+	}
+}
+
+HPX_PLAIN_ACTION(part_vect_group_proc1);
+
 kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &&f) {
 	kick_return rc;
 	const auto opts = options::get();
@@ -257,6 +316,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 	const float a3inv = 1.0 / (scale * scale * scale);
 	const float m = opts.m_tot / opts.problem_size;
 	const float sgn = opts.glass ? -1.0 : 1.0;
+	std::unordered_map<int, std::vector<gmember>> group_proc;
 	rc.rung = 0;
 	part_iter j = 0;
 	rc.stats.zero();
@@ -299,8 +359,20 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				out.v = parts(i).v;
 				out.g = f[j].g;
 				out.phi = f[j].phi;
+				out.id = parts(i).flags.group;
 				out.rung = parts(i).flags.rung;
 				rc.out.push_back(out);
+			}
+			if (do_out) {
+				gmember p(parts(i), f[j].phi);
+				if (p.id != DEFAULT_GROUP) {
+					int proc = part_vect_locality_id(p.id);
+					if (proc == myid) {
+						groups_add_particle1(p);
+					} else {
+						group_proc[proc].push_back(p);
+					}
+				}
 			}
 			j++;
 		}
@@ -317,6 +389,13 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 			rc.rung = std::max(rc.rung, other.rung);
 			rc.out.insert(rc.out.end(), other.out.begin(), other.out.end());
 		}
+	}
+	if (do_out) {
+		std::vector<hpx::future<void>> futs;
+		for (auto &other : group_proc) {
+			futs.push_back(hpx::async<part_vect_group_proc1_action>(localities[other.first], std::move(other.second)));
+		}
+		hpx::wait_all(futs.begin(), futs.end());
 	}
 	return rc;
 }
@@ -533,7 +612,6 @@ inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_it
 	});
 }
 
-
 inline hpx::future<std::vector<particle_group_info>> part_vect_read_group_cache(part_iter b, part_iter e) {
 	const int index = (b / sizeof(particle)) % POS_CACHE_SIZE;
 	std::unique_lock<mutex_type> lock(group_cache_mtx[index]);
@@ -587,7 +665,6 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 	}
 }
 
-
 hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, part_iter e) {
 	if (b >= part_begin && b < part_end) {
 		if (e <= part_end) {
@@ -597,7 +674,7 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 				for (int i = b; i < e; i++) {
 					particle_group_info p;
 					p.x = pos_to_double(parts(i).x);
-					p.id= parts(i).flags.group;
+					p.id = parts(i).flags.group;
 					these_parts.push_back(p);
 				}
 				return these_parts;
@@ -610,7 +687,7 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 				for (int i = b; i < part_end; i++) {
 					particle_group_info p;
 					p.x = pos_to_double(parts(i).x);
-					p.id= parts(i).flags.group;
+					p.id = parts(i).flags.group;
 					these_parts.push_back(p);
 				}
 				auto next_parts = f.get();

@@ -11,6 +11,7 @@
 #include <tigergrav/part_vect.hpp>
 #include <tigergrav/gravity.hpp>
 #include <tigergrav/tree.hpp>
+#include <tigergrav/groups.hpp>
 #include <tigergrav/cosmo.hpp>
 
 #include <algorithm>
@@ -24,12 +25,23 @@ double timer(void) {
 kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 	auto start = timer();
 	root_ptr.compute_multipoles(mrung, do_out, 0);
+	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
+	if (do_out) {
+		printf( "Finding groups\n");
+		part_vect_init_groups();
+		do {
+		} while (root_ptr.find_groups(root_list,0));
+		printf( "Done finding groups\n");
+		groups_reset();
+	}
 //	printf("Multipoles took %e seconds\n", timer() - start);
 	start = timer();
 	expansion<double> L;
 	L = 0.0;
-	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
 	auto rc = root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
+	if( do_out) {
+		groups_finish1();
+	}
 //	printf("fmm took %e seconds\n", timer() - start);
 	return rc;
 }
@@ -174,6 +186,7 @@ int hpx_main(int argc, char *argv[]) {
 		ekin = kr.stats.kin;
 		if (do_out) {
 			output_particles(kr.out, "parts.0.silo");
+			groups_output(0);
 		}
 		dt = rung_to_dt(kr.rung);
 		while (t < opts.t_max) {
@@ -210,15 +223,16 @@ int hpx_main(int argc, char *argv[]) {
 				last_epot = epot;
 				epot = kr.stats.pot;
 				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
+				groups_output(oi-1);
 			}
 			t = time_to_double(itime);
 			dt = rung_to_dt(kr.rung);
 			iter++;
 			if (iter > 10 && opts.glass || t >= opts.t_max) {
 				if (std::abs(epot / last_epot - 1.0) < 5.0e-5 && ekin < 5.0e-11) {
-					printf( "Writing glass file\n");
+					printf("Writing glass file\n");
 					part_vect_write_glass();
-					printf( "Glass file written\n");
+					printf("Glass file written\n");
 					break;
 				}
 			}

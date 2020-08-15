@@ -13,12 +13,14 @@ HPX_REGISTER_MINIMAL_COMPONENT_FACTORY(hpx::components::managed_component<tree>,
 
 using compute_multipoles_action_type = tree::compute_multipoles_action;
 using kick_fmm_action_type = tree::kick_fmm_action;
+using find_groups_action_type = tree::find_groups_action;
 using drift_action_type = tree:: drift_action;
 using get_check_item_action_type = tree::get_check_item_action;
 using refine_action_type = tree::refine_action;
 
 HPX_REGISTER_ACTION(refine_action_type);
 HPX_REGISTER_ACTION(compute_multipoles_action_type);
+HPX_REGISTER_ACTION(find_groups_action_type);
 HPX_REGISTER_ACTION(kick_fmm_action_type);
 HPX_REGISTER_ACTION(drift_action_type);
 HPX_REGISTER_ACTION(get_check_item_action_type);
@@ -183,11 +185,6 @@ bool tree::refine(int stack_cnt) {
 }
 
 multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
-	if (level == 0) {
-		reset_node_cache();
-		part_vect_cache_reset();
-//		printf("compute_multipoles\n");
-	}
 	const auto &opts = options::get();
 	range prange;
 	if (part_end - part_begin == 0) {
@@ -323,7 +320,8 @@ void trash_workspace(workspace &&w) {
 kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<ireal> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	if (level == 0) {
-//		printf("kick_fmm\n");
+		reset_node_cache();
+		part_vect_cache_reset();
 	}
 
 	kick_return rc;
@@ -564,6 +562,97 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	}
 	trash_workspace(std::move(space));
 	return rc;
+}
+
+bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
+	if (level == 0) {
+		reset_node_cache();
+		part_vect_cache_reset();
+	}
+
+	if (part_end - part_begin == 0) {
+		return false;
+	}
+
+	const auto opts = options::get();
+	std::vector<check_item> next_checklist;
+	std::vector<hpx::future<node_attr>> futs;
+	std::vector<particle_group_info> sources;
+	std::vector<hpx::future<std::vector<particle_group_info>>> source_futs;
+
+	next_checklist.reserve(NCHILD * checklist.size());
+
+	for (auto c : checklist) {
+		if (c.pend == c.pbegin) {
+			continue;
+		}
+		const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
+		const bool far = dx > (multi.r + c.r) * theta_inv;
+		if (!far) {
+			if (c.is_leaf) {
+				c.opened = true;
+				next_checklist.push_back(c);
+			} else {
+				futs.push_back(c.node.get_node_attributes());
+			}
+		}
+	}
+	for (auto &f : futs) {
+		auto c = f.get();
+		next_checklist.push_back(c.children[0]);
+		next_checklist.push_back(c.children[1]);
+	}
+	std::swap(checklist, next_checklist);
+	next_checklist.resize(0);
+	if (!is_leaf()) {
+		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
+			return children[0].find_groups(std::move(checklist), stack_cnt);
+		}, true, part_end - part_begin, stack_cnt);
+		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
+			return children[1].find_groups(std::move(checklist), stack_cnt);
+		}, false, part_end - part_begin, stack_cnt);
+		const auto rc_r = rc_r_fut.get();
+		const auto rc_l = rc_l_fut.get();
+		return rc_r || rc_l;
+	} else {
+		source_futs.resize(0);
+		while (!checklist.empty()) {
+			futs.resize(0);
+			for (auto c : checklist) {
+				if (c.pend == c.pbegin) {
+					continue;
+				}
+				const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
+				const bool far = dx > (multi.r + c.r) * theta_inv;
+				if (c.opened) {
+					source_futs.push_back(part_vect_read_group(c.pbegin, c.pend));
+				} else if (!far) {
+					if (c.is_leaf) {
+						c.opened = true;
+						next_checklist.push_back(c);
+					} else {
+						futs.push_back(c.node.get_node_attributes());
+					}
+				}
+
+			}
+			for (auto &f : futs) {
+				auto c = f.get();
+				next_checklist.push_back(c.children[0]);
+				next_checklist.push_back(c.children[1]);
+			}
+			std::swap(checklist, next_checklist);
+			next_checklist.resize(0);
+		}
+		sources.resize(0);
+		for (auto &f : source_futs) {
+			auto v = f.get();
+			for (auto &s : v) {
+				sources.push_back(s);
+			}
+		}
+		return part_vect_find_groups(part_begin, part_end, std::move(sources));
+	}
 }
 
 double tree::drift(float dt) {
