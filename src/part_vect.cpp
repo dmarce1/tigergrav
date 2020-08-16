@@ -349,7 +349,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 	rc.rung = 0;
 	part_iter j = 0;
 	rc.stats.zero();
-	constexpr double glass_drag = 2.0;
+	const double glass_drag = 20.0;
 	for (auto i = b; i != std::min(e, part_end); i++) {
 		rc.stats.p = rc.stats.p + parts(i).v / opts.problem_size / (scale * scale);
 		rc.stats.kin += 0.5 * m * parts(i).v.dot(parts(i).v) / (scale * scale);

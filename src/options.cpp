@@ -125,6 +125,11 @@ bool options::process_options(int argc, char *argv[]) {
 	if (dt_max < 0.0) {
 		dt_max = t_max / 64.0;
 	}
+	if( glass ) {
+		G = 1.0;
+		m_tot = 1.0;
+		cosmic = false;
+	}
 	set(*this);
 	for (int i = 1; i < sz; i++) {
 		futs.push_back(hpx::async<set_options_action>(loc[i], *this));
