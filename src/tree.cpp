@@ -543,7 +543,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				sources.push_back(x);
 			}
 		}
-		flop += gravity_PP_direct(f, x, sources);
+		flop += gravity_PP_direct(f, x, sources, do_out);
 		if (opts.ewald) {
 			multi_srcs.resize(0);
 			for (auto &v : emulti_futs) {

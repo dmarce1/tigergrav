@@ -32,7 +32,7 @@ double ewald_far_separation(const vect<double> x, double r, double l) {
 
 }
 
-std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> &y) {
+std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> &y, bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -81,16 +81,13 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 			}
 
 			vect<simd_float> dX;
-			vect<simd_float> dXimage;
-			for (int dim = 0; dim < NDIM; dim++) {
-				const simd_double dist = simd_double(X[dim] - Y[dim]) * simd_double(POS_INV);
-				dX[dim] = simd_float(dist);             		// 3 OP
-				dXimage[dim] = simd_float(simd_double(1) - abs(dist));
-			}
-			if (ewald) {
+			if (opts.ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					const auto absdx = abs(dX[dim]);																		// 3 OP
-					dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								// 15 OP
+					dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV));
+				}
+			} else {
+				for (int dim = 0; dim < NDIM; dim++) {
+					dX[dim] = simd_float(simd_double(X[dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
 				}
 			}
 			const simd_float r2 = dX.dot(dX);																				// 5 OP
@@ -129,24 +126,26 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 				G[i][dim] -= simd_double(dXM[dim] * (sw1 * f1 + sw2 * f2 + sw3 * f3));  													// 21 OP
 			}
 
-			const simd_float p1 = rinv;
+			if (do_phi) {
+				const simd_float p1 = rinv;
 
-			simd_float p2 = simd_float(16.0 / 5.0);
-			p2 -= simd_float(1.0 / 15.0) * hor;																				// 2
-			p2 -= simd_float(32.0 / 3.0) * roh2;																			// 2
-			p2 += simd_float(16.0) * roh3;																					// 1
-			p2 -= simd_float(48.0 / 5.0) * roh4;																			// 2
-			p2 += simd_float(32.0 / 5.0) * roh5;																			// 2
-			p2 *= Hinv;																										// 1
+				simd_float p2 = simd_float(16.0 / 5.0);
+				p2 -= simd_float(1.0 / 15.0) * hor;																				// 2
+				p2 -= simd_float(32.0 / 3.0) * roh2;																			// 2
+				p2 += simd_float(16.0) * roh3;																					// 1
+				p2 -= simd_float(48.0 / 5.0) * roh4;																			// 2
+				p2 += simd_float(32.0 / 5.0) * roh5;																			// 2
+				p2 *= Hinv;																										// 1
 
-			simd_float p3 = simd_float(14.0 / 15.0);
-			p3 -= simd_float(16.0 / 3.0) * roh2;																			// 2
-			p3 += simd_float(48.0 / 5.0) * roh4;																			// 2
-			p3 -= simd_float(32.0 / 5.0) * roh5;																			// 2
-			p3 *= Hinv;																										// 1
+				simd_float p3 = simd_float(14.0 / 15.0);
+				p3 -= simd_float(16.0 / 3.0) * roh2;																			// 2
+				p3 += simd_float(48.0 / 5.0) * roh4;																			// 2
+				p3 -= simd_float(32.0 / 5.0) * roh5;																			// 2
+				p3 *= Hinv;																										// 1
 
-			const auto tmp = M * zero_mask; 	            																// 1 OP
-			Phi[i] -= simd_double((sw1 * p1 + sw2 * p2 + sw3 * p3) * tmp);		        												// 7 OP
+				const auto tmp = M * zero_mask; 	            																// 1 OP
+				Phi[i] -= simd_double((sw1 * p1 + sw2 * p2 + sw3 * p3) * tmp);		        												// 7 OP
+			}
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
@@ -409,15 +408,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			}
 
 			vect<simd_float> dX0;
-			vect<simd_float> dXimage;
 			for (int dim = 0; dim < NDIM; dim++) {
-				const simd_double dist = simd_double(X[dim] - Y[dim]) * simd_double(POS_INV);
-				dX0[dim] = simd_float(dist);             		// 3 OP
-				dXimage[dim] = simd_float(simd_double(1) - abs(dist));
-			}
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto absdx = abs(dX0[dim]);																		// 3 OP
-				dX0[dim] = copysign(min(absdx, dXimage[dim]), dX0[dim] * (half - absdx));  								// 15 OP
+				dX0[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV));
 			}
 			constexpr int nmax = 2;
 			constexpr int hmax = 2;
