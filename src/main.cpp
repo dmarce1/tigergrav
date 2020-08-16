@@ -64,8 +64,8 @@ int hpx_main(int argc, char *argv[]) {
 	options opts;
 	opts.process_options(argc, argv);
 
-	float tau_max;
-	float dtau_out;
+	double tau_max;
+	double dtau_out;
 	if (opts.cosmic) {
 		cosmos cinit;
 		cinit.advance_to_scale(1.0 / (1.0 + opts.z0));
@@ -132,12 +132,12 @@ int hpx_main(int argc, char *argv[]) {
 
 		tstart = timer();
 
-		float pec_energy = 0.0;
+		double pec_energy = 0.0;
 		double etot0;
-		float last_ekin;
-		float ekin;
-		float epot;
-		float last_epot;
+		double last_ekin;
+		double ekin;
+		double epot;
+		double last_epot;
 		bool do_out = true;
 		bool first_show = true;
 		double z = 1.0 / cosmo_scale().second - 1.0;

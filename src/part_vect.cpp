@@ -69,11 +69,11 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 		fut = hpx::async<part_vect_find_groups_action>(localities[myid + 1], this_end, e, others);
 	}
 	for (auto i = b; i != this_end; i++) {
-		const vect<float> this_x = pos_to_double(parts(i).x);
+		const vect<double> this_x = pos_to_double(parts(i).x);
 		for (const auto &other : others) {
-			vect<float> dx = this_x - other.x;
+			vect<double> dx = this_x - other.x;
 			for (int d = 0; d < NDIM; d++) {
-				dx[d] = std::min(std::abs(dx[d]), (float) 1.0 - std::abs(dx[d]));
+				dx[d] = std::min(std::abs(dx[d]), (double) 1.0 - std::abs(dx[d]));
 			}
 			const auto dx2 = dx.dot(dx);
 			if (dx2 < L2 && dx2 != 0.0) {
@@ -123,8 +123,8 @@ int round_robin(int me, int round, int N) {
 	}
 }
 
-void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, int dim);
-std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid, float xmid, int dim, std::vector<particle>);
+void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, int dim);
+std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid, double xmid, int dim, std::vector<particle>);
 
 HPX_PLAIN_ACTION(part_vect_sort_begin);
 HPX_PLAIN_ACTION(part_vect_sort_end);
@@ -158,12 +158,12 @@ void part_vect_write_glass() {
 	fwrite(&dummy, sizeof(dummy), 1, fp);
 	fwrite(&header, sizeof(header), 1, fp);
 	fwrite(&dummy, sizeof(dummy), 1, fp);
-	dummy = N * NDIM * sizeof(float);
+	dummy = N * NDIM * sizeof(double);
 	fwrite(&dummy, sizeof(dummy), 1, fp);
 	for (int i = 0; i < N; i++) {
-		vect<float> x = pos_to_double(parts(i).x);
+		vect<double> x = pos_to_double(parts(i).x);
 		for (int d = 0; d < NDIM; d++) {
-			fwrite(&(x[d]), sizeof(float), 1, fp);
+			fwrite(&(x[d]), sizeof(double), 1, fp);
 		}
 	}
 	fwrite(&dummy, sizeof(dummy), 1, fp);
@@ -172,7 +172,7 @@ void part_vect_write_glass() {
 
 }
 
-void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, int dim) {
+void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, int dim) {
 	static const auto opts = options::get();
 	if (b == mid || e == mid) {
 //		printf("%i %i %i\n", b, mid, e);
@@ -230,7 +230,7 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, float xmid, i
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid, float xmid, int dim, std::vector<particle> low) {
+std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid, double xmid, int dim, std::vector<particle> low) {
 	std::lock_guard<mutex_type> lock(sort_mutex);
 	int j = 0;
 	for (part_iter i = std::max(mid, part_begin); i < std::min(part_end, e); i++) {
@@ -314,24 +314,24 @@ HPX_PLAIN_ACTION(part_vect_group_proc1);
 kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &&f) {
 	kick_return rc;
 	const auto opts = options::get();
-	const float eps = 10.0 * std::numeric_limits<float>::min();
-	const float scale = opts.cosmic ? cosmo_scale().first : 1.0;
-	const float ainv = 1.0 / (scale);
-	const float a3inv = 1.0 / (scale * scale * scale);
-	const float m = opts.m_tot / opts.problem_size;
-	const float sgn = opts.glass ? -1.0 : 1.0;
+	const double eps = 10.0 * std::numeric_limits<double>::min();
+	const double scale = opts.cosmic ? cosmo_scale().first : 1.0;
+	const double ainv = 1.0 / (scale);
+	const double a3inv = 1.0 / (scale * scale * scale);
+	const double m = opts.m_tot / opts.problem_size;
+	const double sgn = opts.glass ? -1.0 : 1.0;
 	std::unordered_map<int, std::vector<gmember>> group_proc;
 	rc.rung = 0;
 	part_iter j = 0;
 	rc.stats.zero();
-	constexpr float glass_drag = 2.0;
+	constexpr double glass_drag = 2.0;
 	for (auto i = b; i != std::min(e, part_end); i++) {
 		rc.stats.p = rc.stats.p + parts(i).v / opts.problem_size / (scale * scale);
 		rc.stats.kin += 0.5 * m * parts(i).v.dot(parts(i).v) / (scale * scale);
 		if (parts(i).flags.rung >= min_rung || do_out) {
 			if (parts(i).flags.rung >= min_rung) {
 				if (parts(i).flags.rung != 0) {
-					const float dt = rung_to_dt(parts(i).flags.rung);
+					const double dt = rung_to_dt(parts(i).flags.rung);
 					const auto dt1 = opts.cosmic ? cosmo_kick_dt1(parts(i).flags.rung) : 0.5 * dt;
 					auto &v = parts(i).v;
 					v = v + f[j].g * (dt1 * sgn * opts.G);
@@ -339,8 +339,8 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 						v = v / (1.0 + glass_drag * dt1);
 					}
 				}
-				const float a = abs(f[j].g * opts.G) * a3inv;
-				float dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
+				const double a = abs(f[j].g * opts.G) * a3inv;
+				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
 				rung_type rung = dt_to_rung(dt);
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
@@ -459,7 +459,7 @@ std::vector<vect<pos_type>> part_vect_read_active_positions(part_iter b, part_it
 	return x;
 }
 
-double part_vect_drift(float dt) {
+double part_vect_drift(double dt) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
 	std::vector<hpx::future<double>> futs;
@@ -503,16 +503,16 @@ double part_vect_drift(float dt) {
 	return ekin;
 }
 
-std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e) {
+std::pair<double, vect<double>> part_vect_center_of_mass(part_iter b, part_iter e) {
 	static const auto m = options::get().m_tot / options::get().problem_size;
-	std::pair<float, vect<float>> rc;
-	hpx::future<std::pair<float, vect<float>>> fut;
+	std::pair<double, vect<double>> rc;
+	hpx::future<std::pair<double, vect<double>>> fut;
 	if (e > part_end) {
 		fut = hpx::async<part_vect_center_of_mass_action>(localities[myid + 1], part_end, e);
 	}
 	const auto this_end = std::min(part_end, e);
 	rc.first = 0.0;
-	rc.second = vect<float>(0.0);
+	rc.second = vect<double>(0.0);
 	for (part_iter i = b; i < this_end; i++) {
 		rc.first += m;
 		rc.second += pos_to_double(parts(i).x) * m;
@@ -528,7 +528,7 @@ std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e)
 	return rc;
 }
 
-multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_iter b, part_iter e) {
+multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_iter b, part_iter e) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
 	multipole_info rc;
@@ -540,13 +540,13 @@ multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_i
 	rc.m = 0.0;
 	rc.x = com;
 	multipole<simd_float> M;
-	vect<simd_float> Xcom;
+	vect<simd_double> Xcom;
 	M = simd_float(0.0);
 	for (int dim = 0; dim < NDIM; dim++) {
-		Xcom[dim] = simd_float(com[dim]);
+		Xcom[dim] =com[dim];
 	}
 	for (part_iter i = b; i < this_end; i += simd_float::size()) {
-		vect<simd_float> X;
+		vect<simd_double> X;
 		simd_float mass;
 		for (int k = 0; k < simd_float::size(); k++) {
 			if (i + k < this_end) {
@@ -561,7 +561,10 @@ multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_i
 				mass[k] = 0.0;
 			}
 		}
-		const auto dx = X - Xcom;
+		vect<simd_float> dx;
+		for( int dim = 0; dim < NDIM; dim++) {
+			dx[dim] = simd_float(X[dim] - Xcom[dim]);
+		}
 		M() += mass;													// 1 OP
 		for (int j = 0; j < NDIM; j++) {
 			for (int k = 0; k <= j; k++) {
@@ -579,7 +582,7 @@ multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_i
 	rc.r = 0.0;
 	rc.has_active = false;
 	for (part_iter i = b; i < this_end; i++) {
-		rc.r = std::max(rc.r, (float) abs(pos_to_double(parts(i).x) - rc.x)); // 12 OP
+		rc.r = std::max(rc.r, abs(pos_to_double(parts(i).x) - rc.x)); // 12 OP
 		if (parts(i).flags.rung >= mrung) {
 			rc.has_active = true;
 		}

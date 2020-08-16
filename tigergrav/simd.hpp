@@ -493,10 +493,10 @@ public:
 		return *this;
 	}
 	inline double& operator[](std::size_t i) {
-		return a[i / SIMD_VLEN][i % SIMD_VLEN];
+		return (reinterpret_cast<double*>(&a))[i];
 	}
 	inline int operator[](std::size_t i) const {
-		return a[i / SIMD_VLEN][i % SIMD_VLEN];
+		return (reinterpret_cast<const double*>(&a))[i];
 	}
 
 }SIMDALIGN;

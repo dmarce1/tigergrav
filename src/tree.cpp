@@ -33,7 +33,7 @@ HPX_REGISTER_COMPONENT(hpx::components::managed_component<tree>, tree);
 #define MAX_STACK 8
 
 std::atomic<std::uint64_t> tree::flop(0);
-float tree::theta_inv;
+double tree::theta_inv;
 
 void reset_node_cache();
 
@@ -87,7 +87,7 @@ inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
 
 HPX_PLAIN_ACTION(tree::set_theta, set_theta_action);
 
-void tree::set_theta(float t) {
+void tree::set_theta(double t) {
 	set_theta_action action;
 	theta_inv = 1.0 / t;
 	localities = hpx::find_all_localities();
@@ -134,7 +134,7 @@ bool tree::refine(int stack_cnt) {
 //	}
 
 	if (part_end - part_begin > opts.parts_per_node && is_leaf()) {
-		float max_span = 0.0;
+		double max_span = 0.0;
 		range prange;
 		// Don't bother choosing a particular bisection plane when lots of particles
 		if (part_end - part_begin > 512 * opts.parts_per_node) {
@@ -153,7 +153,7 @@ bool tree::refine(int stack_cnt) {
 		}
 		range boxl = box;
 		range boxr = box;
-		float mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
+		double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
 		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		part_iter mid_iter;
 		if (part_end - part_begin == 0) {
@@ -228,14 +228,14 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
 			prange.min[dim] = std::min(ml.r.min[dim], mr.r.min[dim]);
 		}
-		float rmax = abs(multi.x - vect<float>( { (float) prange.min[0], (float) prange.min[1], (float) prange.min[2] }));
-		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.max[0], (float) prange.min[1], (float) prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.min[0], (float) prange.max[1], (float) prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.max[0], (float) prange.max[1], (float) prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.min[0], (float) prange.min[1], (float) prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.max[0], (float) prange.min[1], (float) prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.min[0], (float) prange.max[1], (float) prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<float>( { (float) prange.max[0], (float) prange.max[1], (float) prange.max[2] })));
+		double rmax = abs(multi.x - vect<double>( {  prange.min[0],  prange.min[1],  prange.min[2] }));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.min[1],  prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.min[0],  prange.max[1],  prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.max[1],  prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.min[0],  prange.min[1],  prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.min[1],  prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.min[0],  prange.max[1],  prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.max[1],  prange.max[2] })));
 		multi.r = std::min(multi.r, rmax);
 		child_check[0] = ml.c;
 		child_check[1] = mr.c;
@@ -317,11 +317,11 @@ void trash_workspace(workspace &&w) {
 	workspaces.push(std::move(w));
 }
 
-kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<float> &Lcom, expansion<double> L,
+kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
-	static const float m = opts.m_tot / opts.problem_size;
+	static const double m = opts.m_tot / opts.problem_size;
 	if (level == 0) {
 		reset_node_cache();
 		part_vect_cache_reset();
@@ -526,7 +526,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		std::vector<force> f(x.size());
 		int j = 0;
 		for (auto i = x.begin(); i != x.end(); i++) {
-			force this_f = L.translate_L2(pos_to_double(x[j]) - multi.x);
+			force this_f = L.translate_L2(vect<float>(pos_to_double(x[j]) - multi.x));
 			f[j].phi = this_f.phi;
 			f[j].g = this_f.g;
 			j++;
@@ -657,7 +657,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	}
 }
 
-double tree::drift(float dt) {
+double tree::drift(double dt) {
 	return part_vect_drift(dt);
 }
 

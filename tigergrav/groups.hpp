@@ -6,18 +6,18 @@ struct group {
 	int N;
 	float W;
 	float T;
-	float rmax;
-	float rc;
-	vect<float> x;
+	double rmax;
+	double rc;
+	vect<double> x;
 	vect<float> v;
 	vect<float> dv;
-	std::vector<float> radii;
+	std::vector<double> radii;
 	group() {
 		N = 0;
 		W = 0.0;
 		T = 0.0;
 		rmax = 0.0;
-		x = vect<float>(0.0);
+		x = vect<double>(0.0);
 		v = vect<float>(0.0);
 		dv = vect<float>(0.0);
 	}
