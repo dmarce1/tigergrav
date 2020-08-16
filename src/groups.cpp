@@ -152,7 +152,7 @@ void groups_add_particle2(particle p) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		dx[dim] = std::min(std::abs(dx[dim]), 1.0 - std::abs(dx[dim]));
 	}
-	const double r = a * dx.dot(dx);
+	const double r = a * abs(dx);
 	g.rmax = std::max(g.rmax, (float) r);
 	g.radii.push_back(r);
 
