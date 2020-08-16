@@ -620,8 +620,8 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		}, false, part_end - part_begin, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
-		child_check[0].flags.group_active = rc_r;
-		child_check[1].flags.group_active = rc_l;
+		child_check[0].flags.group_active = rc_l;
+		child_check[1].flags.group_active = rc_r;
 		group_active = rc_r || rc_l;
 		return group_active;
 	} else {
