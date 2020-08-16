@@ -34,6 +34,9 @@ static mutex_type pos_cache_mtx[POS_CACHE_SIZE];
 static std::unordered_map<part_iter, hpx::shared_future<std::vector<particle_group_info>>> group_cache[POS_CACHE_SIZE];
 static mutex_type group_cache_mtx[POS_CACHE_SIZE];
 
+#define GROUP_MTX_SIZE ((std::uint64_t) 1024)
+static mutex_type group_mtx[GROUP_MTX_SIZE];
+
 HPX_PLAIN_ACTION(part_vect_init);
 HPX_PLAIN_ACTION(part_vect_read_position);
 HPX_PLAIN_ACTION(part_vect_read_group);
@@ -89,6 +92,8 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 //		}
 //	}
 
+	int mtx_index = b % GROUP_MTX_SIZE;
+	std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
 	for (auto i = b; i != this_end; i++) {
 		for (const auto &other : others) {
 			vect<float> dx;
@@ -323,7 +328,7 @@ hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e) {
 	return hpx::make_ready_future(these_parts);
 }
 
-void part_vect_group_proc1(std::vector<gmember> ps) {
+void part_vect_group_proc1(std::vector<particle> ps) {
 	for (const auto &p : ps) {
 		groups_add_particle1(p);
 	}
@@ -340,7 +345,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 	const double a3inv = 1.0 / (scale * scale * scale);
 	const double m = opts.m_tot / opts.problem_size;
 	const double sgn = opts.glass ? -1.0 : 1.0;
-	std::unordered_map<int, std::vector<gmember>> group_proc;
+	std::unordered_map<int, std::vector<particle>> group_proc;
 	rc.rung = 0;
 	part_iter j = 0;
 	rc.stats.zero();
@@ -388,9 +393,9 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				rc.out.push_back(out);
 			}
 			if (do_out) {
-				gmember p(parts(i), f[j].phi);
-				if (p.id != DEFAULT_GROUP) {
-					int proc = part_vect_locality_id(p.id);
+				particle p = parts(i);
+				if (p.flags.group != DEFAULT_GROUP) {
+					int proc = part_vect_locality_id(p.flags.group);
 					if (proc == myid) {
 						groups_add_particle1(p);
 					} else {
@@ -729,8 +734,10 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 
 hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, part_iter e) {
 	if (b >= part_begin && b < part_end) {
+		const int mtx_index = b % GROUP_MTX_SIZE;
 		if (e <= part_end) {
 			return hpx::async(hpx::launch::deferred, [=]() {
+				std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
 				std::vector<particle_group_info> these_parts;
 				these_parts.reserve(e - b);
 				for (int i = b; i < e; i++) {
@@ -744,10 +751,12 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 		} else {
 			auto fut = part_vect_read_group_cache(part_end, e);
 			return hpx::async(hpx::launch::deferred, [=](decltype(fut) f) {
+				std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
 				std::vector<particle_group_info> these_parts;
 				these_parts.reserve(e - b);
 				for (int i = b; i < part_end; i++) {
 					particle_group_info p;
+					const int mtx_index = parts(i).flags.group % GROUP_MTX_SIZE;
 					p.x = parts(i).x;
 					p.id = parts(i).flags.group;
 					these_parts.push_back(p);

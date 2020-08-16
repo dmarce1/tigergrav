@@ -16,8 +16,9 @@
 
 using mutex_type = hpx::lcos::local::spinlock;
 
-std::unordered_map<std::uint64_t, group> map;
-mutex_type mtx;
+#define NMAP ((std::uint64_t)1024)
+std::unordered_map<std::uint64_t, group> map[NMAP];
+mutex_type mtx[NMAP];
 
 static std::vector<hpx::id_type> localities;
 static int myid = -1;
@@ -48,14 +49,15 @@ void groups_output(int oi) {
 		abort();
 	}
 	bool found_some = false;
-	for (const auto &entry : map) {
-		const auto &g = entry.second;
-		if (g.N >= 10 && g.T + g.W < 0.0) {
-			const auto verr = (2.0 * g.T + g.W) / (g.T + std::abs(g.W));
-			const auto vdisp = abs(g.dv);
-			const auto v = abs(g.v);
-			fprintf(fp, "%16li %5i %12e %12e %12e %12e %12e %12e %12e\n", entry.first, g.N, g.rmax, g.rc, g.T, g.W, verr, v, vdisp);
-			found_some = true;
+	for (int m = 0; m < NMAP; m++) {
+		for (const auto &entry : map[m]) {
+			const auto &g = entry.second;
+			if (g.N >= 10) {
+				const auto vdisp = abs(g.dv);
+				const auto v = abs(g.v);
+				fprintf(fp, "%16li %5i %12e %12e %12e %12e\n", entry.first, g.N, g.rmax, g.rc, v, vdisp);
+				found_some = true;
+			}
 		}
 	}
 	if (!found_some) {
@@ -76,19 +78,21 @@ void groups_reset() {
 			futs.push_back(hpx::async<groups_reset_action>(localities[i]));
 		}
 	}
-
-	map.clear();
+	for (int m = 0; m < NMAP; m++) {
+		map[m].clear();
+	}
 	a = cosmo_scale().second;
 	ainv = 1.0 / a;
 	ainv2 = ainv * ainv;
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-void groups_add_particle1(gmember p) {
+void groups_add_particle1(particle p) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
-	std::lock_guard<mutex_type> lock(mtx);
-	auto &g = map[p.id];
+	const int map_index = p.flags.group % NMAP;
+	std::lock_guard<mutex_type> lock(mtx[map_index]);
+	auto &g = map[map_index][p.flags.group];
 	if (g.N == 0) {
 		g.x = pos_to_double(p.x);
 		g.N++;
@@ -109,7 +113,6 @@ void groups_add_particle1(gmember p) {
 			}
 		}
 	}
-	g.W += 0.5 * m * p.phi * ainv * opts.G;
 	g.v += p.v * ainv;
 
 }
@@ -125,14 +128,12 @@ void groups_finish1() {
 			futs.push_back(hpx::async<groups_finish1_action>(localities[i]));
 		}
 	}
-
-	for (auto &entry : map) {
-		const auto N = entry.second.N;
-		entry.second.x /= N;
-		entry.second.v /= N;
-		entry.second.T /= N;
-		entry.second.W /= N;
-
+	for (int m = 0; m < NMAP; m++) {
+		for (auto &entry : map[m]) {
+			const auto N = entry.second.N;
+			entry.second.x /= N;
+			entry.second.v /= N;
+		}
 	}
 
 	hpx::wait_all(futs.begin(), futs.end());
@@ -141,10 +142,10 @@ void groups_finish1() {
 void groups_add_particle2(particle p) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
-	std::lock_guard<mutex_type> lock(mtx);
-	auto &g = map[p.flags.group];
+	const int map_index = p.flags.group % NMAP;
+	std::lock_guard<mutex_type> lock(mtx[map_index]);
+	auto &g = map[map_index][p.flags.group];
 	const auto dv = (p.v * ainv - g.v);
-	g.T += 0.5 * m * dv.dot(dv);
 	for (int dim = 0; dim < NDIM; dim++) {
 		g.dv[dim] += dv[dim] * dv[dim];
 	}
@@ -170,18 +171,19 @@ void groups_finish2() {
 		}
 	}
 
-	for (auto &entry : map) {
-		const auto N = entry.second.N;
-		entry.second.T /= N;
-		entry.second.dv /= N;
-		for (int dim = 0; dim < NDIM; dim++) {
-			entry.second.dv[dim] = std::sqrt(entry.second.dv[dim]);
+	for (int m = 0; m < NMAP; m++) {
+		for (auto &entry : map[m]) {
+			const auto N = entry.second.N;
+			entry.second.dv /= N;
+			for (int dim = 0; dim < NDIM; dim++) {
+				entry.second.dv[dim] = std::sqrt(entry.second.dv[dim]);
+			}
+			auto &radii = entry.second.radii;
+			std::sort(radii.begin(), radii.end());
+			const int mid = radii.size() / 2 + radii.size() % 1;
+			entry.second.rc = radii[mid];
+			radii = std::vector<float>();
 		}
-		auto &radii = entry.second.radii;
-		std::sort(radii.begin(), radii.end());
-		const int mid = radii.size() / 2 + radii.size() % 1;
-		entry.second.rc = radii[mid];
-		radii = std::vector<float>();
 	}
 
 	hpx::wait_all(futs.begin(), futs.end());
