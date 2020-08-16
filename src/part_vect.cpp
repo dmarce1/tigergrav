@@ -627,6 +627,7 @@ void part_vect_cache_reset() {
 	}
 	for (int i = 0; i < POS_CACHE_SIZE; i++) {
 		pos_cache[i].clear();
+		group_cache[i].clear();
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 }
