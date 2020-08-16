@@ -27,7 +27,7 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 	static const auto opts = options::get();
 	root_ptr.compute_multipoles(mrung, do_out, 0);
 	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
-	if (do_out && ! opts.solver_test) {
+	if (do_out && opts.groups) {
 		auto tstart = timer();
 		printf( "Finding groups\n");
 		part_vect_init_groups();
@@ -45,7 +45,7 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 	expansion<double> L;
 	L = 0.0;
 	auto rc = root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
-	if( do_out&& ! opts.solver_test) {
+	if( do_out && opts.groups) {
 		groups_finish1();
 		part_vect_find_groups2();
 		groups_finish2();
