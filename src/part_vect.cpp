@@ -68,6 +68,27 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 	if (this_end != e) {
 		fut = hpx::async<part_vect_find_groups_action>(localities[myid + 1], this_end, e, others);
 	}
+//	const int cnt1 = others.size();
+//	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
+//	others.resize(cnt2);
+//	for (int i = cnt1; cnt1 < cnt2; i++) {
+//		others[i] = others[cnt1 - 1];
+//	}
+//	for (int j = 0; j < cnt2; j += simd_float::size()) {
+//		simd_int Y, X;
+//		for (int k = 0; k < simd_float::size(); k++) {
+//			Y[k] = others[j + k].x;
+//		}
+//		for (int i = b; i != this_end; i++) {
+//			X = simd_int(parts(i).x);
+//			simd_float dx = simd_float((X - Y) * simd_double(POSINV));
+//			dx = abs(dx);
+//			for( int dim = 0; dim < NDIM; dim++) {
+//				dx[dim] = min(dx[dim], simd_float(1) - dx[dim]);
+//			}
+//		}
+//	}
+
 	for (auto i = b; i != this_end; i++) {
 		const vect<double> this_x = pos_to_double(parts(i).x);
 		for (const auto &other : others) {
@@ -543,7 +564,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 	vect<simd_double> Xcom;
 	M = simd_float(0.0);
 	for (int dim = 0; dim < NDIM; dim++) {
-		Xcom[dim] =com[dim];
+		Xcom[dim] = com[dim];
 	}
 	for (part_iter i = b; i < this_end; i += simd_float::size()) {
 		vect<simd_double> X;
@@ -562,7 +583,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 			}
 		}
 		vect<simd_float> dx;
-		for( int dim = 0; dim < NDIM; dim++) {
+		for (int dim = 0; dim < NDIM; dim++) {
 			dx[dim] = simd_float(X[dim] - Xcom[dim]);
 		}
 		M() += mass;													// 1 OP
@@ -727,7 +748,7 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 				these_parts.reserve(e - b);
 				for (int i = b; i < part_end; i++) {
 					particle_group_info p;
-					p.x =parts(i).x;
+					p.x = parts(i).x;
 					p.id = parts(i).flags.group;
 					these_parts.push_back(p);
 				}

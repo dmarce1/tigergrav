@@ -31,6 +31,7 @@
 #define _mmx_sqrt_ps(a)             _mm512_sqrt_ps(a)
 #define _mmx_min_ps(a, b)           _mm512_min_ps((a),(b))
 #define _mmx_max_ps(a, b)           _mm512_max_ps((a),(b))
+#define _mmx_max_pd(a, b)           _mm512_max_pd((a),(b))
 #define _mmx_or_ps(a, b)            _mm512_or_ps((a),(b))
 #define _mmx_and_ps(a, b)           _mm512_and_ps((a),(b))
 #define _mmx_andnot_ps(a, b)        _mm512_andnot_ps((a),(b))
@@ -60,6 +61,7 @@
 #define _mmx_sqrt_ps(a)             _mm256_sqrt_ps(a)
 #define _mmx_min_ps(a, b)           _mm256_min_ps((a),(b))
 #define _mmx_max_ps(a, b)           _mm256_max_ps((a),(b))
+#define _mmx_max_pd(a, b)           _mm256_max_pd((a),(b))
 #define _mmx_or_ps(a, b)            _mm256_or_ps((a),(b))
 #define _mmx_and_ps(a, b)           _mm256_and_ps((a),(b))
 #define _mmx_andnot_ps(a, b)        _mm256_andnot_ps((a),(b))
@@ -89,6 +91,7 @@
 #define _mmx_sqrt_ps(a)             _mm_sqrt_ps(a)
 #define _mmx_min_ps(a, b)           _mm_min_ps((a),(b))
 #define _mmx_max_ps(a, b)           _mm_max_ps((a),(b))
+#define _mmx_max_pd(a, b)           _mm_max_pd((a),(b))
 #define _mmx_or_ps(a, b)            _mm_or_ps((a),(b))
 #define _mmx_and_ps(a, b)           _mm_and_ps((a),(b))
 #define _mmx_andnot_ps(a, b)        _mm_andnot_ps((a),(b))
@@ -527,6 +530,10 @@ public:
 		return (reinterpret_cast<const double*>(&a))[i];
 	}
 
+	friend simd_double max(const simd_double &a, const simd_double &b);
+	friend simd_double abs(const simd_double &a);
+
+
 }SIMDALIGN;
 
 inline simd_float two_pow(const simd_float &r) {											// 21
@@ -711,6 +718,12 @@ inline simd_float operator/(float d, const simd_float &other) {
 	const simd_float a = d;
 	return a / other;
 }
+inline simd_float min(const simd_float &a, const simd_float &b) {
+	simd_float r;
+	r.v = _mmx_min_ps(a.v, b.v);
+	return r;
+}
+
 
 inline simd_float max(const simd_float &a, const simd_float &b) {
 	simd_float r;
@@ -718,13 +731,22 @@ inline simd_float max(const simd_float &a, const simd_float &b) {
 	return r;
 }
 
-inline simd_float min(const simd_float &a, const simd_float &b) {
-	simd_float r;
-	r.v = _mmx_min_ps(a.v, b.v);
+
+inline simd_float abs(const simd_float &a) {
+	return max(a, -a);
+}
+
+
+
+inline simd_double max(const simd_double& c, const simd_double &b) {
+	simd_double r;
+	r.a[0] = _mmx_max_pd(c.a[0], b.a[0]);
+	r.a[1] = _mmx_max_pd(c.a[1], b.a[1]);
 	return r;
 }
 
-inline simd_float abs(const simd_float &a) {
+
+inline simd_double abs(const simd_double &a) {
 	return max(a, -a);
 }
 
