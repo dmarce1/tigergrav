@@ -438,16 +438,16 @@ void part_vect_find_groups2() {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-std::vector<vect<float>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung) {
-	std::vector<vect<float>> x;
-	hpx::future<std::vector<vect<float>>> fut;
+std::vector<vect<pos_type>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung) {
+	std::vector<vect<pos_type>> x;
+	hpx::future<std::vector<vect<pos_type>>> fut;
 	x.reserve(e - b);
 	if (e > part_end) {
 		fut = hpx::async<part_vect_read_active_positions_action>(localities[myid + 1], part_end, e, rung);
 	}
 	for (part_iter i = b; i < std::min(e, part_end); i++) {
 		if (parts(i).flags.rung >= rung) {
-			x.push_back(pos_to_double(parts(i).x));
+			x.push_back(parts(i).x);
 		}
 	}
 	if (e > part_end) {

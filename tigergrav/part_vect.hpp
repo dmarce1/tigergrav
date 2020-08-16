@@ -73,7 +73,7 @@ void part_vect_cache_reset();
 std::pair<float, vect<float>> part_vect_center_of_mass(part_iter b, part_iter e);
 multipole_info part_vect_multipole_info(vect<float> com, rung_type mrung, part_iter b, part_iter e);
 double part_vect_drift(float dt);
-std::vector<vect<float>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung);
+std::vector<vect<pos_type>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung);
 kick_return part_vect_kick(part_iter b, part_iter e, rung_type rung, bool do_out, std::vector<force>&& f);
 void part_vect_find_groups2();
 

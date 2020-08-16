@@ -161,6 +161,10 @@ public:
 		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
 		return s.m1[0] + s.m1[1];
 	}
+
+
+	inline simd_float(simd_int i);
+
 	inline simd_float& operator=(const simd_float &other) = default;
 	simd_float& operator=(simd_float &&other) = default;
 	inline simd_float operator+(const simd_float &other) const {
@@ -336,9 +340,21 @@ public:
 		return v[i];
 	}
 	friend class simd_double;
+	friend class simd_float;
 
 }SIMDALIGN;
 
+
+
+inline simd_float::simd_float(simd_int i) {
+#ifdef USE_AVX512
+	v = _mm512_cvtepi32_ps(i.v);
+#endif
+#ifdef USE_AVX2
+	v = _mm256_cvtepi32_ps(i.v);
+#endif
+
+}
 class simd_double {
 private:
 	_simd_double a[2];

@@ -285,7 +285,7 @@ struct workspace {
 	std::vector<hpx::future<std::vector<vect<pos_type>>>> dsource_futs;
 	std::vector<hpx::future<std::vector<vect<pos_type>>>> esource_futs;
 	std::vector<multi_src> multi_srcs;
-	std::vector<vect<float>> sources;
+	std::vector<vect<pos_type>> sources;
 
 };
 
@@ -405,7 +405,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	for (auto &v : dsource_futs) {
 		auto s = v.get();
 		for (auto x : s) {
-			sources.push_back(pos_to_double(x));
+			sources.push_back(x);
 		}
 	}
 	flop += gravity_CP_direct(L, multi.x, sources);
@@ -419,7 +419,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		for (auto &v : esource_futs) {
 			auto s = v.get();
 			for (auto x : s) {
-				sources.push_back(pos_to_double(x));
+				sources.push_back(x);
 			}
 		}
 		flop += gravity_CP_ewald(L, multi.x, sources);
@@ -526,7 +526,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		std::vector<force> f(x.size());
 		int j = 0;
 		for (auto i = x.begin(); i != x.end(); i++) {
-			force this_f = L.translate_L2(x[j] - multi.x);
+			force this_f = L.translate_L2(pos_to_double(x[j]) - multi.x);
 			f[j].phi = this_f.phi;
 			f[j].g = this_f.g;
 			j++;
@@ -540,7 +540,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		for (auto &v : dsource_futs) {
 			auto s = v.get();
 			for (auto x : s) {
-				sources.push_back(pos_to_double(x));
+				sources.push_back(x);
 			}
 		}
 		flop += gravity_PP_direct(f, x, sources);
@@ -554,7 +554,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			for (auto &v : esource_futs) {
 				auto s = v.get();
 				for (auto x : s) {
-					sources.push_back(pos_to_double(x));
+					sources.push_back(x);
 				}
 			}
 			flop += gravity_PP_ewald(f, x, sources);
