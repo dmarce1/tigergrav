@@ -65,7 +65,7 @@ void output_particles(const std::vector<output> &parts, const std::string filena
 		for (auto i = parts.begin(); i != parts.end(); i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				x[dim].push_back(i->x[dim]);
-				g[dim].push_back(i->g[dim]);
+				g[dim].push_back(i->g[dim] * opts.G);
 				v[dim].push_back(i->v[dim]);
 			}
 			if( i->id == DEFAULT_GROUP) {
@@ -74,7 +74,7 @@ void output_particles(const std::vector<output> &parts, const std::string filena
 				group.push_back(i->id);
 			}
 			rung.push_back(i->rung);
-			phi.push_back(i->phi);
+			phi.push_back(i->phi * opts.G);
 		}
 		DBfile *db = DBCreateReal(filename.c_str(), DB_CLOBBER, DB_LOCAL, "Meshless", DB_PDB);
 		const int nparts = phi.size();

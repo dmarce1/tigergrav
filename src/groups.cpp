@@ -94,19 +94,19 @@ void groups_add_particle1(gmember p) {
 		g.N++;
 	} else {
 		auto x0 = p.x / g.N;
-		auto dx = g.x - x0;
+		auto dx = x0 - g.x;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const double absdx = std::abs(dx[dim]);
-			dx[dim] = std::copysign(std::min(absdx, (double)1.0 - absdx), dx[dim] * ((double)0.5 - absdx));
+			dx[dim] = std::copysign(std::min(absdx, (double) 1.0 - absdx), dx[dim] * ((double) 0.5 - absdx));
 		}
-		x0 += dx;
+		x0 = dx + g.x;
 		g.x += x0;
 		g.N++;
-		for( int dim = 0; dim < NDIM; dim++) {
-			while( g.x[dim] < 0.0 ) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			while (g.x[dim] < 0.0) {
 				g.x[dim] += g.N;
 			}
-			while( g.x[dim] > g.N) {
+			while (g.x[dim] > g.N) {
 				g.x[dim] -= g.N;
 			}
 		}
@@ -155,7 +155,7 @@ void groups_add_particle2(particle p) {
 		dx[dim] = std::min(std::abs(dx[dim]), 1.0 - std::abs(dx[dim]));
 	}
 	const double r = a * dx.dot(dx);
-	g.rmax = std::max(g.rmax, (float)r);
+	g.rmax = std::max(g.rmax, (float) r);
 	g.radii.push_back(r);
 
 }

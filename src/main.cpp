@@ -31,7 +31,7 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 		auto tstart = timer();
 		printf( "Finding groups\n");
 		part_vect_init_groups();
-		tree::set_theta(1.0);
+		tree::set_theta(0.99);
 		do {
 			printf( ".\n");
 		} while (root_ptr.find_groups(root_list,0));
