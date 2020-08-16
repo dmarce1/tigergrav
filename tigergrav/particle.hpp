@@ -41,7 +41,7 @@ struct particle {
 };
 
 struct particle_group_info {
-	vect<float> x;
+	vect<pos_type> x;
 	std::uint64_t id;
 	template<class A>
 	void serialize(A &&arc, unsigned) {

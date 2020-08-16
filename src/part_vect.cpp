@@ -71,7 +71,7 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 	for (auto i = b; i != this_end; i++) {
 		const vect<double> this_x = pos_to_double(parts(i).x);
 		for (const auto &other : others) {
-			vect<double> dx = this_x - other.x;
+			vect<double> dx = this_x - pos_to_double(other.x);
 			for (int d = 0; d < NDIM; d++) {
 				dx[d] = std::min(std::abs(dx[d]), (double) 1.0 - std::abs(dx[d]));
 			}
@@ -714,7 +714,7 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 				these_parts.reserve(e - b);
 				for (int i = b; i < e; i++) {
 					particle_group_info p;
-					p.x = pos_to_double(parts(i).x);
+					p.x = parts(i).x;
 					p.id = parts(i).flags.group;
 					these_parts.push_back(p);
 				}
@@ -727,7 +727,7 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 				these_parts.reserve(e - b);
 				for (int i = b; i < part_end; i++) {
 					particle_group_info p;
-					p.x = pos_to_double(parts(i).x);
+					p.x =parts(i).x;
 					p.id = parts(i).flags.group;
 					these_parts.push_back(p);
 				}

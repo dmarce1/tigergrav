@@ -22,7 +22,7 @@ double timer(void) {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
-kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
+kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bool first_call = false) {
 	auto start = timer();
 	static const auto opts = options::get();
 	root_ptr.compute_multipoles(mrung, do_out, 0);
@@ -33,6 +33,7 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out) {
 		part_vect_init_groups();
 		tree::set_theta(1.0);
 		do {
+			printf( ".\n");
 		} while (root_ptr.find_groups(root_list,0));
 		groups_reset();
 		tree::set_theta(opts.theta);
