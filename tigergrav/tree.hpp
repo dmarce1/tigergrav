@@ -80,22 +80,32 @@ public:
 };
 
 struct check_item {
-	bool opened;
+	struct {
+		std::uint8_t opened : 1;
+		std::uint8_t is_leaf : 1;
+		std::uint8_t group_active : 1;
+	} flags;
 	raw_tree_client node;
 	double r;
 	vect<double> x;
 	part_iter pbegin;
 	part_iter pend;
-	bool is_leaf;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
-		arc & opened;
+		bool tmp = flags.opened;
+		arc & tmp;
+		flags.opened = tmp;
+		tmp = flags.is_leaf;
+		arc & tmp;
+		flags.is_leaf = tmp;
+		tmp = flags.group_active;
+		arc & tmp;
+		flags.group_active = tmp;
 		arc & node;
 		arc & r;
 		arc & x;
 		arc & pbegin;
 		arc & pend;
-		arc & is_leaf;
 	}
 
 };
@@ -127,6 +137,7 @@ class tree: public hpx::components::managed_component_base<tree> {
 	int level;
 	range box;
 	bool leaf;
+	bool group_active;
 	std::array<tree_client, NCHILD> children;
 	std::array<check_item, NCHILD> child_check;
 
