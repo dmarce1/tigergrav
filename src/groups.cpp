@@ -90,17 +90,15 @@ void groups_add_particle1(gmember p) {
 	std::lock_guard<mutex_type> lock(mtx);
 	auto &g = map[p.id];
 	if (g.N == 0) {
-		g.x = p.x;
+		g.x = pos_to_double(p.x);
 		g.N++;
 	} else {
-		auto x0 = p.x / g.N;
-		auto dx = x0 - g.x;
+		auto dx = pos_to_double(p.x) - g.x / g.N;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const double absdx = std::abs(dx[dim]);
 			dx[dim] = std::copysign(std::min(absdx, (double) 1.0 - absdx), dx[dim] * ((double) 0.5 - absdx));
 		}
-		x0 = dx + g.x;
-		g.x += x0;
+		g.x += dx + g.x / g.N;
 		g.N++;
 		for (int dim = 0; dim < NDIM; dim++) {
 			while (g.x[dim] < 0.0) {

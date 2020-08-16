@@ -24,13 +24,13 @@ struct group {
 };
 
 struct gmember {
-	vect<float> x;
+	vect<pos_type> x;
 	vect<float> v;
 	float phi;
 	std::uint64_t id;
 
 	gmember(particle p, float phi_) {
-		x = pos_to_double(p.x);
+		x = p.x;
 		v = p.v;
 		phi = phi_;
 		id = p.flags.group;
