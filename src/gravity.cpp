@@ -49,8 +49,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_float huge = std::numeric_limits<float>::max() / 10.0;
-	static const simd_float tiny = std::numeric_limits<float>::min() * 10.0;
+	static const simd_float tiny = std::numeric_limits<float>::min();
 	static const simd_float H(h);
 	static const simd_float H2(h * h);
 	static const simd_float Hinv(1.0 / h);
@@ -406,8 +405,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			}
 			constexpr int nmax = 2;
 			constexpr int hmax = 2;
-			const float huge = std::numeric_limits<float>::max() / 10.0 / (nmax * nmax * nmax);
-			const float tiny = std::numeric_limits<float>::min() * 10.0;
+			static const simd_float tiny = std::numeric_limits<float>::min();
+			static const simd_float maxrinv = 0.99 /std::pow(std::numeric_limits<float>::min(),1.0/3.0) / M[0];
 			static const simd_float two(2);
 			static const simd_float twopi(2 * M_PI);
 			static const simd_float pioverfour(M_PI / 4.0);
@@ -425,7 +424,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 				const simd_float r2 = dx.dot(dx);							// 3
 				const simd_float r = sqrt(r2);                      			// 1
 				const simd_float mask = r < 3.6;
-				const simd_float rinv = mask * r / (r2 + tiny);						// 2
+				simd_float rinv = mask * r / (r2 + tiny);						// 2
+				rinv = min(rinv, maxrinv);
 				const simd_float r2inv = rinv * rinv;						// 1
 				const simd_float r3inv = r2inv * rinv;						// 1
 				simd_float expfac;
@@ -454,7 +454,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 				}
 			}
 			const simd_float r = abs(dX0);									// 5
-			const simd_float rinv = r / (r * r + tiny);						// 3
+			simd_float rinv = r / (r * r + tiny);						// 3
+			rinv = min(rinv, maxrinv);
 			phi = pioverfour + phi + rinv;									// 2
 			const simd_float sw = r > simd_float(0);							// 1
 			phi = phi0 * (simd_float(1.0) - sw) + phi * sw;					// 4
