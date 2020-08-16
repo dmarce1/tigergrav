@@ -466,7 +466,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 336 + 418 * NREAL + 50 *
 		const T r7inv = r2inv * r5inv;			// 1
 		const T r9inv = r2inv * r7inv;			// 1
 		T expfac;
-		const T erfc = T(1) - erfexp(two * r, &expfac);			// 50
+		const T erfc = erfcexp(two * r, &expfac);			// 50
 		const T expfactor = fouroversqrtpi * r * expfac;		// 2
 		const T d0 = -erfc * rinv;								// 2
 		const T d1 = (expfactor + erfc) * r3inv;		// 2

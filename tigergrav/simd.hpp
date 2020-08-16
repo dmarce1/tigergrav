@@ -621,7 +621,7 @@ inline simd_float exp(simd_float a) { 	// 24
 	return two_pow(a * c0);
 }
 
-inline simd_float erfexp(const simd_float &x, simd_float *e) {				// 50
+inline simd_float erfcexp(const simd_float &x, simd_float *e) {				// 50
 	simd_float v;
 	const simd_float p(0.3275911);
 	const simd_float a1(0.254829592);
@@ -635,7 +635,7 @@ inline simd_float erfexp(const simd_float &x, simd_float *e) {				// 50
 	const simd_float t4 = t2 * t2;											// 3
 	const simd_float t5 = t2 * t3;											// 4
 	*e = exp(-x * x);														// 24
-	return simd_float(1) - (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * *e; // 11
+	return (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * *e; // 11
 	return v;
 }
 

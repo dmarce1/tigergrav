@@ -102,7 +102,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 			const simd_float r2 = dX.dot(dX);																				// 5 OP
 			const simd_float zero_mask = r2 > simd_float(0);																// 1
 			const simd_float r = sqrt(r2);																					// 1
-			const simd_float rinv = zero_mask * r / (r2 + tiny);       														// 3 OP
+			const simd_float rinv = zero_mask * min(r / (r2 + tiny), Hinv);       														// 3 OP
 			const simd_float rinv3 = rinv * rinv * rinv;   																	// 2 OP
 			simd_float sw1 = r > H;   																						// 1 OP
 			simd_float sw2 = (simd_float(1.0) - sw1) * (r > simd_float(0.5) * H);											// 4 OP
@@ -187,7 +187,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = 0;
+		y[j].x = y[cnt1 - 1].x;
 	}
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int n = 0; n < MP; n++) {
@@ -255,7 +255,7 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<float> &x, std:
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = vect<float>(2.0);
+		y[j].x = y[cnt1 - 1].x;
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -312,7 +312,7 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<float> &x, std:
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = 0;
+		y[j] = y[cnt1 - 1];
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -429,7 +429,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 				const simd_float r2inv = rinv * rinv;						// 1
 				const simd_float r3inv = r2inv * rinv;						// 1
 				simd_float expfac;
-				const simd_float erfc = one - erfexp(two * r, &expfac);		// 51
+				const simd_float erfc = erfcexp(two * r, &expfac);		// 51
 				const simd_float d0 = -erfc * rinv;							// 2
 				const simd_float expfactor = fouroversqrtpi * r * expfac;	// 2
 				const simd_float d1 = (expfactor + erfc) * r3inv;			// 2
@@ -501,7 +501,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = 0;
+		y[j].x = y[cnt1 - 1].x;
 	}
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int n = 0; n < MP; n++) {
@@ -569,7 +569,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<float> &x, std::
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
 		y[j].m = 0.0;
-		y[j].x = vect<float>(1.0);
+		y[j].x = y[cnt1 - 1].x;
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -626,7 +626,7 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<float> &x, std::
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
 	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = 0;
+		y[j] = y[cnt1 - 1];
 	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
