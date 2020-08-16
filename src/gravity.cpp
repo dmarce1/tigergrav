@@ -17,27 +17,19 @@ double ewald_near_separation(const vect<double> x) {
 	return std::sqrt(d);
 }
 
-double ewald_far_separation(const vect<double> x, double r) {
-	double d = 0.0;
-	double maxd = 0.0;
+double ewald_far_separation(const vect<double> x, double r, double l) {
+	constexpr double r_e = 0.025;
 	static const auto opts = options::get();
-	const double cutoff_radius = opts.theta * 0.125;
-	vect<double> y;
-	for (int dim = 0; dim < NDIM; dim++) {
-		const double absx = std::abs(x[dim]);
-		const double this_d = std::min(absx, (double) 1.0 - absx);
-		d += this_d * this_d;
-		maxd = std::max(this_d, maxd);
-		y[dim] = this_d;
-	}
-	double q;
-	if (maxd > 0.0) {
-		y = y / maxd;
-		q = abs(y);
+	if (x.dot(x) == 0.0) {
+		if (r == 0.0 || r < l / 2.0) {
+			return 4.0 * r_e;
+		} else {
+			return 8.0 * r_e * r / l;
+		}
 	} else {
-		q = 0.0;
+		return std::max(0.25, ewald_near_separation(x));
 	}
-	return std::max(std::sqrt(d), std::max(double(q * 0.5) - double(2 * r), 2 * cutoff_radius));
+
 }
 
 std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> &y) {

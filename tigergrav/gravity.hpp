@@ -47,5 +47,5 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std:
 
 
 double ewald_near_separation(const vect<double> x);
-double ewald_far_separation(const vect<double> x, double r);
+double ewald_far_separation(const vect<double> x, double r, double l);
 void init_ewald();

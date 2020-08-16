@@ -15,6 +15,14 @@ vect<double> range_center(const range &r) {
 	return c;
 }
 
+double range_max_span(const range &r) {
+	double s = 0.0;
+	for (int dim = 0; dim < NDIM; dim++) {
+		s += std::pow(r.max[dim] - r.min[dim], 2);
+	}
+	return std::sqrt(s);
+}
+
 range reflect_range(const range &r_, int dim, double x) {
 	range r = r_;
 	r.min[dim] = 2 * x - r_.max[dim];

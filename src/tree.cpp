@@ -378,7 +378,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			if (c.pend == c.pbegin) {
 				continue;
 			}
-			const auto dx = ewald_far_separation(multi.x - c.x, multi.r + c.r);
+			const auto dx = ewald_far_separation(multi.x - c.x, multi.r, range_max_span(box));
 			const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 			if (far) {
 				if (c.opened) {
@@ -496,7 +496,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					if (c.pend == c.pbegin) {
 						continue;
 					}
-					const auto dx = ewald_far_separation(multi.x - c.x, multi.r + c.r);
+					const auto dx = ewald_far_separation(multi.x - c.x, multi.r, range_max_span(box));
 					const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 					if (c.opened) {
 						esource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));

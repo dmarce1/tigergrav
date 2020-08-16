@@ -22,6 +22,7 @@ struct range {
 	}
 };
 
+double range_max_span(const range &r);
 range reflect_range(const range&, int dim, double axis);
 vect<double> range_center(const range &r);
 range shift_range(const range& r, const vect<double>&);
