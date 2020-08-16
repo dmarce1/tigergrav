@@ -367,7 +367,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 				out.rung = parts(i).flags.rung;
 				rc.out.push_back(out);
 			}
-			if (do_out && opts.groups) {
+			if (do_out) {
 				gmember p(parts(i), f[j].phi);
 				if (p.id != DEFAULT_GROUP) {
 					int proc = part_vect_locality_id(p.id);
@@ -394,7 +394,7 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 			rc.out.insert(rc.out.end(), other.out.begin(), other.out.end());
 		}
 	}
-	if (do_out && opts.groups) {
+	if (do_out) {
 		std::vector<hpx::future<void>> futs;
 		for (auto &other : group_proc) {
 			futs.push_back(hpx::async<part_vect_group_proc1_action>(localities[other.first], std::move(other.second)));

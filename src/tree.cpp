@@ -185,7 +185,6 @@ bool tree::refine(int stack_cnt) {
 }
 
 multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
-	group_nochange = false;
 	const auto &opts = options::get();
 	range prange;
 	if (part_end - part_begin == 0) {
@@ -567,9 +566,6 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 }
 
 bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
-	if( group_nochange) {
-		return false;
-	}
 	static const auto opts = options::get();
 	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
 	if (level == 0) {
@@ -578,7 +574,6 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	}
 
 	if (part_end - part_begin == 0) {
-		group_nochange = true;
 		return false;
 	}
 
@@ -620,9 +615,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		}, false, part_end - part_begin, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
-		const auto rc = rc_r || rc_l;
-		group_nochange = !rc;
-		return rc;
+		return rc_r || rc_l;
 	} else {
 		source_futs.resize(0);
 		while (!checklist.empty()) {
@@ -660,9 +653,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 				sources.push_back(s);
 			}
 		}
-		const auto rc = part_vect_find_groups(part_begin, part_end, std::move(sources));
-		group_nochange = !rc;
-		return rc;
+		return part_vect_find_groups(part_begin, part_end, std::move(sources));
 	}
 }
 

@@ -126,7 +126,6 @@ class tree: public hpx::components::managed_component_base<tree> {
 	part_iter part_end;
 	int level;
 	range box;
-	bool group_nochange;
 	bool leaf;
 	std::array<tree_client, NCHILD> children;
 	std::array<check_item, NCHILD> child_check;
@@ -137,7 +136,6 @@ class tree: public hpx::components::managed_component_base<tree> {
 public:
 	template<class A>
 	void serialize(A&& arc, unsigned) {
-		arc & group_nochange;
 		arc & multi;
 		arc & part_begin;
 		arc & part_end;

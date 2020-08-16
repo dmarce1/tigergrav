@@ -6,7 +6,6 @@ public:
 	std::string config_file;
 	std::string problem;
 	bool ewald;
-	bool groups;
 	bool solver_test;
 	int out_parts;
 	int parts_per_node;
@@ -35,7 +34,6 @@ public:
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
-		arc & groups;
 		arc & link_len;
 		arc & H0;
 		arc & G;

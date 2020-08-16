@@ -39,7 +39,6 @@ bool options::process_options(int argc, char *argv[]) {
 	("solver_test", po::value<bool>(&solver_test)->default_value(0), "test gravity solver") //
 	("cosmic", po::value<bool>(&cosmic)->default_value(1), "Use Friedman equation") //
 	("glass", po::value<bool>(&glass)->default_value(0), "Produce glass file") //
-	("groups", po::value<bool>(&groups)->default_value(0), "Find halos") //
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("nout", po::value<int>(&nout)->default_value(64), "number of outputs") //
@@ -144,7 +143,6 @@ bool options::process_options(int argc, char *argv[]) {
 	SHOW(dt_max);
 	SHOW(ewald);
 	SHOW(eta);
-	SHOW(groups);
 	printf("m_tot = %e\n", m_tot);
 	printf("particle_mass = %e\n", m_tot / problem_size);
 	SHOW(omega_lambda);
