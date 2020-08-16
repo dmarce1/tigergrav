@@ -24,7 +24,7 @@ struct multi_src {
 struct multipole_info {
 	multipole<float> m;
 	vect<double> x;
-	double r;
+	float r;
 	bool has_active;
 	template<class A>
 	void serialize(A &&arc, unsigned) {

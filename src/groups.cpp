@@ -155,7 +155,7 @@ void groups_add_particle2(particle p) {
 		dx[dim] = std::min(std::abs(dx[dim]), 1.0 - std::abs(dx[dim]));
 	}
 	const double r = a * dx.dot(dx);
-	g.rmax = std::max(g.rmax, r);
+	g.rmax = std::max(g.rmax, (float)r);
 	g.radii.push_back(r);
 
 }
@@ -183,7 +183,7 @@ void groups_finish2() {
 		std::sort(radii.begin(), radii.end());
 		const int mid = radii.size() / 2 + radii.size() % 1;
 		entry.second.rc = radii[mid];
-		radii = std::vector<double>();
+		radii = std::vector<float>();
 	}
 
 	hpx::wait_all(futs.begin(), futs.end());

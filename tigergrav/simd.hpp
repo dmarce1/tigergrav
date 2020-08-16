@@ -492,6 +492,34 @@ public:
 		*this = *this * d;
 		return *this;
 	}
+	inline simd_double& operator+=(const simd_double &other) {
+		*this = *this + other;
+		return *this;
+	}
+	inline simd_double& operator-=(const simd_double &other) {
+		*this = *this - other;
+		return *this;
+	}
+	inline simd_double& operator*=(const simd_double &other) {
+		*this = *this * other;
+		return *this;
+	}
+	inline simd_double& operator/=(const simd_double &other) {
+		*this = *this / other;
+		return *this;
+	}
+
+	double sum() const {
+		double s = a[0][0];
+		for( int i = 1; i < 4; i++) {
+			s += a[0][i];
+		}
+		for( int i = 0; i < 4; i++) {
+			s += a[1][i];
+		}
+		return s;
+	}
+
 	inline double& operator[](std::size_t i) {
 		return (reinterpret_cast<double*>(&a))[i];
 	}
@@ -649,6 +677,7 @@ inline simd_float fmadd(const simd_float &a, const simd_float &b, const simd_flo
 #endif
 	return v;
 }
+
 
 inline simd_float copysign(const simd_float &y, const simd_float &x) {
 // From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign

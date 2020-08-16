@@ -18,9 +18,9 @@
 #ifndef EXPAN222SION_H_
 #define EXPAN222SION_H_
 
-
 #include <tigergrav/multipole.hpp>
 #include <tigergrav/options.hpp>
+#include <tigergrav/simd.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -40,8 +40,8 @@ constexpr float EWALD_FOUR_N2 = 9;
 //50 7.953
 
 struct force {
-	float phi;
-	vect<float> g;
+	double phi;
+	vect<double> g;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & phi;
@@ -306,20 +306,20 @@ inline void expansion<T>::invert() {
 	}
 }
 
-template<class T>
-void green_deriv(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3, const T &d4, const vect<T> &dx) {  // 314
-	static const T two(2.0);
+template<class DOUBLE, class SINGLE>
+void green_deriv(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4, const vect<SINGLE> &dx) { // 314
+	static const SINGLE two(2.0);
 	D() += d0;																		// 1
 	for (int a = 0; a < NDIM; a++) {
 		auto &Da = D(a);
 		auto &Daa = D(a, a);
 		auto &Daaa = D(a, a, a);
 		auto &Daaaa = D(a, a, a, a);
-		Da = fmadd(dx[a], d1, Da);												// 6
+		Da += dx[a] * d1;												// 6
 		Daa += d1;																// 3
-		Daaa = fmadd(dx[a], d2, Daaa);									// 6
-		Daaaa = fmadd(dx[a] * dx[a], d3, Daaaa);					// 9
-		Daaaa = fmadd(two, d2, Daaaa);								// 6
+		Daaa += dx[a] * d2;									// 6
+		Daaaa += dx[a] * dx[a] * d3;					// 9
+		Daaaa += two * d2;								// 6
 		for (int b = 0; b <= a; b++) {
 			auto &Dab = D(a, b);
 			auto &Daab = D(a, a, b);
@@ -328,11 +328,11 @@ void green_deriv(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T
 			auto &Daabb = D(a, a, b, b);
 			auto &Dabbb = D(a, b, b, b);
 			const auto dxadxb = dx[a] * dx[b];										// 6
-			Dab = fmadd(dxadxb, d2, Dab);									// 18
-			Daab = fmadd(dx[b], d2, Daab);								// 12
-			Dabb = fmadd(dx[a], d2, Dabb);								// 12
-			Daaab = fmadd(dxadxb, d3, Daaab);						// 12
-			Dabbb = fmadd(dxadxb, d3, Dabbb);						// 12
+			Dab += dxadxb * d2;									// 18
+			Daab += dx[b] * d2;								// 12
+			Dabb += dx[a] * d2;								// 12
+			Daaab += dxadxb * d3;						// 12
+			Dabbb += dxadxb * d3;						// 12
 			Daabb += d2;													// 6
 			for (int c = 0; c <= b; c++) {
 				auto &Dabc = D(a, b, c);
@@ -340,17 +340,18 @@ void green_deriv(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T
 				auto &Dabcc = D(a, b, c, c);
 				auto &Dabbc = D(a, b, b, c);
 				const auto dxadxbdxc = dxadxb * dx[c];
-				Dabc = fmadd(dxadxbdxc, d3, Dabc);						// 40
-				Daabc = fmadd(dx[b] * dx[c], d3, Daabc);			// 30
-				Dabcc = fmadd(dxadxb, d3, Dabcc);					// 30
-				Dabbc = fmadd(dx[a] * dx[c], d3, Dabbc);			// 30
+				Dabc += dxadxbdxc * d3;						// 40
+				Daabc += dx[b] * dx[c] * d3;			// 30
+				Dabcc += dxadxb * d3;					// 30
+				Dabbc += dx[a] * dx[c] * d3;			// 30
 				for (int d = 0; d <= c; d++) {
 					auto &Dabcd = D(a, b, c, d);
-					Dabcd = fmadd(dxadxbdxc * dx[d], d4, Dabcd);	// 75
+					Dabcd += dxadxbdxc * dx[d] * d4;	// 75
 				}
 			}
 		}
 	}
+
 }
 
 template<class T>
@@ -392,7 +393,7 @@ struct ewald_indices: public std::vector<vect<float>> {
 				}
 			}
 		}
-		std::sort(this->begin(), this->end(), [](vect<float>& a, vect<float>& b) {
+		std::sort(this->begin(), this->end(), [](vect<float> &a, vect<float> &b) {
 			return a.dot(a) > b.dot(b);
 		});
 	}
@@ -432,7 +433,7 @@ struct periodic_parts: public std::vector<expansion<float>> {
 template<class T>
 inline expansion<T> green_ewald(const vect<T> &X) {		// 336 + 418 * NREAL + 50 * NFOUR
 	static const periodic_parts periodic;
-	expansion<T> D;
+	expansion<simd_double> D;
 	D = 0.0;
 	const float huge = std::numeric_limits<float>::max() / 100.0;
 	const float tiny = std::numeric_limits<float>::min() * 10.0;
@@ -486,47 +487,51 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 336 + 418 * NREAL + 50 *
 		const T omega = twopi * hdotdx;							// 1
 		T co, si;
 		sincos(omega, &si, &co);								// 34
-		D() = fmadd(H(), co, D());								// 2
+		D() += H() * co;								// 2
 		for (int a = 0; a < NDIM; a++) {
-			D(a) = fmadd(H(a), si, D(a));						// 2
+			D(a) += H(a) * si;						// 2
 			for (int b = 0; b <= a; b++) {
-				D(a, b) = fmadd(H(a, b), co, D(a, b));			// 2
+				D(a, b) += H(a, b) * co;			// 2
 				for (int c = 0; c <= b; c++) {
-					D(a, b, c) = fmadd(H(a, b, c), si, D(a, b, c));	// 2
+					D(a, b, c) += H(a, b, c) * si;	// 2
 					for (int d = 0; d <= c; d++) {
-						D(a, b, c, d) = fmadd(H(a, b, c, d), co, D(a, b, c, d)); // 2
+						D(a, b, c, d) += H(a, b, c, d) * co; // 2
 					}
 				}
 
 			}
 		}
 	}
+	expansion<T> rcD;
+	for (int i = 0; i < LP; i++) {
+		rcD[i] = D[i];
+	}
 	const auto D1 = green_direct(X);											// 336
 	const T r = abs(X);															// 5
 	const T rinv = r / fmadd(r, r, tiny);										// 3
-	D() = T(M_PI / 4.0) + D() + rinv;											// 2
+	rcD() = T(M_PI / 4.0) + rcD() + rinv;											// 2
 	const T sw = min(T(huge) * r, T(1.0));										// 2
-	D() = fmadd(T(2.8372975), (T(1) - sw), +D() * sw);							// 4
+	rcD() = fmadd(T(2.8372975), (T(1) - sw), +rcD() * sw);							// 4
 	for (int a = 0; a < NDIM; a++) {
-		D(a) = sw * (D(a) - D1(a));												// 6
+		rcD(a) = sw * (rcD(a) - D1(a));												// 6
 		for (int b = 0; b <= a; b++) {
-			D(a, b) = sw * (D(a, b) - D1(a, b));								// 12
+			rcD(a, b) = sw * (rcD(a, b) - D1(a, b));								// 12
 			for (int c = 0; c <= b; c++) {
-				D(a, b, c) = sw * (D(a, b, c) - D1(a, b, c));					// 20
+				rcD(a, b, c) = sw * (rcD(a, b, c) - D1(a, b, c));					// 20
 				for (int d = 0; d <= c; d++) {
-					D(a, b, c, d) = sw * (D(a, b, c, d) - D1(a, b, c, d));		// 30
+					rcD(a, b, c, d) = sw * (rcD(a, b, c, d) - D1(a, b, c, d));		// 30
 				}
 			}
 		}
 	}
-	return D;
+	return rcD;
 }
 
 // 43009,703
-template<class T>
-inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<T> dX, bool ewald = false) { // 670/700 + 418 * NREAL + 50 * NFOUR
-	static const expansion_factors<T> expansion_factor;
-	expansion<T> D;
+template<class DOUBLE, class SINGLE>
+inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald = false) { // 670/700 + 418 * NREAL + 50 * NFOUR
+	static const expansion_factors<SINGLE> expansion_factor;
+	expansion<SINGLE> D;
 	if (ewald) {
 		D = green_ewald(dX);		// // 336 + 418 * NREAL + 50 * NFOUR
 	} else {
@@ -534,10 +539,10 @@ inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<
 	}
 
 	auto &L0 = L();
-	L0 = fmadd(M2(), D(), L0);																	// 2
+	L0 += M2() * D();																	// 2
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L0 = fmadd(M2(a, b) * D(a, b), expansion_factor(a, b), L0);						// 18
+			L0 += M2(a, b) * D(a, b) * expansion_factor(a, b);						// 18
 			for (int c = b; c < 3; c++) {
 				L0 -= M2(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 30
 			}
@@ -548,7 +553,7 @@ inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<
 		La += M2() * D(a);
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				La = fmadd(M2(c, b) * D(a, b, c), expansion_factor(c, b), La);				// 54
+				La += M2(c, b) * D(a, b, c) * expansion_factor(c, b);				// 54
 				for (int d = c; d < 3; d++) {
 					La -= M2(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	// 90
 				}
@@ -559,10 +564,10 @@ inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
 			auto &Lab = L(a, b);
-			Lab = fmadd(M2(), D(a, b), Lab);													// 12
+			Lab += M2() * D(a, b);													// 12
 			for (int c = 0; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					Lab = fmadd(M2(c, d), D(a, b, c, d) * expansion_factor(c, d), Lab);		// 108
+					Lab += M2(c, d) * D(a, b, c, d) * expansion_factor(c, d);		// 108
 				}
 			}
 		}
@@ -572,7 +577,7 @@ inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				auto &Labc = L(a, b, c);
-				Labc = fmadd(M2(), D(a, b, c), Labc);										// 20
+				Labc += M2() * D(a, b, c);										// 20
 			}
 		}
 	}
@@ -581,7 +586,7 @@ inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
 					auto &Labcd = L(a, b, c, d);
-					Labcd = fmadd(M2(), D(a, b, c, d), Labcd);								// 30
+					Labcd += M2() * D(a, b, c, d);								// 30
 				}
 			}
 		}
@@ -589,10 +594,10 @@ inline void multipole_interaction(expansion<T> &L, const multipole<T> &M2, vect<
 }
 
 // 42707,401
-template<class T>
-inline void multipole_interaction(expansion<T> &L, const T &M, vect<T> dX, bool ewald = false) { // 390 / 47301
-	static const expansion_factors<T> expansion_factor;
-	expansion<T> D;
+template<class DOUBLE, class SINGLE>
+inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SINGLE> dX, bool ewald = false) { // 390 / 47301
+	static const expansion_factors<SINGLE> expansion_factor;
+	expansion<SINGLE> D;
 	if (ewald) {
 		D = green_ewald(dX);		// 43065
 	} else {
@@ -600,19 +605,19 @@ inline void multipole_interaction(expansion<T> &L, const T &M, vect<T> dX, bool 
 	}
 
 	auto &L0 = L();
-	L0 = fmadd(M, D(), L0);
+	L0 += M * D();
 	for (int a = 0; a < 3; a++) {
 		auto &La = L(a);
-		La = fmadd(M, D(a), La);
+		La += M * D(a);
 		for (int b = a; b < 3; b++) {
 			auto &Lab = L(a, b);
-			Lab = fmadd(M, D(a, b), Lab);													// 12
+			Lab += M * D(a, b);													// 12
 			for (int c = b; c < 3; c++) {
 				auto &Labc = L(a, b, c);
-				Labc = fmadd(M, D(a, b, c), Labc);										// 20
+				Labc += M * D(a, b, c);										// 20
 				for (int d = c; d < 3; d++) {
 					auto &Labcd = L(a, b, c, d);
-					Labcd = fmadd(M, D(a, b, c, d), Labcd);								// 30
+					Labcd += M * D(a, b, c, d);								// 30
 				}
 			}
 		}

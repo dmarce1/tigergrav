@@ -236,7 +236,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.min[1],  prange.max[2] })));
 		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.min[0],  prange.max[1],  prange.max[2] })));
 		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.max[1],  prange.max[2] })));
-		multi.r = std::min(multi.r, rmax);
+		multi.r = std::min(multi.r, (float)rmax);
 		child_check[0] = ml.c;
 		child_check[1] = mr.c;
 	}

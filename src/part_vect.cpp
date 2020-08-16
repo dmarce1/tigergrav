@@ -582,7 +582,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 	rc.r = 0.0;
 	rc.has_active = false;
 	for (part_iter i = b; i < this_end; i++) {
-		rc.r = std::max(rc.r, abs(pos_to_double(parts(i).x) - rc.x)); // 12 OP
+		rc.r = std::max(rc.r, (float) abs(pos_to_double(parts(i).x) - rc.x)); // 12 OP
 		if (parts(i).flags.rung >= mrung) {
 			rc.has_active = true;
 		}
