@@ -63,44 +63,23 @@ inline particle& parts(part_iter i) {
 
 bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_info> others) {
 	static const auto opts = options::get();
-	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
-	static const auto L2 = L * L;
+	static const std::uint64_t L = (std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len) * std::numeric_limits < std::uint32_t > ::max();
+	static const std::uint64_t L2 = L * L;
 	const auto this_end = std::min(e, part_end);
 	bool rc = false;
 	hpx::future<bool> fut;
 	if (this_end != e) {
 		fut = hpx::async<part_vect_find_groups_action>(localities[myid + 1], this_end, e, others);
 	}
-//	const int cnt1 = others.size();
-//	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
-//	others.resize(cnt2);
-//	for (int i = cnt1; cnt1 < cnt2; i++) {
-//		others[i] = others[cnt1 - 1];
-//	}
-//	for (int j = 0; j < cnt2; j += simd_float::size()) {
-//		simd_int Y, X;
-//		for (int k = 0; k < simd_float::size(); k++) {
-//			Y[k] = others[j + k].x;
-//		}
-//		for (int i = b; i != this_end; i++) {
-//			X = simd_int(parts(i).x);
-//			simd_float dx = simd_float((X - Y) * simd_double(POSINV));
-//			dx = abs(dx);
-//			for( int dim = 0; dim < NDIM; dim++) {
-//				dx[dim] = min(dx[dim], simd_float(1) - dx[dim]);
-//			}
-//		}
-//	}
-
 	int mtx_index = b % GROUP_MTX_SIZE;
 	std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
 	for (auto i = b; i != this_end; i++) {
 		for (const auto &other : others) {
-			vect<float> dx;
-			for (int d = 0; d < NDIM; d++) {
-				dx[d] = (float) ((double) (parts(i).x[d] - other.x[d]) * POS_INV);
-			}
-			const auto dx2 = dx.dot(dx);
+			vect<pos_type> dx;
+			vect<std::uint64_t> dxl;
+			dx = parts(i).x - other.x;
+			dxl = dx;
+			const auto dx2 = dxl.dot(dxl);
 			if (dx2 < L2 && dx2 != 0.0) {
 				auto this_id = parts(i).flags.group;
 				if (this_id == DEFAULT_GROUP) {
