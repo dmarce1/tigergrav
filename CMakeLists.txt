@@ -47,6 +47,7 @@ set(tigergrav_header_files
 	tiegrgrav/cosmo.hpp
 	tigergrav/defs.hpp
 	tigergrav/gravity.hpp
+	tigergrav/green.hpp
 	tigergrav/groups.hpp
 	tigergrav/initialize.hpp
 	tigergrac/load.hpp

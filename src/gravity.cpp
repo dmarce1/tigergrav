@@ -1,5 +1,5 @@
-#include <tigergrav/expansion.hpp>
 #include <tigergrav/gravity.hpp>
+#include <tigergrav/green.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
 
@@ -30,6 +30,152 @@ double ewald_far_separation(const vect<double> x, double r, double l) {
 		return std::max(0.25, ewald_near_separation(x));
 	}
 
+}
+
+// 43009,703
+template<class DOUBLE, class SINGLE> // 1006 // 1077 + 689 * NREAL + 64 * NFOUR
+inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald = false) { // 670/700 + 418 * NREAL + 50 * NFOUR
+	static const expansion_factors<SINGLE> expansion_factor;
+	expansion<SINGLE> D;
+	if (ewald) {
+		D = green_ewald(dX);		// 317 + 689 * NREAL + 64 * NFOUR
+	} else {
+		D = green_direct(dX);        // 246
+	}
+
+	//232 S / 264D / 760
+	auto &L0 = L();
+	L0 += M2() * D();																// 1  / 2
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			L0 += M2(a, b) * D(a, b) * expansion_factor(a, b);						// 12 / 12
+			for (int c = b; c < 3; c++) {
+				L0 -= M2(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 20 / 20
+			}
+		}
+	}
+	for (int a = 0; a < 3; a++) {
+		auto &La = L(a);
+		La += M2() * D(a);
+		for (int b = 0; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				La += M2(c, b) * D(a, b, c) * expansion_factor(c, b);				// 36 / 36
+				for (int d = c; d < 3; d++) {
+					La -= M2(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	// 60 / 60
+				}
+			}
+		}
+	}
+
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			auto &Lab = L(a, b);
+			Lab += M2() * D(a, b);													// 6  / 12
+			for (int c = 0; c < 3; c++) {
+				for (int d = c; d < 3; d++) {
+					Lab += M2(c, d) * D(a, b, c, d) * expansion_factor(c, d);		// 72 / 72
+				}
+			}
+		}
+	}
+
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				auto &Labc = L(a, b, c);
+				Labc += M2() * D(a, b, c);										// 10 / 20
+			}
+		}
+	}
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				for (int d = c; d < 3; d++) {
+					auto &Labcd = L(a, b, c, d);
+					Labcd += M2() * D(a, b, c, d);								// 15 / 30
+				}
+			}
+		}
+	}
+}
+
+template<class DOUBLE, class SINGLE> // 423 / 494 + 689 * NREAL + 64 * NFOUR
+inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SINGLE> dX, bool ewald = false) { // 390 / 47301
+	static const expansion_factors<SINGLE> expansion_factor;
+	expansion<SINGLE> D;
+	if (ewald) {
+		D = green_ewald(dX);		// 317 + 689 * NREAL + 64 * NFOUR
+	} else {
+		D = green_direct(dX);          // 246
+	}
+
+	//37S + 70D = 177
+	auto &L0 = L();
+	L0 += M * D();													// 1 / 2
+	for (int a = 0; a < 3; a++) {
+		auto &La = L(a);
+		La += M * D(a);												// 3 / 6
+		for (int b = a; b < 3; b++) {
+			auto &Lab = L(a, b);
+			Lab += M * D(a, b);										// 6 / 12
+			for (int c = b; c < 3; c++) {
+				auto &Labc = L(a, b, c);
+				Labc += M * D(a, b, c);								// 10 / 20
+				for (int d = c; d < 3; d++) {
+					auto &Labcd = L(a, b, c, d);
+					Labcd += M * D(a, b, c, d);						// 15 / 30
+				}
+			}
+		}
+	}
+}
+
+template<class SINGLE, class DOUBLE> // 648 / 719 + 689 * NREAL + 64 * NFOUR
+inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
+	static const expansion_factors<SINGLE> expansion_factor;
+	expansion<SINGLE> D;
+	if (ewald) {
+		D = green_ewald(dX);				// 317 + 689 * NREAL + 64 * NFOUR
+	} else {
+		D = green_direct(dX);				// 246
+	}
+
+	//132S + 135D = 402
+	auto &ffirst = f.first;
+	ffirst = M() * D();																// 1 /  1
+	for (int a = 0; a < 3; a++) {
+		for (int b = a; b < 3; b++) {
+			ffirst += M(a, b) * D(a, b) * expansion_factor(a, b);					// 12 / 12
+		}
+	}
+	for (int a = 0; a < 3; a++) {
+		for (int b = 0; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				ffirst -= M(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);		// 20 / 20
+			}
+		}
+	}
+	f.second = DOUBLE(0);
+	for (int a = 0; a < 3; a++) {
+		f.second[a] -= M() * D(a);													// 3 / 6
+	}
+	for (int a = 0; a < 3; a++) {
+		for (int b = 0; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				f.second[a] -= M(c, b) * D(a, b, c) * expansion_factor(c, b);		// 36 / 36
+			}
+		}
+	}
+	for (int a = 0; a < 3; a++) {
+		for (int b = 0; b < 3; b++) {
+			for (int c = b; c < 3; c++) {
+				for (int d = c; d < 3; d++) {
+					auto &fseconda = f.second[a];
+					fseconda += M(c, b, d) * D(a, b, c, d) * expansion_factor(b, c, d); // 60 / 60
+				}
+			}
+		}
+	}
 }
 
 std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> &y, bool do_phi) {
@@ -211,7 +357,8 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 					dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								// 15 OP
 				}
 			}
-			auto this_f = multipole_interaction(M, dX); // 517 OP
+			std::pair<simd_double, vect<simd_double>> this_f;
+			multipole_interaction(this_f, M, dX); // 517 OP
 
 			for (int dim = 0; dim < NDIM; dim++) {
 				G[i][dim] += this_f.second[dim];  // 6 OP
@@ -539,7 +686,8 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 				const auto absdx = abs(dX[dim]);																		// 3 OP
 				dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								// 15 OP
 			}
-			auto this_f = multipole_interaction(M, dX, true);	//700 + 418 * NREAL + 50 * NFOUR
+			std::pair<simd_double, vect<simd_double>> this_f;
+			multipole_interaction(this_f, M, dX, true);	//700 + 418 * NREAL + 50 * NFOUR
 
 			for (int dim = 0; dim < NDIM; dim++) {
 				G[i][dim] += this_f.second[dim];  // 6 OP
