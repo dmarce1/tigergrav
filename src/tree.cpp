@@ -623,12 +623,17 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			std::swap(checklist, next_checklist);
 			next_checklist.resize(0);
 		}
+		range prange = part_vect_range(part_begin, part_end);
+		prange = expand_range(prange, 1.00001 * L);
 		for (auto &f : source_futs) {
 			auto v = f.get();
 			for (auto &s : v) {
-				sources.push_back(s);
+				if (in_range(pos_to_double(s.x), prange)) {
+					sources.push_back(s);
+				}
 			}
 		}
+//		printf( "%i\n", sources.size());
 		group_active = part_vect_find_groups(part_begin, part_end, std::move(sources));
 		return group_active;
 	}

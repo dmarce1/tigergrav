@@ -109,8 +109,8 @@ range range_around(const vect<double> &p, double h) {
 range expand_range(const range &rs, double h) {
 	range rb;
 	for (int dim = 0; dim < NDIM; dim++) {
-		rb.min[dim] = rs.min[dim] + h;
-		rb.max[dim] = rs.max[dim] - h;
+		rb.min[dim] = rs.min[dim] - h;
+		rb.max[dim] = rs.max[dim] + h;
 	}
 	return rb;
 }

@@ -67,35 +67,41 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 	static const std::uint64_t L2 = L * L;
 	const auto this_end = std::min(e, part_end);
 	bool rc = false;
-	hpx::future<bool> fut;
-	if (this_end != e) {
-		fut = hpx::async<part_vect_find_groups_action>(localities[myid + 1], this_end, e, others);
-	}
-	int mtx_index = b % GROUP_MTX_SIZE;
-	std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
-	for (auto i = b; i != this_end; i++) {
-		for (const auto &other : others) {
-			vect<pos_type> dx;
-			vect<std::uint64_t> dxl;
-			dx = parts(i).x - other.x;
-			dxl = dx;
-			const auto dx2 = dxl.dot(dxl);
-			if (dx2 < L2 && dx2 != 0.0) {
-				auto this_id = parts(i).flags.group;
-				if (this_id == DEFAULT_GROUP) {
-					this_id = i - part_begin;
-					parts(i).flags.group = this_id;
-				}
-				if (this_id != other.id) {
-					rc = true;
-					parts(i).flags.group = std::min(this_id, other.id);
+	{
+		hpx::future<bool> fut;
+		if (this_end != e) {
+			fut = hpx::async<part_vect_find_groups_action>(localities[myid + 1], this_end, e, others);
+		}
+		int mtx_index = b % GROUP_MTX_SIZE;
+		std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
+		for (auto i = b; i != this_end; i++) {
+			for (const auto &other : others) {
+				vect<pos_type> dx;
+				vect<std::uint64_t> dxl;
+				dx = parts(i).x - other.x;
+				dxl = dx;
+				const auto dx2 = dxl.dot(dxl);
+				if (dx2 < L2 && dx2 != 0.0) {
+					auto this_id = parts(i).flags.group;
+					if (this_id == DEFAULT_GROUP) {
+						this_id = i - part_begin;
+						parts(i).flags.group = this_id;
+					}
+					if (this_id != other.id) {
+						const auto g = std::min(this_id, other.id);
+						rc = rc || (parts(i).flags.group != g);
+						parts(i).flags.group = g;
+					}
 				}
 			}
 		}
+		if (this_end != e) {
+			const bool other_rc = fut.get();
+			rc = rc || other_rc;
+		}
 	}
-	if (this_end != e) {
-		const bool other_rc = fut.get();
-		rc = rc || other_rc;
+	if (rc) {
+		part_vect_find_groups(b, e, std::move(others));
 	}
 	return rc;
 }
@@ -711,7 +717,7 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 	}
 }
 
-std::vector<vect<pos_type>> part_vect_read_positions(const std::vector<std::pair<part_iter, part_iter>>& iters) {
+std::vector<vect<pos_type>> part_vect_read_positions(const std::vector<std::pair<part_iter, part_iter>> &iters) {
 	std::vector<std::pair<part_iter, part_iter>> local;
 	std::vector<std::pair<part_iter, part_iter>> nonlocal;
 	std::vector<vect<pos_type>> pos;
