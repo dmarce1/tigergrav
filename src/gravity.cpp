@@ -187,9 +187,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
-	static const simd_float tiny = std::numeric_limits<float>::min();
 	static const simd_float H(h);
-	static const simd_float halfH(h * 0.5);
 	static const simd_float H2(h * h);
 	static const simd_float Hinv(1.0 / h);
 	static const simd_float H3inv(1.0 / h / h / h);
@@ -540,9 +538,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			}
 			constexpr int nmax = 2;
 			constexpr int hmax = 2;
-			static const simd_float tiny = std::numeric_limits<float>::min();
-			static const simd_float maxrinv = 0.99 / std::pow(std::numeric_limits<float>::min(), 1.0 / 3.0) / M[0];
 			static const simd_float two(2);
+			static const simd_float rcut(1.0e-6);
 			static const simd_float twopi(2 * M_PI);
 			static const simd_float pioverfour(M_PI / 4.0);
 			static const simd_float fouroversqrtpi(4.0 / sqrt(M_PI));
@@ -552,15 +549,16 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			simd_double phi = 0.0;
 			vect<simd_double> g;
 			g = simd_double(0);
+			const simd_float r = abs(dX0);									// 5
+			simd_float cut_mask = r > rcut;
 			for (int i = 0; i < indices_real.size(); i++) {					// 78
 				h = indices_real[i];
 				n = h;
 				const vect<simd_float> dx = dX0 - n;                         // 3 OP
 				const simd_float r2 = dx.dot(dx);							// 3
 				const simd_float r = sqrt(r2);                      			// 1
-				const simd_float mask = r < 3.6;
-				simd_float rinv = mask * r / (r2 + tiny);						// 2
-				rinv = min(rinv, maxrinv);
+				const simd_float mask = cut_mask * (r < 3.6);
+				simd_float rinv = mask * 1.0 / max(r, rcut);						// 2
 				const simd_float r2inv = rinv * rinv;						// 1
 				const simd_float r3inv = r2inv * rinv;						// 1
 				simd_float expfac;
@@ -583,24 +581,20 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 				const simd_float omega = twopi * hdotdx;						// 1
 				simd_float s, c;
 				sincos(omega, &s, &c);										// 34
-				phi += H() * c;												// 2
+				phi += H() * c * cut_mask;												// 2
 				for (int dim = 0; dim < NDIM; dim++) {
-					g[dim] -= H(dim) * s;									// 6
+					g[dim] -= H(dim) * s * cut_mask;									// 6
 				}
 			}
-			const simd_float r = abs(dX0);									// 5
-			simd_float rinv = r / (r * r + tiny);						// 3
-			rinv = min(rinv, maxrinv);
+			simd_float rinv = 1.0 / max(r, rcut);						// 3
 			phi = pioverfour + phi + rinv;									// 2
-			const simd_float sw = r > simd_float(0);							// 1
-			phi = phi0 * (simd_float(1.0) - sw) + phi * sw;					// 4
-			const auto rinv3 = rinv * rinv * rinv;							// 2
+			phi = phi0 * (simd_float(1.0) - cut_mask) + phi * cut_mask;					// 4
+			const auto rinv3 = cut_mask * rinv * rinv * rinv;							// 2
 			for (int dim = 0; dim < NDIM; dim++) {
 				g[dim] = g[dim] + dX0[dim] * rinv3;							// 6
 			}
 			Phi[I] += M * phi * mask;										// 3
 			G[I] += g * M * mask;											// 9
-//			printf( "%e %e %e %e %e\n", g[0][0], X[0][0], Y[0][0], X[0][0] - Y[0][0], dX0[0][0]);
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
