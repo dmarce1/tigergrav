@@ -280,10 +280,10 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 				p2 -= simd_float(32.0 / 3.0) * roh2;																			// 2
 				p2 += simd_float(16.0) * roh3;																					// 1
 				p2 -= simd_float(48.0 / 5.0) * roh4;																			// 2
-				p2 += simd_float(32.0 / 5.0) * roh5;																			// 2
+				p2 += simd_float(32.0 / 15.0) * roh5;																			// 2
 				p2 *= Hinv;																										// 1
 
-				simd_float p3 = simd_float(14.0 / 15.0);
+				simd_float p3 = simd_float(14.0 / 5.0);
 				p3 -= simd_float(16.0 / 3.0) * roh2;																			// 2
 				p3 += simd_float(48.0 / 5.0) * roh4;																			// 2
 				p3 -= simd_float(32.0 / 5.0) * roh5;																			// 2
