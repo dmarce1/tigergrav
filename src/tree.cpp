@@ -229,15 +229,15 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
 			prange.min[dim] = std::min(ml.r.min[dim], mr.r.min[dim]);
 		}
-		double rmax = abs(multi.x - vect<double>( {  prange.min[0],  prange.min[1],  prange.min[2] }));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.min[1],  prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.min[0],  prange.max[1],  prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.max[1],  prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.min[0],  prange.min[1],  prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.min[1],  prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.min[0],  prange.max[1],  prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( {  prange.max[0],  prange.max[1],  prange.max[2] })));
-		multi.r = std::min(multi.r, (float)rmax);
+		double rmax = abs(multi.x - vect<double>( { prange.min[0], prange.min[1], prange.min[2] }));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.max[0], prange.min[1], prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.min[0], prange.max[1], prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.max[0], prange.max[1], prange.min[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.min[0], prange.min[1], prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.max[0], prange.min[1], prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
+		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
+		multi.r = std::min(multi.r, (float) rmax);
 		child_check[0] = ml.c;
 		child_check[1] = mr.c;
 	}
@@ -283,10 +283,9 @@ struct workspace {
 	std::vector<hpx::future<node_attr>> efuts;
 	std::vector<hpx::future<multi_src>> dmulti_futs;
 	std::vector<hpx::future<multi_src>> emulti_futs;
-	std::vector<hpx::future<std::vector<vect<pos_type>>>> dsource_futs;
-	std::vector<hpx::future<std::vector<vect<pos_type>>>> esource_futs;
+	std::vector<std::pair<part_iter, part_iter>> dsource_iters;
+	std::vector<std::pair<part_iter, part_iter>> esource_iters;
 	std::vector<multi_src> multi_srcs;
-	std::vector<vect<pos_type>> sources;
 
 };
 
@@ -307,9 +306,8 @@ workspace get_workspace() {
 	this_space.multi_srcs.resize(0);
 	this_space.dfuts.resize(0);
 	this_space.efuts.resize(0);
-	this_space.dsource_futs.resize(0);
-	this_space.esource_futs.resize(0);
-	this_space.sources.resize(0);
+	this_space.dsource_iters.resize(0);
+	this_space.esource_iters.resize(0);
 	return std::move(this_space);
 }
 
@@ -343,11 +341,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	auto &multi_srcs = space.multi_srcs;
 	auto &dfuts = space.dfuts;
 	auto &efuts = space.efuts;
-	auto &dsource_futs = space.dsource_futs;
-	auto &esource_futs = space.esource_futs;
+	auto &dsource_iters = space.dsource_iters;
+	auto &esource_iters = space.esource_iters;
 	auto &dmulti_futs = space.dmulti_futs;
 	auto &emulti_futs = space.emulti_futs;
-	auto &sources = space.sources;
 
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
@@ -360,7 +357,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 		if (far) {
 			if (c.flags.opened) {
-				dsource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));
+				dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
 			} else {
 				dmulti_futs.push_back(c.node.get_multi_srcs());
 			}
@@ -383,7 +380,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 			if (far) {
 				if (c.flags.opened) {
-					esource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));
+					esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
 				} else {
 					emulti_futs.push_back(c.node.get_multi_srcs());
 				}
@@ -398,32 +395,18 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}
 	}
 	multi_srcs.resize(0);
-	sources.resize(0);
 	for (auto &v : dmulti_futs) {
 		multi_srcs.push_back(v.get());
 	}
 	flop += gravity_CC_direct(L, multi.x, multi_srcs);
-	for (auto &v : dsource_futs) {
-		auto s = v.get();
-		for (auto x : s) {
-			sources.push_back(x);
-		}
-	}
-	flop += gravity_CP_direct(L, multi.x, sources);
+	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters));
 	if (opts.ewald) {
 		multi_srcs.resize(0);
-		sources.resize(0);
 		for (auto &v : emulti_futs) {
 			multi_srcs.push_back(v.get());
 		}
 		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
-		for (auto &v : esource_futs) {
-			auto s = v.get();
-			for (auto x : s) {
-				sources.push_back(x);
-			}
-		}
-		flop += gravity_CP_ewald(L, multi.x, sources);
+		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters));
 	}
 	for (auto &f : dfuts) {
 		auto c = f.get();
@@ -455,8 +438,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}
 		rc.stats = rc_r.stats + rc_l.stats;
 	} else {
-		dsource_futs.resize(0);
-		esource_futs.resize(0);
+		dsource_iters.resize(0);
+		esource_iters.resize(0);
 		dmulti_futs.resize(0);
 		emulti_futs.resize(0);
 		while (!dchecklist.empty()) {
@@ -468,7 +451,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
 				const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 				if (c.flags.opened) {
-					dsource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));
+					dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
 				} else {
 					if (far) {
 						dmulti_futs.push_back(c.node.get_multi_srcs());
@@ -500,7 +483,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					const auto dx = ewald_far_separation(multi.x - c.x, multi.r, range_max_span(box));
 					const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 					if (c.flags.opened) {
-						esource_futs.push_back(part_vect_read_position(c.pbegin, c.pend));
+						esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
 					} else {
 						if (far) {
 							emulti_futs.push_back(c.node.get_multi_srcs());
@@ -537,28 +520,14 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			multi_srcs.push_back(v.get());
 		}
 		flop += gravity_PC_direct(f, x, multi_srcs);
-		sources.resize(0);
-		for (auto &v : dsource_futs) {
-			auto s = v.get();
-			for (auto x : s) {
-				sources.push_back(x);
-			}
-		}
-		flop += gravity_PP_direct(f, x, sources, do_out);
+		flop += gravity_PP_direct(f, x, part_vect_read_positions(dsource_iters), do_out);
 		if (opts.ewald) {
 			multi_srcs.resize(0);
 			for (auto &v : emulti_futs) {
 				multi_srcs.push_back(v.get());
 			}
 			flop += gravity_PC_ewald(f, x, multi_srcs);
-			sources.resize(0);
-			for (auto &v : esource_futs) {
-				auto s = v.get();
-				for (auto x : s) {
-					sources.push_back(x);
-				}
-			}
-			flop += gravity_PP_ewald(f, x, sources);
+			flop += gravity_PP_ewald(f, x, part_vect_read_positions(esource_iters));
 		}
 		rc = part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(f));
 	}
@@ -601,7 +570,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			group_active = group_active || c.flags.group_active;
 		}
 	}
-	if( !group_active) {
+	if (!group_active) {
 		return false;
 	}
 	for (auto &f : futs) {
@@ -654,7 +623,6 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			std::swap(checklist, next_checklist);
 			next_checklist.resize(0);
 		}
-		sources.resize(0);
 		for (auto &f : source_futs) {
 			auto v = f.get();
 			for (auto &s : v) {

@@ -178,7 +178,7 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 	}
 }
 
-std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> &y, bool do_phi) {
+std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> y, bool do_phi) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -420,7 +420,7 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<double> &x, std
 	return 1045 * cnt1 + LP * simd_float::size();
 }
 
-std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<double> &x, std::vector<vect<pos_type>> &y) {
+std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<double> &x, std::vector<vect<pos_type>> y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -487,7 +487,7 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<double> &x, std
 static const ewald_indices indices_real(EWALD_REAL_N2);
 static const ewald_indices indices_four(EWALD_FOUR_N2);
 
-std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> &y) {
+std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -744,7 +744,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<double> &x, std:
 	return (1110 + 689 * indices_real.size() + 64 * indices_four.size()) * cnt1 + LP * simd_float::size();
 }
 
-std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std::vector<vect<pos_type>> &y) {
+std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std::vector<vect<pos_type>> y) {
 	if (y.size() == 0) {
 		return 0;
 	}

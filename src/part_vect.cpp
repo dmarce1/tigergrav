@@ -63,7 +63,7 @@ inline particle& parts(part_iter i) {
 
 bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_info> others) {
 	static const auto opts = options::get();
-	static const std::uint64_t L = (std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len) * std::numeric_limits < std::uint32_t > ::max();
+	static const std::uint64_t L = (std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len) * std::numeric_limits<std::uint32_t>::max();
 	static const std::uint64_t L2 = L * L;
 	const auto this_end = std::min(e, part_end);
 	bool rc = false;
@@ -709,6 +709,46 @@ hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, pa
 	} else {
 		return part_vect_read_pos_cache(b, e);
 	}
+}
+
+std::vector<vect<pos_type>> part_vect_read_positions(const std::vector<std::pair<part_iter, part_iter>>& iters) {
+	std::vector<std::pair<part_iter, part_iter>> local;
+	std::vector<std::pair<part_iter, part_iter>> nonlocal;
+	std::vector<vect<pos_type>> pos;
+	local.reserve(iters.size());
+	std::size_t size = 0;
+	for (int i = 0; i < iters.size(); i++) {
+		size += iters[i].second - iters[i].first;
+		if (part_vect_locality_id(iters[i].first) == myid) {
+			if (iters[i].second <= part_end) {
+				local.push_back(iters[i]);
+			} else {
+				local.push_back(std::make_pair(iters[i].first, part_end));
+				nonlocal.push_back(std::make_pair(part_end, iters[i].second));
+			}
+		} else {
+			nonlocal.push_back(iters[i]);
+//			printf( "-%i %i %i\n", size, local.size(), nonlocal.size());
+		}
+	}
+	std::vector<hpx::future<std::vector<vect<pos_type>>>> futs;
+	for (auto &iter : nonlocal) {
+		futs.push_back(part_vect_read_position(iter.first, iter.second));
+	}
+	size = ((size - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
+	pos.reserve(size);
+	for (auto &iter : local) {
+		for (part_iter i = iter.first; i < iter.second; i++) {
+			pos.push_back(parts(i).x);
+		}
+	}
+	for (auto &f : futs) {
+		auto v = f.get();
+		for (const auto &x : v) {
+			pos.push_back(x);
+		}
+	}
+	return pos;
 }
 
 hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, part_iter e) {
