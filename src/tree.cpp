@@ -192,7 +192,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 8 * opts.parts_per_node)) {
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 4 * opts.parts_per_node)) {
 		gwork_id = gwork_assign_id();
 	}
 
@@ -530,7 +530,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			multi_srcs.push_back(v.get());
 		}
 		flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
-		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
+//		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
 		if (opts.ewald) {
 			multi_srcs.resize(0);
 			for (auto &v : emulti_futs) {
