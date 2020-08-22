@@ -192,7 +192,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 64 * opts.parts_per_node)) {
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 512 * opts.parts_per_node)) {
 		gwork_id = gwork_assign_id();
 	}
 
@@ -541,7 +541,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 //			if (esource_iters.size())
 //				printf("%i %i %e %e %e\n", gwork_id, esource_iters.size(), multi.r, h, 2.0 * (multi.r + h));
 		}
-		gwork_pp_complete(gwork_id, fptr, xptr, dsource_iters, [this,min_rung, do_out, fptr]() {
+		flop += gwork_pp_complete(gwork_id, fptr, xptr, dsource_iters, [this,min_rung, do_out, fptr]() {
 			return part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr));
 		});
 

@@ -285,7 +285,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 	}
 
 	y.resize(cnt1);
-	return ((74 + do_phi * 15) * cnt1 + simd_float::size() * 4 + 5) * x.size();
+	return ((104 + do_phi * 17) * cnt1 + simd_float::size() * 4 + 5) * x.size();
 }
 
 std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<multi_src> &y) {
