@@ -1,5 +1,4 @@
 #include <tigergrav/gravity_work.hpp>
-#include <tigergrav/part_vect.hpp>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -23,18 +22,56 @@ HPX_PLAIN_ACTION(gwork_reset);
 struct gwork_unit {
 	part_iter yb;
 	part_iter ye;
+	std::shared_ptr<std::vector<force>> fptr;
+	std::shared_ptr<std::vector<vect<pos_type>>> xptr;
 };
 
 struct gwork_group {
-	std::unordered_map<part_iter, gwork_unit> units;
+	std::vector<gwork_unit> units;
+	std::vector<std::function<void(void)>> complete;
+	mutex_type mtx;
+	int workadded;
 	int mcount;
 	gwork_group() {
 		mcount = 0;
+		workadded = 0;
 	}
 };
 
 mutex_type groups_mtx;
 std::unordered_map<int, gwork_group> groups;
+
+void gwork_pp_complete(int id, std::shared_ptr<std::vector<force>> g, std::shared_ptr<std::vector<vect<pos_type>>> x,
+		const std::vector<std::pair<part_iter, part_iter>> &y, std::function<void(void)> &&complete) {
+	bool do_work;
+	gwork_unit unit;
+	unit.fptr = g;
+	unit.xptr = x;
+	auto &entry = groups[id];
+	{
+		std::lock_guard<mutex_type> lock(entry.mtx);
+		for (auto &j : y) {
+			unit.yb = j.first;
+			unit.ye = j.second;
+			entry.units.push_back(unit);
+		}
+		entry.complete.push_back(std::move(complete));
+		entry.workadded++;
+		do_work = entry.workadded == entry.mcount;
+	}
+	if (entry.workadded > entry.mcount) {
+		printf("Error too much work added\n");
+		abort();
+	}
+
+	if (do_work) {
+		printf("Checkin complete starting work on group %i\n", id);
+		for (auto &cfunc : entry.complete) {
+			cfunc();
+		}
+	}
+
+}
 
 void gwork_show() {
 	for (const auto &group : groups) {

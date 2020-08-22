@@ -45,7 +45,8 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 	start = timer();
 	expansion<double> L;
 	L = 0.0;
-	auto rc = root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
+	root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
+	auto rc = part_vect_kick_return();
 	if( do_out&& ! opts.solver_test) {
 		groups_finish1();
 		part_vect_find_groups2();

@@ -58,7 +58,7 @@ inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
 	bool thread;
 //	printf( "%i\n", (int) num_threads);
 //	int count = num_threads++;
-	if (nparts >= N && left) {
+	if ((nparts >= N) && left) {
 		thread = true;
 	} else {
 //		num_threads--;
@@ -192,7 +192,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 64 * opts.parts_per_node)) {
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 8 * opts.parts_per_node)) {
 		gwork_id = gwork_assign_id();
 	}
 
@@ -327,21 +327,18 @@ void trash_workspace(workspace &&w) {
 	workspaces.push(std::move(w));
 }
 
-kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
+int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
 	static const double m = opts.m_tot / opts.problem_size;
 	if (level == 0) {
 		reset_node_cache();
-		part_vect_cache_reset();
+		part_vect_reset();
 	}
 
-	kick_return rc;
 	if ((part_end - part_begin == 0) || (!multi.has_active && !do_out)) {
-		rc.rung = 0;
-		rc.stats.zero();
-		return rc;
+		return 0;
 	}
 
 	L = L << (multi.x - Lcom);
@@ -447,13 +444,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 		}, false, part_end - part_begin, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
-		rc.rung = std::max(rc_r.rung, rc_l.rung);
-		if (do_out) {
-			rc.out = std::move(rc_l.out);
-			rc.out.insert(rc.out.end(), rc_r.out.begin(), rc_r.out.end());
-		}
-		rc.stats = rc_r.stats + rc_l.stats;
 	} else {
+
+		auto fptr = std::make_shared<std::vector<force>>();
+		auto xptr = std::make_shared<std::vector<vect<pos_type>>>();
 		dsource_iters.resize(0);
 		esource_iters.resize(0);
 		dmulti_futs.resize(0);
@@ -522,35 +516,35 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 				next_echecklist.resize(0);
 			}
 		}
-		const auto x = part_vect_read_active_positions(part_begin, part_end, do_out ? rung_type(0) : min_rung);
-		std::vector<force> f(x.size());
+		*xptr = part_vect_read_active_positions(part_begin, part_end, do_out ? rung_type(0) : min_rung);
+		fptr->resize(xptr->size());
 		int j = 0;
-		for (auto i = x.begin(); i != x.end(); i++) {
-			force this_f = L.translate_L2(vect<float>(pos_to_double(x[j]) - multi.x));
-			f[j].phi = this_f.phi;
-			f[j].g = this_f.g;
+		for (auto i = xptr->begin(); i != xptr->end(); i++) {
+			force this_f = L.translate_L2(vect<float>(pos_to_double((*xptr)[j]) - multi.x));
+			(*fptr)[j].phi = this_f.phi;
+			(*fptr)[j].g = this_f.g;
 			j++;
 		}
 		multi_srcs.resize(0);
 		for (auto &v : dmulti_futs) {
 			multi_srcs.push_back(v.get());
 		}
-		flop += gravity_PC_direct(f, x, multi_srcs);
-		flop += gravity_PP_direct(f, x, part_vect_read_positions(dsource_iters), do_out);
+		flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
+		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
 		if (opts.ewald) {
 			multi_srcs.resize(0);
 			for (auto &v : emulti_futs) {
 				multi_srcs.push_back(v.get());
 			}
-			flop += gravity_PC_ewald(f, x, multi_srcs);
-			flop += gravity_PP_ewald(f, x, part_vect_read_positions(esource_iters));
+			flop += gravity_PC_ewald(*fptr, *xptr, multi_srcs);
+			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters));
 //			if (esource_iters.size())
 //				printf("%i %i %e %e %e\n", gwork_id, esource_iters.size(), multi.r, h, 2.0 * (multi.r + h));
 		}
-		rc = part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(f));
+		part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr)).get();
 	}
 	trash_workspace(std::move(space));
-	return rc;
+	return 0;
 }
 
 bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
@@ -558,7 +552,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
 	if (level == 0) {
 		reset_node_cache();
-		part_vect_cache_reset();
+		part_vect_reset();
 	}
 
 	if (part_end - part_begin == 0) {

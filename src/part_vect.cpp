@@ -37,11 +37,14 @@ static mutex_type group_cache_mtx[POS_CACHE_SIZE];
 #define GROUP_MTX_SIZE ((std::uint64_t) 1024)
 static mutex_type group_mtx[GROUP_MTX_SIZE];
 
+kick_return kick_rc;
+mutex_type kick_rc_mtx;
+
 HPX_PLAIN_ACTION(part_vect_init);
 HPX_PLAIN_ACTION(part_vect_read_position);
 HPX_PLAIN_ACTION(part_vect_read_group);
 HPX_PLAIN_ACTION(part_vect_range);
-HPX_PLAIN_ACTION(part_vect_cache_reset);
+HPX_PLAIN_ACTION(part_vect_reset);
 HPX_PLAIN_ACTION(part_vect_center_of_mass);
 HPX_PLAIN_ACTION(part_vect_multipole_info);
 HPX_PLAIN_ACTION(part_vect_drift);
@@ -49,6 +52,7 @@ HPX_PLAIN_ACTION(part_vect_read_active_positions);
 HPX_PLAIN_ACTION(part_vect_kick);
 HPX_PLAIN_ACTION(part_vect_init_groups);
 HPX_PLAIN_ACTION(part_vect_find_groups);
+HPX_PLAIN_ACTION(part_vect_kick_return);
 
 inline particle& parts(part_iter i) {
 	const int j = i - part_begin;
@@ -59,6 +63,22 @@ inline particle& parts(part_iter i) {
 	}
 #endif
 	return particles[j];
+}
+
+kick_return part_vect_kick_return() {
+	std::vector<hpx::future<kick_return>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async<part_vect_kick_return_action>(localities[i]));
+		}
+	}
+	for (auto &f : futs) {
+		auto rc = f.get();
+		kick_rc.stats = kick_rc.stats + rc.stats;
+		kick_rc.rung = std::max(kick_rc.rung, rc.rung);
+		kick_rc.out.insert(kick_rc.out.end(), rc.out.begin(), rc.out.end());
+	}
+	return std::move(kick_rc);
 }
 
 bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_info> others) {
@@ -321,7 +341,7 @@ void part_vect_group_proc1(std::vector<particle> ps) {
 
 HPX_PLAIN_ACTION(part_vect_group_proc1);
 
-kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &&f) {
+hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &&f) {
 	kick_return rc;
 	const auto opts = options::get();
 	const double eps = 10.0 * std::numeric_limits<double>::min();
@@ -391,27 +411,31 @@ kick_return part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do
 			j++;
 		}
 	}
+	{
+		std::lock_guard<mutex_type> lock(kick_rc_mtx);
+		kick_rc.stats = kick_rc.stats + rc.stats;
+		kick_rc.rung = std::max(kick_rc.rung, rc.rung);
+		kick_rc.out.insert(kick_rc.out.end(), rc.out.begin(), rc.out.end());
+	}
 	const auto k = j;
 	for (; j < f.size(); j++) {
 		f[j - k] = f[j];
 	}
 	f.resize(f.size() - k);
 	if (f.size()) {
-		const auto other = part_vect_kick_action()(localities[myid + 1], part_end, e, min_rung, do_out, std::move(f));
-		if (do_out) {
-			rc.stats = rc.stats + other.stats;
-			rc.rung = std::max(rc.rung, other.rung);
-			rc.out.insert(rc.out.end(), other.out.begin(), other.out.end());
-		}
+		part_vect_kick_action()(localities[myid + 1], part_end, e, min_rung, do_out, std::move(f));
 	}
-	if (do_out) {
-		std::vector<hpx::future<void>> futs;
-		for (auto &other : group_proc) {
-			futs.push_back(hpx::async<part_vect_group_proc1_action>(localities[other.first], std::move(other.second)));
-		}
-		hpx::wait_all(futs.begin(), futs.end());
+	if (do_out && group_proc.size()) {
+		return hpx::async([](std::unordered_map<int, std::vector<particle>> &&group_proc) {
+			std::vector<hpx::future<void>> futs;
+			for (auto &other : group_proc) {
+				futs.push_back(hpx::async<part_vect_group_proc1_action>(localities[other.first], std::move(other.second)));
+			}
+			hpx::wait_all(futs.begin(), futs.end());
+		}, std::move(group_proc));
+	} else {
+		return hpx::make_ready_future();
 	}
-	return rc;
 }
 
 void part_vect_group_proc2(std::vector<particle> ps) {
@@ -608,17 +632,20 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 	return rc;
 }
 
-void part_vect_cache_reset() {
+void part_vect_reset() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<part_vect_cache_reset_action>(localities[i]));
+			futs.push_back(hpx::async<part_vect_reset_action>(localities[i]));
 		}
 	}
 	for (int i = 0; i < POS_CACHE_SIZE; i++) {
 		pos_cache[i].clear();
 		group_cache[i].clear();
 	}
+	kick_rc.stats.zero();
+	kick_rc.rung = 0;
+	kick_rc.out.clear();
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
