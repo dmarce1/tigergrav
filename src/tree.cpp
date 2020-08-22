@@ -184,10 +184,18 @@ bool tree::refine(int stack_cnt) {
 	}
 }
 
-multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
+multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int workid, int stack_cnt) {
+	if (level == 0) {
+		gwork_reset();
+	}
 	group_active = true;
 	const auto &opts = options::get();
 	range prange;
+	gwork_id = workid;
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 64 * opts.parts_per_node)) {
+		gwork_id = gwork_assign_id();
+	}
+
 	if (part_end - part_begin == 0) {
 		multipole_return rc;
 		multi.m = 0.0;
@@ -209,10 +217,10 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 	} else {
 		multipole_return ml, mr;
 		auto rcl = thread_if_avail([=](int stack_cnt) {
-			return children[0].compute_multipoles(mrung, do_out, stack_cnt);
+			return children[0].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
 		}, true, part_end - part_begin, stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
-			return children[1].compute_multipoles(mrung, do_out, stack_cnt);
+			return children[1].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
 		}, false, part_end - part_begin, stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
@@ -240,6 +248,9 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 		multi.r = std::min(multi.r, (float) rmax);
 		child_check[0] = ml.c;
 		child_check[1] = mr.c;
+	}
+	if (multi.has_active && is_leaf()) {
+		gwork_checkin(gwork_id);
 	}
 	return multipole_return( { multi, prange, get_check_item() });
 }
@@ -335,6 +346,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 
 	L = L << (multi.x - Lcom);
 
+	double longl;
 	std::vector<check_item> next_dchecklist;
 	std::vector<check_item> next_echecklist;
 	auto space = get_workspace();
@@ -345,6 +357,10 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 	auto &esource_iters = space.esource_iters;
 	auto &dmulti_futs = space.dmulti_futs;
 	auto &emulti_futs = space.emulti_futs;
+
+	if (opts.ewald) {
+		longl = range_max_span(part_vect_range(part_begin, part_end));
+	}
 
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
@@ -376,7 +392,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			if (c.pend == c.pbegin) {
 				continue;
 			}
-			const auto dx = ewald_far_separation(multi.x - c.x, multi.r, range_max_span(box));
+			const auto dx = ewald_far_separation(multi.x - c.x, multi.r, longl);
 			const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 			if (far) {
 				if (c.flags.opened) {
@@ -480,7 +496,7 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 					if (c.pend == c.pbegin) {
 						continue;
 					}
-					const auto dx = ewald_far_separation(multi.x - c.x, multi.r, range_max_span(box));
+					const auto dx = ewald_far_separation(multi.x - c.x, multi.r, longl);
 					const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 					if (c.flags.opened) {
 						esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -528,6 +544,8 @@ kick_return tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check
 			}
 			flop += gravity_PC_ewald(f, x, multi_srcs);
 			flop += gravity_PP_ewald(f, x, part_vect_read_positions(esource_iters));
+//			if (esource_iters.size())
+//				printf("%i %i %e %e %e\n", gwork_id, esource_iters.size(), multi.r, h, 2.0 * (multi.r + h));
 		}
 		rc = part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(f));
 	}

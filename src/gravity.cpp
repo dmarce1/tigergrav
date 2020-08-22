@@ -18,13 +18,15 @@ double ewald_near_separation(const vect<double> x) {
 }
 
 double ewald_far_separation(const vect<double> x, double r, double l) {
-	constexpr double r_e = 0.025;
 	static const auto opts = options::get();
+	constexpr double toler = 5.0e-4;
+	static const double r_e = std::pow(toler / 8.0, 1.0 / 3.0) / 2.0;
+	static const auto h = opts.soft_len;
 	if (x.dot(x) == 0.0) {
-		if (r == 0.0 || r < l / 2.0) {
-			return 4.0 * r_e;
+		if (r < l / 2.0) {
+			return 4.0 * (r_e + h);
 		} else {
-			return 8.0 * r_e * r / l;
+			return 8.0 * r_e * r / l + 4.0 * h;
 		}
 	} else {
 		return std::max(0.25, ewald_near_separation(x));
@@ -238,8 +240,8 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 				}
 			}
 			const simd_float r2 = dX.dot(dX);								   // 5 / 0
-			const simd_float r = sqrt(r2);									   // 1 / 0
-			const simd_float rinv = simd_float(1) / max(r, H);                 // 2 / 0
+			const simd_float r = sqrt(r2);									   // 7 / 0
+			const simd_float rinv = simd_float(1) / max(r, H);                 //36 / 0
 			const simd_float rinv3 = rinv * rinv * rinv;                       // 2 / 0
 			simd_float sw1 = r > H;                                            // 1 / 0
 			simd_float sw2 = (simd_float(1.0) - sw1);                          // 1 / 0
@@ -283,7 +285,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 	}
 
 	y.resize(cnt1);
-	return ((64 + do_phi * 15) * cnt1 + simd_float::size() * 4 + 5) * x.size();
+	return ((74 + do_phi * 15) * cnt1 + simd_float::size() * 4 + 5) * x.size();
 }
 
 std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<multi_src> &y) {
