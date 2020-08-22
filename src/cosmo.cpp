@@ -201,6 +201,8 @@ void cosmo_advance(double dt) {
 
 void cosmo_init(double a0, double adot0) {
 	std::vector<hpx::future<void>> futs;
+	localities = hpx::find_all_localities();
+	myid = hpx::get_locality_id();
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
 			futs.push_back(hpx::async<cosmo_init_action>(localities[i], a0, adot0));
@@ -208,7 +210,5 @@ void cosmo_init(double a0, double adot0) {
 	}
 	this_cosmos = cosmos(a0, adot0, 0.0);
 	last_cosmos = this_cosmos;
-	localities = hpx::find_all_localities();
-	myid = hpx::get_locality_id();
 	hpx::wait_all(futs.begin(), futs.end());
 }
