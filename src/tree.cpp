@@ -327,8 +327,8 @@ void trash_workspace(workspace &&w) {
 	workspaces.push(std::move(w));
 }
 
-int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
-		rung_type min_rung, bool do_out, int stack_cnt) {
+int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+		bool do_out, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
 	static const double m = opts.m_tot / opts.problem_size;
@@ -541,7 +541,10 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 //			if (esource_iters.size())
 //				printf("%i %i %e %e %e\n", gwork_id, esource_iters.size(), multi.r, h, 2.0 * (multi.r + h));
 		}
-		part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr)).get();
+		gwork_pp_complete(gwork_id, fptr, xptr, dsource_iters, [this,min_rung, do_out, fptr]() {
+			return part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr));
+		});
+
 	}
 	trash_workspace(std::move(space));
 	return 0;

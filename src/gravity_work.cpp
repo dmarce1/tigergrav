@@ -28,7 +28,7 @@ struct gwork_unit {
 
 struct gwork_group {
 	std::vector<gwork_unit> units;
-	std::vector<std::function<void(void)>> complete;
+	std::vector<std::function<hpx::future<void>(void)>> complete;
 	mutex_type mtx;
 	int workadded;
 	int mcount;
@@ -42,7 +42,7 @@ mutex_type groups_mtx;
 std::unordered_map<int, gwork_group> groups;
 
 void gwork_pp_complete(int id, std::shared_ptr<std::vector<force>> g, std::shared_ptr<std::vector<vect<pos_type>>> x,
-		const std::vector<std::pair<part_iter, part_iter>> &y, std::function<void(void)> &&complete) {
+		const std::vector<std::pair<part_iter, part_iter>> &y, std::function<hpx::future<void>(void)> &&complete) {
 	bool do_work;
 	gwork_unit unit;
 	unit.fptr = g;
@@ -65,10 +65,13 @@ void gwork_pp_complete(int id, std::shared_ptr<std::vector<force>> g, std::share
 	}
 
 	if (do_work) {
-		printf("Checkin complete starting work on group %i\n", id);
+//		printf("Checkin complete starting work on group %i\n", id);
+		std::vector<hpx::future<void>> futs;
 		for (auto &cfunc : entry.complete) {
-			cfunc();
+			futs.push_back(cfunc());
 		}
+		hpx::wait_all(futs.begin(), futs.end());
+		groups.erase(id);
 	}
 
 }
