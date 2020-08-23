@@ -109,62 +109,35 @@ class simd_double;
 
 class simd_float {
 private:
-	_simd_float v;
+	_simd_float v[2];
 public:
 	static constexpr std::size_t size() {
-		return SIMD_VLEN;
+		return 2 * SIMD_VLEN;
 	}
 	simd_float() = default;
 	inline ~simd_float() = default;
 	simd_float(const simd_float&) = default;
 	inline simd_float(float d) {
 #ifdef USE_AVX512
-        v = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+        v[0] = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+        v[1] = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
 #endif
 #ifdef USE_AVX2
-		v = _mm256_set_ps(d, d, d, d, d, d, d, d);
+		v[0] = _mm256_set_ps(d, d, d, d, d, d, d, d);
+		v[1] = _mm256_set_ps(d, d, d, d, d, d, d, d);
 #endif
 #ifdef USE_AVX
-		v = _mm_set_ps(d, d, d, d);
+		v[0] = _mm_set_ps(d, d, d, d);
+		v[1] = _mm_set_ps(d, d, d, d);
 #endif
 	}
-	union union_mm {
-#ifdef USE_AVX512
-		__m512 m16[1];
-		__m256 m8[2];
-		__m128 m4[4];
-		float m1[16];
-#endif
-#ifdef USE_AVX2
-		__m256 m8[1];
-		__m128 m4[2];
-		float m1[8];
-#endif
-#ifdef USE_AVX
-		__m128 m4[2];
-		float m1[4];
-#endif
-	};
 	inline float sum() const {
-		union_mm s;
-#ifdef USE_AVX512
-		s.m16[0] = v;
-		s.m8[0] = _mm256_add_ps(s.m8[0],s.m8[1]);
-		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
-#endif
-#ifdef USE_AVX2
-		s.m8[0] = v;
-		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
-#endif
-#ifdef USE_AVX
-		s.m4[0] = v;
-#endif
-		s.m1[4] = s.m1[2];
-		s.m1[5] = s.m1[3];
-		s.m4[0] = _mm_add_ps(s.m4[0], s.m4[1]);
-		return s.m1[0] + s.m1[1];
+		float sum = 0.0;
+		for (int i = 0; i < 2 *SIMD_VLEN; i++) {
+			sum += (*this)[i];
+		}
+		return sum;
 	}
-
 
 	inline simd_float(simd_int i);
 
@@ -172,22 +145,26 @@ public:
 	simd_float& operator=(simd_float &&other) = default;
 	inline simd_float operator+(const simd_float &other) const {
 		simd_float r;
-		r.v = _mmx_add_ps(v, other.v);
+		r.v[0] = _mmx_add_ps(v[0], other.v[0]);
+		r.v[1] = _mmx_add_ps(v[1], other.v[1]);
 		return r;
 	}
 	inline simd_float operator-(const simd_float &other) const {
 		simd_float r;
-		r.v = _mmx_sub_ps(v, other.v);
+		r.v[0] = _mmx_sub_ps(v[0], other.v[0]);
+		r.v[1] = _mmx_sub_ps(v[1], other.v[1]);
 		return r;
 	}
 	inline simd_float operator*(const simd_float &other) const {
 		simd_float r;
-		r.v = _mmx_mul_ps(v, other.v);
+		r.v[0] = _mmx_mul_ps(v[0], other.v[0]);
+		r.v[1] = _mmx_mul_ps(v[1], other.v[1]);
 		return r;
 	}
 	inline simd_float operator/(const simd_float &other) const {
 		simd_float r;
-		r.v = _mmx_div_ps(v, other.v);
+		r.v[0] = _mmx_div_ps(v[0], other.v[0]);
+		r.v[1] = _mmx_div_ps(v[1], other.v[1]);
 		return r;
 	}
 	inline simd_float operator+() const {
@@ -231,10 +208,10 @@ public:
 		return *this;
 	}
 	inline float& operator[](std::size_t i) {
-		return v[i];
+		return reinterpret_cast<float*>(&v)[i];
 	}
 	inline float operator[](std::size_t i) const {
-		return v[i];
+		return reinterpret_cast<const float*>(&v)[i];
 	}
 
 	friend simd_float copysign(const simd_float&, const simd_float&);
@@ -259,11 +236,14 @@ public:
 		simd_float rc;
 		static const simd_float one(1);
 		static const simd_float zero(0);
-		auto mask = _mmx_cmp_ps(v, other.v, _CMP_LT_OQ);
+		auto mask0 = _mmx_cmp_ps(v[0], other.v[0], _CMP_LT_OQ);
+		auto mask1 = _mmx_cmp_ps(v[1], other.v[1], _CMP_LT_OQ);
 #ifdef USE_AVX512
-			rc.v = _mm512_mask_mov_ps(zero.v,mask,one.v);
+		rc.v[0] = _mm512_mask_mov_ps(zero.v[0],mask0,one.v[0]);
+		rc.v[1] = _mm512_mask_mov_ps(zero.v[1],mask1,one.v[1]);
 #else
-		rc.v = _mmx_and_ps(mask, one.v);
+		rc.v[0] = _mmx_and_ps(mask0, one.v[0]);
+		rc.v[1] = _mmx_and_ps(mask1, one.v[1]);
 #endif
 		return rc;
 	}
@@ -271,11 +251,14 @@ public:
 		simd_float rc;
 		static const simd_float one(1);
 		static const simd_float zero(0);
-		auto mask = _mmx_cmp_ps(v, other.v, _CMP_GT_OQ);
+		auto mask0 = _mmx_cmp_ps(v[0], other.v[0], _CMP_GT_OQ);
+		auto mask1 = _mmx_cmp_ps(v[1], other.v[1], _CMP_GT_OQ);
 #ifdef USE_AVX512
-			rc.v = _mm512_mask_mov_ps(zero.v,mask,one.v);
+		rc.v[0] = _mm512_mask_mov_ps(zero.v[0],mask0,one.v[0]);
+		rc.v[1] = _mm512_mask_mov_ps(zero.v[1],mask1,one.v[1]);
 #else
-		rc.v = _mmx_and_ps(mask, one.v);
+		rc.v[0] = _mmx_and_ps(mask0, one.v[0]);
+		rc.v[1] = _mmx_and_ps(mask1, one.v[1]);
 #endif
 		return rc;
 	}
@@ -285,40 +268,46 @@ public:
 
 class simd_int {
 private:
-	_simd_int v;
+	_simd_int v[2];
 public:
 	static constexpr std::size_t size() {
-		return SIMD_VLEN;
+		return 2*SIMD_VLEN;
 	}
 	simd_int() = default;
 	inline ~simd_int() = default;
 	simd_int(const simd_int&) = default;
 	inline simd_int(int d) {
 #ifdef USE_AVX512
-        v = _mm512_set_epi32(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+        v[0] = _mm512_set_epi32(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+        v[1] = _mm512_set_epi32(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
 #endif
 #ifdef USE_AVX2
-		v = _mm256_set_epi32(d, d, d, d, d, d, d, d);
+		v[0] = _mm256_set_epi32(d, d, d, d, d, d, d, d);
+		v[1] = _mm256_set_epi32(d, d, d, d, d, d, d, d);
 #endif
 #ifdef USE_AVX
-		v = _mm_set_epi32(d, d, d, d);
+		v[0] = _mm_set_epi32(d, d, d, d);
+		v[1] = _mm_set_epi32(d, d, d, d);
 #endif
 	}
 	inline simd_int& operator=(const simd_int &other) = default;
 	simd_int& operator=(simd_int &&other) = default;
 	inline simd_int operator+(const simd_int &other) const {
 		simd_int r;
-		r.v = _mmx_add_epi32(v, other.v);
+		r.v[0] = _mmx_add_epi32(v[0], other.v[0]);
+		r.v[1] = _mmx_add_epi32(v[1], other.v[1]);
 		return r;
 	}
 	inline simd_int operator-(const simd_int &other) const {
 		simd_int r;
-		r.v = _mmx_sub_epi32(v, other.v);
+		r.v[0] = _mmx_sub_epi32(v[0], other.v[0]);
+		r.v[1] = _mmx_sub_epi32(v[1], other.v[1]);
 		return r;
 	}
 	inline simd_int operator*(const simd_int &other) const {
 		simd_int r;
-		r.v = _mmx_mul_epi32(v, other.v);
+		r.v[0] = _mmx_mul_epi32(v[0], other.v[0]);
+		r.v[1] = _mmx_mul_epi32(v[1], other.v[1]);
 		return r;
 	}
 	inline simd_int operator+() const {
@@ -337,33 +326,33 @@ public:
 		return *this;
 	}
 	inline int& operator[](std::size_t i) {
-		return (reinterpret_cast<int*>(&v))[i];
+		return reinterpret_cast<int*>(&v)[i];
 	}
 	inline int operator[](std::size_t i) const {
-		return v[i];
+		return reinterpret_cast<const int*>(&v)[i];
 	}
 	friend class simd_double;
 	friend class simd_float;
 
 }SIMDALIGN;
 
-
-
 inline simd_float::simd_float(simd_int i) {
 #ifdef USE_AVX512
-	v = _mm512_cvtepi32_ps(i.v);
+	v[0] = _mm512_cvtepi32_ps(i.v[0]);
+	v[1] = _mm512_cvtepi32_ps(i.v[1]);
 #endif
 #ifdef USE_AVX2
-	v = _mm256_cvtepi32_ps(i.v);
+	v[0] = _mm256_cvtepi32_ps(i.v[0]);
+	v[1] = _mm256_cvtepi32_ps(i.v[1]);
 #endif
 
 }
 class simd_double {
 private:
-	_simd_double a[2];
+	_simd_double a[4];
 public:
 	static constexpr std::size_t size() {
-		return SIMD_VLEN;
+		return 2 * SIMD_VLEN;
 	}
 	simd_double() = default;
 	inline ~simd_double() = default;
@@ -372,69 +361,79 @@ public:
 #ifdef USE_AVX512
         a[0] = _mm512_set_pd(d, d, d, d, d, d, d, d);
         a[1] = _mm512_set_pd(d, d, d, d, d, d, d, d);
+        a[2] = _mm512_set_pd(d, d, d, d, d, d, d, d);
+        a[3] = _mm512_set_pd(d, d, d, d, d, d, d, d);
 #endif
 #ifdef USE_AVX2
 		a[0] = _mm256_set_pd(d, d, d, d);
 		a[1] = _mm256_set_pd(d, d, d, d);
-#endif
-#ifdef USE_AVX
-		a[0] = _mm_set_pd(d, d);
-		a[1] = _mm_set_pd(d, d);
+		a[2] = _mm256_set_pd(d, d, d, d);
+		a[3] = _mm256_set_pd(d, d, d, d);
 #endif
 	}
 
 	union int_union {
 #ifdef USE_AVX512
-		__m256i m1[2];
-		__m512i m2;
+		__m256i m1[4];
+		__m512i m2[2];
 #endif
 #ifdef USE_AVX2
-		__m128i m1[2];
-		__m256i m2;
+		__m128i m1[4];
+		__m256i m2[2];
 #endif
 #ifdef USE_AVX
 #error 'AVX not complete'
 #endif
-	} ;
+	};
 
 	union float_union {
 #ifdef USE_AVX512
-		__m256 m1[2];
-		__m512 m2;
+		__m256 m1[4];
+		__m512 m2[2];
 #endif
 #ifdef USE_AVX2
-		__m128 m1[2];
-		__m256 m2;
+		__m128 m1[4];
+		__m256 m2[2];
 #endif
 #ifdef USE_AVX
 #error 'AVX not complete'
 #endif
-	} ;
+	};
 
 	inline simd_double(simd_int i) {
 		int_union u;
-		u.m2 = i.v;
+		u.m2[0] = i.v[0];
+		u.m2[1] = i.v[1];
 #ifdef USE_AVX512
 		a[0] = _mm512_cvtepi32_pd(u.m1[0]);
 		a[1] = _mm512_cvtepi32_pd(u.m1[1]);
+		a[2] = _mm512_cvtepi32_pd(u.m1[2]);
+		a[3] = _mm512_cvtepi32_pd(u.m1[3]);
 #endif
 #ifdef USE_AVX2
 		a[0] = _mm256_cvtepi32_pd(u.m1[0]);
 		a[1] = _mm256_cvtepi32_pd(u.m1[1]);
+		a[2] = _mm256_cvtepi32_pd(u.m1[2]);
+		a[3] = _mm256_cvtepi32_pd(u.m1[3]);
 #endif
 
 	}
 
 	inline simd_double(simd_float i) {
 		float_union u;
-		u.m2 = i.v;
+		u.m2[0] = i.v[0];
+		u.m2[1] = i.v[1];
 #ifdef USE_AVX512
 		a[0] = _mm512_cvtps_pd(u.m1[0]);
 		a[1] = _mm512_cvtps_pd(u.m1[1]);
+		a[2] = _mm512_cvtps_pd(u.m1[2]);
+		a[3] = _mm512_cvtps_pd(u.m1[3]);
 #endif
 #ifdef USE_AVX2
 		a[0] = _mm256_cvtps_pd(u.m1[0]);
 		a[1] = _mm256_cvtps_pd(u.m1[1]);
+		a[2] = _mm256_cvtps_pd(u.m1[2]);
+		a[3] = _mm256_cvtps_pd(u.m1[3]);
 #endif
 
 	}
@@ -444,13 +443,18 @@ public:
 #ifdef USE_AVX512
 		u.m1[0] = _mm512_cvtpd_ps(a[0]);
 		u.m1[1] = _mm512_cvtpd_ps(a[1]);
+		u.m1[2] = _mm512_cvtpd_ps(a[2]);
+		u.m1[3] = _mm512_cvtpd_ps(a[3]);
 #endif
 #ifdef USE_AVX2
 		u.m1[0] = _mm256_cvtpd_ps(a[0]);
 		u.m1[1] = _mm256_cvtpd_ps(a[1]);
+		u.m1[2] = _mm256_cvtpd_ps(a[2]);
+		u.m1[3] = _mm256_cvtpd_ps(a[3]);
 #endif
 		simd_float f;
-		f.v = u.m2;
+		f.v[0] = u.m2[0];
+		f.v[1] = u.m2[1];
 		return f;
 	}
 
@@ -460,24 +464,32 @@ public:
 		simd_double r;
 		r.a[0] = _mmx_add_pd(a[0], other.a[0]);
 		r.a[1] = _mmx_add_pd(a[1], other.a[1]);
+		r.a[2] = _mmx_add_pd(a[2], other.a[2]);
+		r.a[3] = _mmx_add_pd(a[3], other.a[3]);
 		return r;
 	}
 	inline simd_double operator-(const simd_double &other) const {
 		simd_double r;
 		r.a[0] = _mmx_sub_pd(a[0], other.a[0]);
 		r.a[1] = _mmx_sub_pd(a[1], other.a[1]);
+		r.a[2] = _mmx_sub_pd(a[2], other.a[2]);
+		r.a[3] = _mmx_sub_pd(a[3], other.a[3]);
 		return r;
 	}
 	inline simd_double operator*(const simd_double &other) const {
 		simd_double r;
 		r.a[0] = _mmx_mul_pd(a[0], other.a[0]);
 		r.a[1] = _mmx_mul_pd(a[1], other.a[1]);
+		r.a[2] = _mmx_mul_pd(a[2], other.a[2]);
+		r.a[3] = _mmx_mul_pd(a[3], other.a[3]);
 		return r;
 	}
 	inline simd_double operator/(const simd_double &other) const {
 		simd_double r;
 		r.a[0] = _mmx_div_pd(a[0], other.a[0]);
 		r.a[1] = _mmx_div_pd(a[1], other.a[1]);
+		r.a[2] = _mmx_div_pd(a[2], other.a[2]);
+		r.a[3] = _mmx_div_pd(a[3], other.a[3]);
 		return r;
 	}
 	inline simd_double operator+() const {
@@ -513,12 +525,12 @@ public:
 	}
 
 	double sum() const {
-		double s = a[0][0];
-		for( int i = 1; i < 4; i++) {
+		double s = 0.0;
+		for (int i = 0; i < 4; i++) {
 			s += a[0][i];
-		}
-		for( int i = 0; i < 4; i++) {
 			s += a[1][i];
+			s += a[2][i];
+			s += a[3][i];
 		}
 		return s;
 	}
@@ -532,7 +544,6 @@ public:
 
 	friend simd_double max(const simd_double &a, const simd_double &b);
 	friend simd_double abs(const simd_double &a);
-
 
 }SIMDALIGN;
 
@@ -549,28 +560,26 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	static const simd_float c8 = simd_float((1.0 / 40320.0) * std::pow(std::log(2), 8));
 	simd_float r0;
 #ifdef USE_AVX512
-        __m512i n;
+    __m512i n[2];
 #endif
 #ifdef USE_AVX2
-	__m256i n;
-#endif
-#ifdef USE_AVX
-    	__m128i n;
+	__m256i n[2];
 #endif
 #ifdef USE_AVX512
-	r0.v = _mm512_roundscale_ps(r.v, _MM_FROUND_TO_NEAREST_INT);
-	n = _mm512_cvtps_epi32(r0.v);
-	r0.v = _mm512_cvtepi32_ps(n);
+	r0.v[0] = _mm512_roundscale_ps(r.v[0], _MM_FROUND_TO_NEAREST_INT);
+	r0.v[1] = _mm512_roundscale_ps(r.v[1], _MM_FROUND_TO_NEAREST_INT);
+	n[0] = _mm512_cvtps_epi32(r0.v[0]);
+	n[1] = _mm512_cvtps_epi32(r0.v[1]);
+	r0.v[0] = _mm512_cvtepi32_ps(n[0]);
+	r0.v[1] = _mm512_cvtepi32_ps(n[1]);
 #endif
 #ifdef USE_AVX2
-	r0.v = _mm256_round_ps(r.v, _MM_FROUND_TO_NEAREST_INT);							// 1
-	n = _mm256_cvtps_epi32(r0.v);														// 1
-	r0.v = _mm256_cvtepi32_ps(n);														// 1
-#endif
-#ifdef USE_AVX
-	r0.v = _mm_round_ps(r.v, _MM_FROUND_TO_NEAREST_INT);							// 1
-	n = _mm_cvtps_epi32(r0.v);														// 1
-	r0.v = _mm_cvtepi32_ps(n);														// 1
+	r0.v[0] = _mm256_round_ps(r.v[0], _MM_FROUND_TO_NEAREST_INT);							// 1
+	r0.v[1] = _mm256_round_ps(r.v[1], _MM_FROUND_TO_NEAREST_INT);							// 1
+	n[0] = _mm256_cvtps_epi32(r0.v[0]);														// 1
+	n[1] = _mm256_cvtps_epi32(r0.v[1]);														// 1
+	r0.v[0] = _mm256_cvtepi32_ps(n[0]);														// 1
+	r0.v[1] = _mm256_cvtepi32_ps(n[1]);														// 1
 #endif
 	auto x = r - r0;
 	auto y = c8;
@@ -583,19 +592,20 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	y = fmadd(y, x, c1);																		// 2
 	y = fmadd(y, x, one);																		// 2
 #ifdef USE_AVX512
-	auto imm0 = _mm512_add_epi32(n[i], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f)); // 1
-	imm0 = _mm512_slli_epi32(imm0, 23);
-	r0.v = _mm512_castsi512_ps(imm0);
+	auto imm00 = _mm512_add_epi32(n[0], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f)); // 1
+	auto imm01 = _mm512_add_epi32(n[1], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f)); // 1
+	imm00 = _mm512_slli_epi32(imm00, 23);
+	imm01 = _mm512_slli_epi32(imm01, 23);
+	r0.v[0] = _mm512_castsi512_ps(imm00);
+	r0.v[1] = _mm512_castsi512_ps(imm01);
 #endif
 #ifdef USE_AVX2
-	auto imm0 = _mm256_add_epi32(n, _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
-	imm0 = _mm256_slli_epi32(imm0, 23);
-	r0.v = _mm256_castsi256_ps(imm0);
-#endif
-#ifdef USE_AVX
-	auto imm0 = _mm_add_epi32(n, _mm_set_epi32(0x7f, 0x7f, 0x7f, 0x7f));
-	imm0 = _mm_slli_epi32(imm0, 23);
-	r0.v = _mm_castsi128_ps(imm0);
+	auto imm00 = _mm256_add_epi32(n[0], _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
+	auto imm01 = _mm256_add_epi32(n[1], _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
+	imm00 = _mm256_slli_epi32(imm00, 23);
+	imm01 = _mm256_slli_epi32(imm01, 23);
+	r0.v[0] = _mm256_castsi256_ps(imm00);
+	r0.v[1] = _mm256_castsi256_ps(imm01);
 #endif
 	auto res = y * r0;																			// 1
 	return res;
@@ -604,13 +614,12 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 inline simd_float round(const simd_float a) {
 	simd_float v;
 #ifdef USE_AVX512
-	v.v = _mm512_roundscale_ps(a.v, 0);
+	v.v[0] = _mm512_roundscale_ps(a.v[0], 0);
+	v.v[1] = _mm512_roundscale_ps(a.v[1], 0);
 #endif
 #ifdef USE_AVX2
-	v.v = _mm256_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
-#endif
-#ifdef USE_AVX
-	v.v = _mm_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
+	v.v[0] = _mm256_round_ps(a.v[0], _MM_FROUND_TO_NEAREST_INT);
+	v.v[1] = _mm256_round_ps(a.v[1], _MM_FROUND_TO_NEAREST_INT);
 #endif
 	return v;
 }
@@ -677,14 +686,10 @@ inline simd_float erfcexp(const simd_float &x, simd_float *e) {				// 50
 inline simd_float fmadd(const simd_float &a, const simd_float &b, const simd_float &c) {
 
 	simd_float v;
-#ifdef USE_AVX
-	v = a*b + c;
-#else
-	v.v = _mmx_fmadd_ps(a.v, b.v, c.v);
-#endif
+	v.v[0] = _mmx_fmadd_ps(a.v[0], b.v[0], c.v[0]);
+	v.v[1] = _mmx_fmadd_ps(a.v[1], b.v[1], c.v[1]);
 	return v;
 }
-
 
 inline simd_float copysign(const simd_float &y, const simd_float &x) {
 // From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
@@ -692,21 +697,17 @@ inline simd_float copysign(const simd_float &y, const simd_float &x) {
 	simd_float v;
 	constexpr float signbit = -0.f;
 	static simd_float const avx_signbit = simd_float(signbit);
-	v.v = _mmx_or_ps(_mmx_and_ps(avx_signbit.v, x.v), _mmx_andnot_ps(avx_signbit.v, y.v)); // (avx_signbit & from) | (~avx_signbit & to)
+	v.v[0] = _mmx_or_ps(_mmx_and_ps(avx_signbit.v[0], x.v[0]), _mmx_andnot_ps(avx_signbit.v[0], y.v[0])); // (avx_signbit & from) | (~avx_signbit & to)
+	v.v[1] = _mmx_or_ps(_mmx_and_ps(avx_signbit.v[1], x.v[1]), _mmx_andnot_ps(avx_signbit.v[1], y.v[1])); // (avx_signbit & from) | (~avx_signbit & to)
 	return v;
 }
 
 inline simd_float sqrt(const simd_float &vec) {
 	simd_float r;
-	r.v = _mmx_sqrt_ps(vec.v);
+	r.v[0] = _mmx_sqrt_ps(vec.v[0]);
+	r.v[1] = _mmx_sqrt_ps(vec.v[1]);
 	return r;
 
-}
-
-inline simd_float rsqrt(const simd_float &vec) {
-	simd_float r;
-	r.v = _mmx_rsqrt_ps(vec.v);
-	return r;
 }
 
 inline simd_float operator*(float d, const simd_float &other) {
@@ -720,31 +721,30 @@ inline simd_float operator/(float d, const simd_float &other) {
 }
 inline simd_float min(const simd_float &a, const simd_float &b) {
 	simd_float r;
-	r.v = _mmx_min_ps(a.v, b.v);
+	r.v[0] = _mmx_min_ps(a.v[0], b.v[0]);
+	r.v[1] = _mmx_min_ps(a.v[1], b.v[1]);
 	return r;
 }
-
 
 inline simd_float max(const simd_float &a, const simd_float &b) {
 	simd_float r;
-	r.v = _mmx_max_ps(a.v, b.v);
+	r.v[0] = _mmx_max_ps(a.v[0], b.v[0]);
+	r.v[1] = _mmx_max_ps(a.v[1], b.v[1]);
 	return r;
 }
-
 
 inline simd_float abs(const simd_float &a) {
 	return max(a, -a);
 }
 
-
-
-inline simd_double max(const simd_double& c, const simd_double &b) {
+inline simd_double max(const simd_double &c, const simd_double &b) {
 	simd_double r;
 	r.a[0] = _mmx_max_pd(c.a[0], b.a[0]);
 	r.a[1] = _mmx_max_pd(c.a[1], b.a[1]);
+	r.a[2] = _mmx_max_pd(c.a[2], b.a[2]);
+	r.a[3] = _mmx_max_pd(c.a[3], b.a[3]);
 	return r;
 }
-
 
 inline simd_double abs(const simd_double &a) {
 	return max(a, -a);

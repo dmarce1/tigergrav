@@ -202,7 +202,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		for (int dim = 0; dim < NDIM; dim++) {
 			multi.x[dim] = 0.5 * (box.max[dim] - box.min[dim]);
 		}
-		multi.has_active = false;
+		multi.num_active = 0;
 		multi.r = 0.0;
 		rc.m = multi;
 		rc.r = box;
@@ -231,7 +231,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 			ERROR();
 		}
 		multi.m = (ml.m.m >> (ml.m.x - multi.x)) + (mr.m.m >> (mr.m.x - multi.x));
-		multi.has_active = ml.m.has_active || mr.m.has_active;
+		multi.num_active = ml.m.num_active + mr.m.num_active;
 		multi.r = std::max(abs(ml.m.x - multi.x) + ml.m.r, abs(mr.m.x - multi.x) + mr.m.r);
 		for (int dim = 0; dim < NDIM; dim++) {
 			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
@@ -249,7 +249,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		child_check[0] = ml.c;
 		child_check[1] = mr.c;
 	}
-	if (multi.has_active && is_leaf()) {
+	if (multi.num_active && is_leaf()) {
 		gwork_checkin(gwork_id);
 	}
 	return multipole_return( { multi, prange, get_check_item() });
@@ -337,7 +337,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		part_vect_reset();
 	}
 
-	if ((part_end - part_begin == 0) || (!multi.has_active && !do_out)) {
+	if ((part_end - part_begin == 0) || (!multi.num_active && !do_out)) {
 		return 0;
 	}
 
@@ -541,7 +541,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 //			if (esource_iters.size())
 //				printf("%i %i %e %e %e\n", gwork_id, esource_iters.size(), multi.r, h, 2.0 * (multi.r + h));
 		}
-		flop += gwork_pp_complete(gwork_id, fptr, xptr, dsource_iters, [this,min_rung, do_out, fptr]() {
+		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, [this,min_rung, do_out, fptr,xptr]() {
+			xptr->size();
 			return part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr));
 		});
 

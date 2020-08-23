@@ -24,15 +24,15 @@ HPX_PLAIN_ACTION(gwork_reset);
 struct gwork_unit {
 	part_iter yb;
 	part_iter ye;
-	std::shared_ptr<std::vector<force>> fptr;
-	std::shared_ptr<std::vector<vect<pos_type>>> xptr;
+	std::vector<force>* fptr;
+	std::vector<vect<pos_type>>* xptr;
 };
 
 struct gwork_super_unit {
 	part_iter yb;
 	part_iter ye;
-	std::vector<std::shared_ptr<std::vector<force>>> fs;
-	std::vector<std::shared_ptr<std::vector<vect<pos_type>>>> xs;
+	std::vector<std::vector<force>*> fs;
+	std::vector<std::vector<vect<pos_type>>*> xs;
 
 };
 
@@ -51,7 +51,7 @@ struct gwork_group {
 mutex_type groups_mtx;
 std::unordered_map<int, gwork_group> groups;
 
-std::uint64_t gwork_pp_complete(int id, std::shared_ptr<std::vector<force>> g, std::shared_ptr<std::vector<vect<pos_type>>> x,
+std::uint64_t gwork_pp_complete(int id, std::vector<force>* g, std::vector<vect<pos_type>>* x,
 		const std::vector<std::pair<part_iter, part_iter>> &y, std::function<hpx::future<void>(void)> &&complete) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;

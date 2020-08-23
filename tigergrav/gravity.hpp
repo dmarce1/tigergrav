@@ -25,13 +25,13 @@ struct multipole_info {
 	multipole<float> m;
 	vect<double> x;
 	float r;
-	bool has_active;
+	std::uint64_t num_active;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & m;
 		arc & x;
 		arc & r;
-		arc & has_active;
+		arc & num_active;
 	}
 };
 

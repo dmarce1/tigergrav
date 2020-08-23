@@ -614,11 +614,11 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 		rc.m[i] = M[i].sum();
 	}
 	rc.r = 0.0;
-	rc.has_active = false;
+	rc.num_active = 0;
 	for (part_iter i = b; i < this_end; i++) {
 		rc.r = std::max(rc.r, (float) abs(pos_to_double(parts(i).x) - rc.x)); // 12 OP
 		if (parts(i).flags.rung >= mrung) {
-			rc.has_active = true;
+			rc.num_active++;
 		}
 	}
 	if (e > part_end) {
@@ -627,7 +627,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 			rc.m[i] += tmp.m[i];
 		}
 		rc.r = std::max(rc.r, tmp.r);
-		rc.has_active = rc.has_active || tmp.has_active;
+		rc.num_active = rc.num_active + tmp.num_active;
 	}
 	return rc;
 }
