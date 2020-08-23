@@ -136,11 +136,13 @@ struct multipole_return {
 	multipole_info m;
 	range r;
 	check_item c;
+	std::uint64_t N;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & m;
 		arc & r;
 		arc & c;
+		arc & N;
 	}
 };
 

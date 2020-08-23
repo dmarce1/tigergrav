@@ -69,7 +69,7 @@ kick_return part_vect_kick_return() {
 	std::vector<hpx::future<kick_return>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<part_vect_kick_return_action>(localities[i]));
+			futs.push_back(hpx::async < part_vect_kick_return_action > (localities[i]));
 		}
 	}
 	for (auto &f : futs) {
@@ -90,7 +90,7 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 	{
 		hpx::future<bool> fut;
 		if (this_end != e) {
-			fut = hpx::async<part_vect_find_groups_action>(localities[myid + 1], this_end, e, others);
+			fut = hpx::async < part_vect_find_groups_action > (localities[myid + 1], this_end, e, others);
 		}
 		int mtx_index = b % GROUP_MTX_SIZE;
 		std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
@@ -130,7 +130,7 @@ void part_vect_init_groups() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<part_vect_init_groups_action>(localities[i]));
+			futs.push_back(hpx::async < part_vect_init_groups_action > (localities[i]));
 		}
 	}
 	for (auto i = part_begin; i != part_end; i++) {
@@ -211,7 +211,7 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, 
 	std::vector<hpx::future<void>> futs;
 	if (part_vect_locality_id(b) == myid) {
 		for (int n = myid + 1; n <= part_vect_locality_id(mid); n++) {
-			futs.push_back(hpx::async<part_vect_sort_begin_action>(localities[n], b, e, mid, xmid, dim));
+			futs.push_back(hpx::async < part_vect_sort_begin_action > (localities[n], b, e, mid, xmid, dim));
 		}
 	}
 	int nproc = part_vect_locality_id(e - 1) - part_vect_locality_id(b) + 1;
@@ -370,7 +370,7 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 					}
 				}
 				const double a = abs(f[j].g * opts.G) * a3inv;
-				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len * (1.0/2.8) / (a + eps)));
+				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len * (1.0 / 2.8) / (a + eps)));
 				rung_type rung = dt_to_rung(dt);
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
@@ -429,7 +429,7 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 		return hpx::async([](std::unordered_map<int, std::vector<particle>> &&group_proc) {
 			std::vector<hpx::future<void>> futs;
 			for (auto &other : group_proc) {
-				futs.push_back(hpx::async<part_vect_group_proc1_action>(localities[other.first], std::move(other.second)));
+				futs.push_back(hpx::async < part_vect_group_proc1_action > (localities[other.first], std::move(other.second)));
 			}
 			hpx::wait_all(futs.begin(), futs.end());
 		}, std::move(group_proc));
@@ -451,7 +451,7 @@ void part_vect_find_groups2() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<part_vect_find_groups2_action>(localities[i]));
+			futs.push_back(hpx::async < part_vect_find_groups2_action > (localities[i]));
 		}
 	}
 	std::unordered_map<int, std::vector<particle>> group_proc;
@@ -467,7 +467,7 @@ void part_vect_find_groups2() {
 		}
 	}
 	for (auto &other : group_proc) {
-		futs.push_back(hpx::async<part_vect_group_proc2_action>(localities[other.first], std::move(other.second)));
+		futs.push_back(hpx::async < part_vect_group_proc2_action > (localities[other.first], std::move(other.second)));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 }
@@ -477,7 +477,7 @@ std::vector<vect<pos_type>> part_vect_read_active_positions(part_iter b, part_it
 	hpx::future<std::vector<vect<pos_type>>> fut;
 	x.reserve(e - b);
 	if (e > part_end) {
-		fut = hpx::async<part_vect_read_active_positions_action>(localities[myid + 1], part_end, e, rung);
+		fut = hpx::async < part_vect_read_active_positions_action > (localities[myid + 1], part_end, e, rung);
 	}
 	for (part_iter i = b; i < std::min(e, part_end); i++) {
 		if (parts(i).flags.rung >= rung) {
@@ -499,7 +499,7 @@ double part_vect_drift(double dt) {
 	std::vector<hpx::future<double>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<part_vect_drift_action>(localities[i], dt));
+			futs.push_back(hpx::async < part_vect_drift_action > (localities[i], dt));
 		}
 	}
 	double ekin = 0.0;
@@ -537,27 +537,27 @@ double part_vect_drift(double dt) {
 	return ekin;
 }
 
-std::pair<double, vect<double>> part_vect_center_of_mass(part_iter b, part_iter e) {
+std::pair<std::uint64_t, vect<double>> part_vect_center_of_mass(part_iter b, part_iter e) {
 	static const auto m = options::get().m_tot / options::get().problem_size;
-	std::pair<double, vect<double>> rc;
-	hpx::future<std::pair<double, vect<double>>> fut;
+	std::pair<std::uint64_t, vect<double>> rc;
+	hpx::future<std::pair<std::uint64_t, vect<double>>> fut;
 	if (e > part_end) {
-		fut = hpx::async<part_vect_center_of_mass_action>(localities[myid + 1], part_end, e);
+		fut = hpx::async < part_vect_center_of_mass_action > (localities[myid + 1], part_end, e);
 	}
 	const auto this_end = std::min(part_end, e);
-	rc.first = 0.0;
+	rc.first = 0;
 	rc.second = vect<double>(0.0);
 	for (part_iter i = b; i < this_end; i++) {
-		rc.first += m;
-		rc.second += pos_to_double(parts(i).x) * m;
+		rc.first++;
+		rc.second += pos_to_double(parts(i).x);
 	}
 	if (e > part_end) {
 		auto tmp = fut.get();
 		rc.first += tmp.first;
 		rc.second = rc.second + tmp.second * tmp.first;
 	}
-	if (rc.first > 0.0) {
-		rc.second = rc.second / rc.first;
+	if (rc.first > 0) {
+		rc.second = rc.second / double(rc.first);
 	}
 	return rc;
 }
@@ -568,7 +568,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 	multipole_info rc;
 	hpx::future<multipole_info> fut;
 	if (e > part_end) {
-		fut = hpx::async<part_vect_multipole_info_action>(localities[myid + 1], com, mrung, part_end, e);
+		fut = hpx::async < part_vect_multipole_info_action > (localities[myid + 1], com, mrung, part_end, e);
 	}
 	const auto this_end = std::min(part_end, e);
 	rc.m = 0.0;
@@ -636,7 +636,7 @@ void part_vect_reset() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<part_vect_reset_action>(localities[i]));
+			futs.push_back(hpx::async < part_vect_reset_action > (localities[i]));
 		}
 	}
 	for (int i = 0; i < POS_CACHE_SIZE; i++) {
@@ -661,7 +661,7 @@ void part_vect_init() {
 	std::vector<hpx::future<void>> futs;
 	if (n == 0) {
 		for (int i = 1; i < N; i++) {
-			futs.push_back(hpx::async<part_vect_init_action>(localities[i]));
+			futs.push_back(hpx::async < part_vect_init_action > (localities[i]));
 		}
 	}
 	part_begin = n * M / N;
@@ -681,10 +681,10 @@ inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_it
 			return f.get().get();
 		});
 		lock.unlock();
-		promise.set_value(hpx::async<part_vect_read_position_action>(localities[part_vect_locality_id(b)], b, e));
+		promise.set_value(hpx::async < part_vect_read_position_action > (localities[part_vect_locality_id(b)], b, e));
 	}
 	return hpx::async(hpx::launch::deferred, [b, index]() {
-		std::unique_lock<mutex_type> lock(pos_cache_mtx[index]);
+		std::unique_lock < mutex_type > lock(pos_cache_mtx[index]);
 		auto future = pos_cache[index][b];
 		lock.unlock();
 		return future.get();
@@ -696,16 +696,16 @@ inline hpx::future<std::vector<particle_group_info>> part_vect_read_group_cache(
 	std::unique_lock<mutex_type> lock(group_cache_mtx[index]);
 	auto iter = group_cache[index].find(b);
 	if (iter == group_cache[index].end()) {
-		hpx::lcos::local::promise<hpx::future<std::vector<particle_group_info>>> promise;
+		hpx::lcos::local::promise < hpx::future<std::vector<particle_group_info>> > promise;
 		auto fut = promise.get_future();
 		group_cache[index][b] = fut.then([b](decltype(fut) f) {
 			return f.get().get();
 		});
 		lock.unlock();
-		promise.set_value(hpx::async<part_vect_read_group_action>(localities[part_vect_locality_id(b)], b, e));
+		promise.set_value(hpx::async < part_vect_read_group_action > (localities[part_vect_locality_id(b)], b, e));
 	}
 	return hpx::async(hpx::launch::deferred, [b, index]() {
-		std::unique_lock<mutex_type> lock(group_cache_mtx[index]);
+		std::unique_lock < mutex_type > lock(group_cache_mtx[index]);
 		auto future = group_cache[index][b];
 		lock.unlock();
 		return future.get();
@@ -839,7 +839,7 @@ part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
 	if (part_end < e) {
 		int n = part_vect_locality_id(part_end);
 		for (int n = part_vect_locality_id(part_end); n * M / N < e; n++) {
-			auto fut = hpx::async<part_vect_count_lo_action>(localities[n], n * M / N, std::min(e, (n + 1) * M / N), xmid, dim);
+			auto fut = hpx::async < part_vect_count_lo_action > (localities[n], n * M / N, std::min(e, (n + 1) * M / N), xmid, dim);
 			futs.push_back(std::move(fut));
 
 		}
@@ -922,7 +922,7 @@ range part_vect_range(part_iter b, part_iter e) {
 		const auto this_e = std::min(e, part_end);
 		hpx::future<range> fut;
 		if (this_e != e) {
-			fut = hpx::async<part_vect_range_action>(localities[myid + 1], this_e, e);
+			fut = hpx::async < part_vect_range_action > (localities[myid + 1], this_e, e);
 		}
 		for (part_iter i = b; i < this_e; i++) {
 			const auto &p = parts(i);
@@ -940,7 +940,7 @@ range part_vect_range(part_iter b, part_iter e) {
 			}
 		}
 	} else {
-		auto fut = hpx::async<part_vect_range_action>(localities[id], b, e);
+		auto fut = hpx::async < part_vect_range_action > (localities[id], b, e);
 		r = fut.get();
 	}
 	return r;

@@ -72,7 +72,7 @@ part_iter part_vect_sort(part_iter b, part_iter e, double mid, int dim);
 range part_vect_range(part_iter b, part_iter e);
 int part_vect_locality_id(part_iter);
 void part_vect_reset();
-std::pair<double, vect<double>> part_vect_center_of_mass(part_iter b, part_iter e);
+std::pair<std::uint64_t, vect<double>> part_vect_center_of_mass(part_iter b, part_iter e);
 multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_iter b, part_iter e);
 double part_vect_drift(double dt);
 std::vector<vect<pos_type>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung);

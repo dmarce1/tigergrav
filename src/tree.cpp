@@ -175,9 +175,10 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		gwork_id = gwork_assign_id();
 	}
 
+	multipole_return rc;
 	if (part_end - part_begin == 0) {
 		range box = box_id_to_range(boxid);
-		multipole_return rc;
+		rc.N = 0;
 		multi.m = 0.0;
 		for (int dim = 0; dim < NDIM; dim++) {
 			multi.x[dim] = double_to_pos(0.5 * (box.max[dim] - box.min[dim]));
@@ -190,7 +191,9 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		return rc;
 	}
 	if (is_leaf()) {
-		multi.x = double_to_pos(part_vect_center_of_mass(part_begin, part_end).second);
+		const auto com = part_vect_center_of_mass(part_begin, part_end);
+		rc.N = com.first;
+		multi.x = double_to_pos(com.second);
 		multi = part_vect_multipole_info(pos_to_double(multi.x), do_out ? 0 : mrung, part_begin, part_end);
 		prange = part_vect_range(part_begin, part_end);
 		flop += (part_end - part_begin) * 64;
@@ -204,9 +207,9 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		}, false, part_end - part_begin, stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
-		multi.m() = ml.m.m() + mr.m.m();
-		if (multi.m() != 0.0) {
-			multi.x = double_to_pos((pos_to_double(ml.m.x) * ml.m.m() + pos_to_double(mr.m.x) * mr.m.m()) / multi.m());
+		rc.N = ml.N + mr.N;
+		if (rc.N != 0) {
+			multi.x = double_to_pos((pos_to_double(ml.m.x) * ml.N + pos_to_double(mr.m.x) * mr.N) / (double)rc.N);
 		} else {
 			ERROR();
 		}
@@ -215,9 +218,9 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		const auto mrmxdouble = pos_to_double(mr.m.x);
 		multi.m = (ml.m.m >> (mlmxdouble - multixdouble)) + (mr.m.m >> (mrmxdouble - multixdouble));
 		multi.num_active = ml.m.num_active + mr.m.num_active;
-		if (ml.m.m() == 0.0) {
+		if (ml.N == 0) {
 			multi.r = mr.m.r;
-		} else if (mr.m.m() == 0.0) {
+		} else if (mr.N == 0) {
 			multi.r = ml.m.r;
 		} else {
 			multi.r = std::max(abs(mlmxdouble - multixdouble) + ml.m.r, abs(mrmxdouble - multixdouble) + mr.m.r);
@@ -241,7 +244,9 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	if (multi.num_active && is_leaf()) {
 		gwork_checkin(gwork_id);
 	}
-	auto rc = multipole_return( { multi, prange, get_check_item() });
+	rc.m = multi;
+	rc.r = prange;
+	rc.c = get_check_item();
 	if (flags.level == 0) {
 		pct_active = (double) multi.num_active / (double) opts.problem_size;
 	}
