@@ -1,7 +1,5 @@
 #pragma once
 
-
-
 constexpr float EWALD_REAL_N2 = 17;
 constexpr float EWALD_FOUR_N2 = 9;
 
@@ -61,7 +59,7 @@ struct periodic_parts: public std::vector<expansion<float>> {
 };
 
 template<class T>
-inline expansion<T> green_ewald(const vect<T> &X) {		// 317 + 689 * NREAL + 64 * NFOUR
+inline expansion<T> green_ewald(const vect<T> &X) {		// 371 + 763 * NREAL + 66 * NFOUR
 	static const periodic_parts periodic;
 	expansion<simd_double> D;
 	D = 0.0;
@@ -81,23 +79,27 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 317 + 689 * NREAL + 64 *
 	static const T fiftysix(56.0);
 	static const T sixtyfour(64.0);
 	static const T onehundredfive(105.0);
-	for (int i = 0; i < indices_real.size(); i++) {		// ((237S  + 226D) X NREAL
+	static const simd_float rcut(1.0e-6);
+
+	const T r = abs(X);															// 5S
+	const simd_float zmask = r > rcut;											// 1S
+	for (int i = 0; i < indices_real.size(); i++) {		// ((311S  + 226D) X NREAL
 		h = indices_real[i];
 		n = h;
 		const vect<T> dx = X - n;				// 3S
 		const T r2 = dx.dot(dx);				// 5S
 		const T r4 = r2 * r2;					// 1S
 		const T r6 = r2 * r4;					// 1S
-		const T r = sqrt(r2);					// 1S
-		const T mask = r < 3.6;
-		const T rinv = mask * r / (r2 + tiny);	// 2S
+		const T r = sqrt(r2);					// 7S
+		const T mask = (r < 3.6) * zmask;		// 3S
+		const T rinv = mask / max(r, rcut);		//36S
 		const T r2inv = rinv * rinv;			// 1S
 		const T r3inv = r2inv * rinv;			// 1S
 		const T r5inv = r2inv * r3inv;			// 1S
 		const T r7inv = r2inv * r5inv;			// 1S
 		const T r9inv = r2inv * r7inv;			// 1S
 		T expfac;
-		const T erfc = erfcexp(two * r, &expfac);			// 51S
+		const T erfc = erfcexp(two * r, &expfac);			// 82S
 		const T expfactor = fouroversqrtpi * r * expfac;		// 2S
 		const T d0 = -erfc * rinv;								// 2S
 		const T d1 = (expfactor + erfc) * r3inv;		// 2S
@@ -106,7 +108,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 317 + 689 * NREAL + 64 *
 		const T d4 = -fmadd(expfactor, fmadd(eight * T(r2), (thirtyfive + fmadd(fiftysix, r2, sixtyfour * r4)), onehundredfive), onehundredfive * erfc) * r9inv;// 12S
 		green_deriv(D, d0, d1, d2, d3, d4, dx);			// 135 S // 226 D // 227C
 	}
-	for (int i = 0; i < indices_four.size(); i++) {		// (44S + 10D) x NFOUR
+	for (int i = 0; i < indices_four.size(); i++) {		// (46S + 10D) x NFOUR
 		h = indices_four[i];
 		const auto H = periodic[i];
 		T hdotdx = X[0] * h[0];		// 1
@@ -116,7 +118,9 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 317 + 689 * NREAL + 64 *
 		static const T twopi = 2.0 * M_PI;
 		const T omega = twopi * hdotdx;							// 1S
 		T co, si;
-		sincos(omega, &si, &co);								// 34S
+		sincos(omega, &si, &co);								//34S
+		si *= zmask;											// 1S
+		co *= zmask;											// 1S
 		D() += H() * co;										// 1S / 2D
 		for (int a = 0; a < NDIM; a++) {
 			D(a) += H(a) * si;									// 1S / 2D
@@ -134,29 +138,26 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 317 + 689 * NREAL + 64 *
 	}
 	expansion<T> rcD;
 	for (int i = 0; i < LP; i++) {
-		rcD[i] = D[i];															//    / 3D
+		rcD[i] = D[i];																	//    / 3D
 	}
-	const auto D1 = green_direct(X);											// 227S
-	const T r = abs(X);															// 5S
-	const T rinv = r / fmadd(r, r, tiny);										// 3S
-	rcD() = T(M_PI / 4.0) + rcD() + rinv;											// 2S
-	const T sw = min(T(huge) * r, T(1.0));										// 2S
-	rcD() = fmadd(T(2.8372975), (T(1) - sw), +rcD() * sw);							// 4S
+	const auto D1 = green_direct(X);													// 286S
+	const T rinv = -zmask * D1();														// 2S
+	rcD() = T(M_PI / 4.0) + rcD() + rinv;												// 2S
+	rcD() = fmadd(T(2.8372975), (T(1) - zmask), +rcD() * zmask);						// 4S
 	for (int a = 0; a < NDIM; a++) {
-		rcD(a) = sw * (rcD(a) - D1(a));												// 6S
+		rcD(a) = zmask * (rcD(a) - D1(a));												// 6S
 		for (int b = 0; b <= a; b++) {
-			rcD(a, b) = sw * (rcD(a, b) - D1(a, b));								// 12S
+			rcD(a, b) = zmask * (rcD(a, b) - D1(a, b));									// 12S
 			for (int c = 0; c <= b; c++) {
-				rcD(a, b, c) = sw * (rcD(a, b, c) - D1(a, b, c));					// 20S
+				rcD(a, b, c) = zmask * (rcD(a, b, c) - D1(a, b, c));					// 20S
 				for (int d = 0; d <= c; d++) {
-					rcD(a, b, c, d) = sw * (rcD(a, b, c, d) - D1(a, b, c, d));		// 30S
+					rcD(a, b, c, d) = zmask * (rcD(a, b, c, d) - D1(a, b, c, d));		// 30S
 				}
 			}
 		}
 	}
 	return rcD;
 }
-
 
 template<class DOUBLE, class SINGLE>  // 135 S // 226 D // 227C
 void green_deriv(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4, const vect<SINGLE> &dx) {
@@ -206,18 +207,16 @@ void green_deriv(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1, const
 
 }
 
-
 template<class T>
-inline expansion<T> green_direct(const vect<T> &dX) {		// 246
-
+inline expansion<T> green_direct(const vect<T> &dX) {		// 286
+	static const T r0 = 1.0e-9;
 //	static const T H = options::get().soft_len;
-	const float tiny = std::numeric_limits<float>::min() * 10.0;
 	static const T nthree(-3.0);
 	static const T nfive(-5.0);
 	static const T nseven(-7.0);
 	const T r2 = dX.dot(dX);			// 5
-	const T r = sqrt(r2);				// 1
-	const T rinv = r / (r * r + tiny);	// 3
+	const T r = sqrt(r2);				// 7
+	const T rinv = (r > r0) / max(r, r0);		// 37
 	const T r2inv = rinv * rinv;		// 1
 	const T d0 = -rinv;					// 1
 	const T d1 = -d0 * r2inv;			// 2

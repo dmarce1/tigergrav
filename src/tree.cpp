@@ -192,7 +192,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 64 * opts.parts_per_node)) {
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= opts.parts_per_node)) {
 		gwork_id = gwork_assign_id();
 	}
 

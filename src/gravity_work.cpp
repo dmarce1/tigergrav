@@ -74,7 +74,12 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	gwork_unit unit;
 	unit.fptr = g;
 	unit.xptr = x;
-	auto &entry = groups[id];
+	auto iter = groups.find(id);
+	if( iter == groups.end()) {
+		printf( "Error - work group %i not found\n", id);
+		abort();
+	}
+	auto &entry = iter->second;
 	{
 		std::lock_guard<mutex_type> lock(entry.mtx);
 		if (entry.first_call) {
@@ -92,7 +97,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 		do_work = entry.workadded == entry.mcount;
 	}
 	if (entry.workadded > entry.mcount) {
-		printf("Error too much work added\n");
+		printf("Error too much work added %i %i %i\n", id, entry.workadded, entry.mcount);
 		abort();
 	}
 
@@ -138,13 +143,11 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 		sunits.push_back(std::move(this_sunit));
 		decltype(entry.units)().swap(entry.units);
 
-		std::vector<vect<pos_type>> y;
-		std::vector<vect<simd_int>> X;
-		std::vector<vect<simd_double>> G;
-		std::vector<simd_double> Phi;
-		y.reserve(opts.parts_per_node);
+		static thread_local std::vector<vect<simd_int>> X;
+		static thread_local std::vector<vect<simd_double>> G;
+		static thread_local std::vector<simd_double> Phi;
 		for (auto &sunit : sunits) {
-			y = part_vect_read_position(sunit.yb, sunit.ye).get();
+			const auto y = part_vect_read_position(sunit.yb, sunit.ye).get();
 			int xcount = 0;
 			int k = 0;
 			vect<simd_int> this_x;
@@ -179,61 +182,57 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				Phi[i] = 0.0;
 			}
 
-			const int xchunk = opts.parts_per_node / simd_float::size();
 			flop += y.size() * xcount * 121;
-			for (int I = 0; I < X.size(); I += xchunk) {
-				const auto xend = std::min((int) X.size(), I + xchunk);
+			for (int i = 0; i < X.size(); i++) {
 				for (int j = 0; j < y.size(); j++) {
 					vect<simd_int> Y;
+					vect<simd_float> dX;
 					for (int dim = 0; dim < NDIM; dim++) {
 						Y[dim] = simd_int(y[j][dim]);
 					}
-					for (int i = I; i < xend; i++) {
-						vect<simd_float> dX;
-						if (opts.ewald) {
-							for (int dim = 0; dim < NDIM; dim++) {
-								dX[dim] = simd_float(simd_double(X[i][dim] - Y[dim]) * simd_double(POS_INV));
-								// 0 / 9
-							}
-						} else {
-							for (int dim = 0; dim < NDIM; dim++) {
-								dX[dim] = simd_float(simd_double(X[i][dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
-							}
-						}
-						const simd_float r2 = dX.dot(dX);								   // 5 / 0
-						const simd_float r = sqrt(r2);									   // 7 / 0
-						const simd_float rinv = simd_float(1) / max(r, H);                 //36 / 0
-						const simd_float rinv3 = rinv * rinv * rinv;                       // 2 / 0
-						simd_float sw1 = r > H;                                            // 1 / 0
-						simd_float sw2 = (simd_float(1.0) - sw1);                          // 1 / 0
-						const simd_float roh = min(r * Hinv, 1);                           // 2 / 0
-						const simd_float roh2 = roh * roh;                                 // 1 / 0
-
-						const simd_float f1 = rinv3;
-						simd_float f2 = n35o16;
-						f2 = fmadd(f2, roh2, p135o16);                   // 2 / 0
-						f2 = fmadd(f2, roh2, n189o16);                   // 2 / 0
-						f2 = fmadd(f2, roh2, p105o16);                    // 2 / 0
-						f2 *= H3inv;                                                       // 1 / 0
-
-						const auto dXM = dX * m;
+					if (opts.ewald) {
 						for (int dim = 0; dim < NDIM; dim++) {
-							G[i][dim] -= simd_double(dXM[dim] * (sw1 * f1 + sw2 * f2));    //12 / 6
+							dX[dim] = simd_float(simd_double(X[i][dim] - Y[dim]) * simd_double(POS_INV));
+							// 0 / 9
 						}
-
-						// 13S + 2D = 15
-						const simd_float p1 = rinv;
-
-						simd_float p2 = p35o128;
-						p2 = fmadd(p2, roh2, n45o32);				   // 2 / 0
-						p2 = fmadd(p2, roh2, p189o64);               // 2 / 0
-						p2 = fmadd(p2, roh2, n105o32);               // 2 / 0
-						p2 = fmadd(p2, roh2, p315o128);              // 2 / 0
-						p2 *= Hinv;                                                    // 1 / 0
-
-						Phi[i] -= simd_double((sw1 * p1 + sw2 * p2) * m);              // 4 / 2
-
+					} else {
+						for (int dim = 0; dim < NDIM; dim++) {
+							dX[dim] = simd_float(simd_double(X[i][dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
+						}
 					}
+					const simd_float r2 = dX.dot(dX);								   // 5 / 0
+					const simd_float r = sqrt(r2);									   // 7 / 0
+					const simd_float rinv = simd_float(1) / max(r, H);                 //36 / 0
+					const simd_float rinv3 = rinv * rinv * rinv;                       // 2 / 0
+					simd_float sw1 = r > H;                                            // 1 / 0
+					simd_float sw2 = (simd_float(1.0) - sw1);                          // 1 / 0
+					const simd_float roh = min(r * Hinv, 1);                           // 2 / 0
+					const simd_float roh2 = roh * roh;                                 // 1 / 0
+
+					const simd_float f1 = rinv3;
+					simd_float f2 = n35o16;
+					f2 = fmadd(f2, roh2, p135o16);                   // 2 / 0
+					f2 = fmadd(f2, roh2, n189o16);                   // 2 / 0
+					f2 = fmadd(f2, roh2, p105o16);                    // 2 / 0
+					f2 *= H3inv;                                                       // 1 / 0
+
+					const auto dXM = dX * m;
+					for (int dim = 0; dim < NDIM; dim++) {
+						G[i][dim] -= simd_double(dXM[dim] * (sw1 * f1 + sw2 * f2));    //12 / 6
+					}
+
+					// 13S + 2D = 15
+					const simd_float p1 = rinv;
+
+					simd_float p2 = p35o128;
+					p2 = fmadd(p2, roh2, n45o32);				   // 2 / 0
+					p2 = fmadd(p2, roh2, p189o64);               // 2 / 0
+					p2 = fmadd(p2, roh2, n105o32);               // 2 / 0
+					p2 = fmadd(p2, roh2, p315o128);              // 2 / 0
+					p2 *= Hinv;                                                    // 1 / 0
+
+					Phi[i] -= simd_double((sw1 * p1 + sw2 * p2) * m);              // 4 / 2
+
 				}
 			}
 			k = 0;
@@ -256,6 +255,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 			futs.push_back(cfunc());
 		}
 		hpx::wait_all(futs.begin(), futs.end());
+		std::lock_guard<mutex_type> lock(groups_mtx);
 		groups.erase(id);
 	}
 

@@ -35,14 +35,14 @@ double ewald_far_separation(const vect<double> x, double r, double l) {
 }
 
 // 43009,703
-template<class DOUBLE, class SINGLE> // 1006 // 1077 + 689 * NREAL + 64 * NFOUR
+template<class DOUBLE, class SINGLE> // 1046 // 1131 + 763 * NREAL + 66 * NFOUR
 inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald = false) { // 670/700 + 418 * NREAL + 50 * NFOUR
 	static const expansion_factors<SINGLE> expansion_factor;
 	expansion<SINGLE> D;
 	if (ewald) {
-		D = green_ewald(dX);		// 317 + 689 * NREAL + 64 * NFOUR
+		D = green_ewald(dX);		// 371 + 763 * NREAL + 66 * NFOUR
 	} else {
-		D = green_direct(dX);        // 246
+		D = green_direct(dX);        // 286
 	}
 
 	//232 S / 264D / 760
@@ -101,14 +101,14 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> 
 	}
 }
 
-template<class DOUBLE, class SINGLE> // 423 / 494 + 689 * NREAL + 64 * NFOUR
+template<class DOUBLE, class SINGLE> // 463 / 548 + 763 * NREAL + 66 * NFOUR
 inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SINGLE> dX, bool ewald = false) { // 390 / 47301
 	static const expansion_factors<SINGLE> expansion_factor;
 	expansion<SINGLE> D;
 	if (ewald) {
-		D = green_ewald(dX);		// 317 + 689 * NREAL + 64 * NFOUR
+		D = green_ewald(dX);		// 371 + 763 * NREAL + 66 * NFOUR
 	} else {
-		D = green_direct(dX);          // 246
+		D = green_direct(dX);          // 286
 	}
 
 	//37S + 70D = 177
@@ -132,14 +132,14 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SI
 	}
 }
 
-template<class SINGLE, class DOUBLE> // 648 / 719 + 689 * NREAL + 64 * NFOUR
+template<class SINGLE, class DOUBLE> // 688 / 773 + 763 * NREAL + 66 * NFOUR
 inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
 	static const expansion_factors<SINGLE> expansion_factor;
 	expansion<SINGLE> D;
 	if (ewald) {
-		D = green_ewald(dX);				// 317 + 689 * NREAL + 64 * NFOUR
+		D = green_ewald(dX);				// 371 + 763 * NREAL + 66 * NFOUR
 	} else {
-		D = green_direct(dX);				// 246
+		D = green_direct(dX);				// 286
 	}
 
 	//132S + 135D = 402
@@ -178,114 +178,6 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 			}
 		}
 	}
-}
-
-std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> y, bool do_phi) {
-	if (x.size() == 0) {
-		return 0;
-	}
-	std::uint64_t flop = 0;
-	static const auto opts = options::get();
-	static const bool ewald = opts.ewald;
-	static const auto h = opts.soft_len;
-	static const auto h2 = h * h;
-	static const simd_float H(h);
-	static const simd_float H2(h * h);
-	static const simd_float Hinv(1.0 / h);
-	static const simd_float H3inv(1.0 / h / h / h);
-	static const auto zero = simd_float(0);
-	static const auto m = opts.m_tot / opts.problem_size;
-	static const auto phi_self = (-315.0 / 128.0) * m / h;
-	vect<simd_int> X, Y;
-	std::vector<vect<simd_double>> G(x.size());
-	std::vector<simd_double> Phi(x.size());
-	for (int i = 0; i < x.size(); i++) {
-		G[i] = vect<simd_double>(0.0);
-		Phi[i] = 0.0;
-	}
-	const auto cnt1 = y.size();
-	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
-	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j] = 0;
-	}
-	simd_float M(m);
-	for (int j = 0; j < cnt1; j += simd_float::size()) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				Y[dim][k] = y[j + k][dim];
-			}
-		}
-		if (j + simd_float::size() > cnt1) {
-			for (int k = cnt1; k < cnt2; k++) {
-				M[k - j] = 0.0;
-			}
-		}
-
-		for (int i = 0; i < x.size(); i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim] = simd_int(x[i][dim]);
-			}
-
-			// 34S + 15D = 64
-			vect<simd_float> dX;
-			if (opts.ewald) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV));
-					// 0 / 9
-				}
-			} else {
-				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = simd_float(simd_double(X[dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
-				}
-			}
-			const simd_float r2 = dX.dot(dX);								   // 5 / 0
-			const simd_float r = sqrt(r2);									   // 7 / 0
-			const simd_float rinv = simd_float(1) / max(r, H);                 //36 / 0
-			const simd_float rinv3 = rinv * rinv * rinv;                       // 2 / 0
-			simd_float sw1 = r > H;                                            // 1 / 0
-			simd_float sw2 = (simd_float(1.0) - sw1);                          // 1 / 0
-			const simd_float roh = min(r * Hinv, 1);                           // 2 / 0
-			const simd_float roh2 = roh * roh;                                 // 1 / 0
-
-			const simd_float f1 = rinv3;
-
-			simd_float f2 = simd_float(-35.0 / 16.0);
-			f2 = fmadd(f2, roh2, simd_float(+135.0 / 16.0));                   // 2 / 0
-			f2 = fmadd(f2, roh2, simd_float(-189.0 / 16.0));                   // 2 / 0
-			f2 = fmadd(f2, roh2, simd_float(105.0 / 16.0));                    // 2 / 0
-			f2 *= H3inv;                                                       // 1 / 0
-
-			const auto dXM = dX * M;
-			for (int dim = 0; dim < NDIM; dim++) {
-				G[i][dim] -= simd_double(dXM[dim] * (sw1 * f1 + sw2 * f2));    //12 / 6
-			}
-
-			// 13S + 2D = 15
-			if (do_phi) {
-				const simd_float p1 = rinv;
-
-				simd_float p2 = simd_float(35.0 / 128.0);
-				p2 = fmadd(p2, roh2, simd_float(-45.0 / 32.0));				   // 2 / 0
-				p2 = fmadd(p2, roh2, simd_float(+189.0 / 64.0));               // 2 / 0
-				p2 = fmadd(p2, roh2, simd_float(-105.0 / 32.0));               // 2 / 0
-				p2 = fmadd(p2, roh2, simd_float(+315.0 / 128.0));              // 2 / 0
-				p2 *= Hinv;                                                    // 1 / 0
-
-				Phi[i] -= simd_double((sw1 * p1 + sw2 * p2) * M);              // 4 / 2
-			}
-		}
-	}
-	for (int i = 0; i < x.size(); i++) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			f[i].g[dim] += G[i][dim].sum();
-		}
-		f[i].phi += Phi[i].sum();
-		f[i].phi -= phi_self;
-	}
-
-	y.resize(cnt1);
-	return ((104 + do_phi * 17) * cnt1 + simd_float::size() * 4 + 5) * x.size();
 }
 
 std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<multi_src> &y) {
@@ -341,7 +233,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 				}
 			}
 			std::pair<simd_double, vect<simd_double>> this_f;
-			multipole_interaction(this_f, M, dX); // 648 OP
+			multipole_interaction(this_f, M, dX); // 688 OP
 
 			for (int dim = 0; dim < NDIM; dim++) {
 				G[i][dim] += this_f.second[dim];  // 0 / 3
@@ -356,7 +248,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 		f[i].phi += Phi[i].sum();
 	}
 	y.resize(cnt1);
-	return (713 * cnt1 + simd_float::size() * 4) * x.size();
+	return (753 * cnt1 + simd_float::size() * 4) * x.size();
 }
 
 std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<double> &x, std::vector<multi_src> &y) {
@@ -412,14 +304,14 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<double> &x, std
 				dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  	// 12 / 0
 			}
 		}
-		multipole_interaction(Lacc, M, dX);												// 1006
+		multipole_interaction(Lacc, M, dX);												// 1046
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
 	y.resize(cnt1);
-	return 1045 * cnt1 + LP * simd_float::size();
+	return 1085 * cnt1 + LP * simd_float::size();
 }
 
 std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<double> &x, std::vector<vect<pos_type>> y) {
@@ -476,14 +368,14 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<double> &x, std
 				dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								//12 / 0
 			}
 		}
-		multipole_interaction(Lacc, M, dX);												// 	423
+		multipole_interaction(Lacc, M, dX);												// 	463
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
 	y.resize(cnt1);
-	return 480 * cnt1 + simd_float::size() * LP;
+	return 520 * cnt1 + simd_float::size() * LP;
 }
 
 static const ewald_indices indices_real(EWALD_REAL_N2);
@@ -552,19 +444,19 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			const simd_float r = abs(dX0);										// 5 / 0
 			simd_float cut_mask = r > rcut;										// 1 / 0
 
-			// 79S + 8D = 95 * NREAL
+			// 150S + 8D = 166 * NREAL
 			for (int i = 0; i < indices_real.size(); i++) {
 				h = indices_real[i];
 				n = h;
 				const vect<simd_float> dx = dX0 - n;                         	// 3 / 0
 				const simd_float r2 = dx.dot(dx);								// 5 / 0
-				const simd_float r = sqrt(r2);                      			// 1 / 0
+				const simd_float r = sqrt(r2);                      			// 7 / 0
 				const simd_float mask = cut_mask * (r < 3.6);                   // 2 / 0
-				simd_float rinv = mask * 1.0 / max(r, rcut);				    // 3 / 0
+				simd_float rinv = mask * 1.0 / max(r, rcut);				    //37 / 0
 				const simd_float r2inv = rinv * rinv;						    // 1 / 0
 				const simd_float r3inv = r2inv * rinv;						    // 1 / 0
 				simd_float expfac;
-				const simd_float erfc = erfcexp(two * r, &expfac);				//51 / 0
+				const simd_float erfc = erfcexp(two * r, &expfac);				//82 / 0
 				const simd_float d0 = -erfc * rinv;								// 2 / 0
 				const simd_float expfactor = fouroversqrtpi * r * expfac;		// 2 / 0
 				const simd_float d1 = (expfactor + erfc) * r3inv;				// 2 / 0
@@ -611,7 +503,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 		f[i].phi += Phi[i].sum();
 	}
 	y.resize(cnt1);
-	return ((84 + indices_real.size() * 95 + indices_four.size() * 64) * cnt1 + simd_float::size() * 4) * x.size();
+	return ((84 + indices_real.size() * 166 + indices_four.size() * 64) * cnt1 + simd_float::size() * 4) * x.size();
 }
 
 std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<multi_src> &y) {
@@ -668,7 +560,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 				dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								// 12 / 0
 			}
 			std::pair<simd_double, vect<simd_double>> this_f;
-			multipole_interaction(this_f, M, dX, true);	//719 + 689 * NREAL + 64 * NFOUR
+			multipole_interaction(this_f, M, dX, true);	//773 + 763 * NREAL + 66 * NFOUR
 
 			for (int dim = 0; dim < NDIM; dim++) {
 				G[i][dim] += this_f.second[dim];  // 0 / 3
@@ -683,7 +575,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 		f[i].phi += Phi[i].sum();
 	}
 	y.resize(cnt1);
-	return ((784 + 689 * indices_real.size() + 64 * indices_four.size()) * cnt1 + simd_float::size() * 4) * x.size();
+	return ((838 + 763 * indices_real.size() + 66 * indices_four.size()) * cnt1 + simd_float::size() * 4) * x.size();
 }
 
 std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<double> &x, std::vector<multi_src> &y) {
@@ -736,14 +628,14 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<double> &x, std:
 			const auto absdx = abs(dX[dim]);												// 3 / 0
 			dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  		//12 / 0
 		}
-		multipole_interaction(Lacc, M, dX, true);											// 1077 + 689 * NREAL + 64 * NFOUR
+		multipole_interaction(Lacc, M, dX, true);											// 1131 + 763 * NREAL + 66 * NFOUR
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
 	y.resize(cnt1);
-	return (1110 + 689 * indices_real.size() + 64 * indices_four.size()) * cnt1 + LP * simd_float::size();
+	return (1170 + 763 * indices_real.size() + 66 * indices_four.size()) * cnt1 + LP * simd_float::size();
 }
 
 std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std::vector<vect<pos_type>> y) {
@@ -798,13 +690,13 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std:
 			const auto absdx = abs(dX[dim]);																		// 3 / 0
 			dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								//12 / 0
 		}
-		multipole_interaction(Lacc, M, dX, true);										// 317 + 689 * NREAL + 64 * NFOUR
+		multipole_interaction(Lacc, M, dX, true);										// 548 + 763 * NREAL + 66 * NFOUR
 	}
 
 	for (int i = 0; i < LP; i++) {
 		L[i] += Lacc[i].sum();
 	}
 	y.resize(cnt1);
-	return (374 + 689 * indices_real.size() + 64 * indices_four.size()) * cnt1 + LP * simd_float::size();
+	return (605 + 763 * indices_real.size() + 66 * indices_four.size()) * cnt1 + LP * simd_float::size();
 }
 

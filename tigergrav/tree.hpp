@@ -162,6 +162,7 @@ class tree: public hpx::components::managed_component_base<tree> {
 public:
 	template<class A>
 	void serialize(A&& arc, unsigned) {
+		arc & group_active;
 		arc & gwork_id;
 		arc & multi;
 		arc & part_begin;
