@@ -87,17 +87,12 @@ int hpx_main(int argc, char *argv[]) {
 
 	tree::set_theta(opts.theta);
 
-	range root_box;
-	for (int dim = 0; dim < NDIM; dim++) {
-		root_box.min[dim] = 0.0;
-		root_box.max[dim] = 1.0;
-	}
 
 	part_vect_init();
 
 	if (opts.solver_test) {
 		printf("Computing direct solution first\n");
-		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(), root_box, 0, opts.problem_size, 0).get();
+		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 		while (root_ptr.refine(0)) {
 		}
 		tree::set_theta(1e-10);
@@ -106,7 +101,7 @@ int hpx_main(int argc, char *argv[]) {
 		const auto direct = kr.out;
 		printf("%11s %11s %11s %11s %11s %11s %11s %11s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
-			root_ptr = hpx::new_<tree>(hpx::find_here(), root_box, 0, opts.problem_size, 0).get();
+			root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			while (root_ptr.refine(0)) {
 			}
 			tree::set_theta(theta);
@@ -123,7 +118,7 @@ int hpx_main(int argc, char *argv[]) {
 
 		printf("Forming tree\n");
 		auto tstart = timer();
-		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(), root_box, 0, opts.problem_size, 0).get();
+		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 		while (root_ptr.refine(0)) {
 			printf("Refining\n");
 		}
@@ -224,7 +219,7 @@ int hpx_main(int argc, char *argv[]) {
 			ts = timer();
 			root_ptr = hpx::invalid_id;
 //			printf( "Forming tree\n");
-			root_ptr = hpx::new_<tree>(hpx::find_here(), root_box, 0, opts.problem_size, 0).get();
+			root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			while (root_ptr.refine(0)) {
 			}
 //			printf("Tree took %e seconds\n", timer() - ts);

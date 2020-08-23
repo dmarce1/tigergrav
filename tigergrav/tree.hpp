@@ -95,7 +95,7 @@ public:
 
 struct check_item {
 	raw_tree_client node;
-	vect<double> x;
+	vect<pos_type> x;
 	part_iter pbegin;
 	part_iter pend;
 	float r;
@@ -146,16 +146,16 @@ struct multipole_return {
 
 class tree: public hpx::components::managed_component_base<tree> {
 	multipole_info multi;
-	range box;
 	std::array<tree_client, NCHILD> children;
 	std::array<check_item, NCHILD> child_check;
+	box_id_type boxid;
 	part_iter part_begin;
 	part_iter part_end;
 	int gwork_id;
 	struct {
-		std::uint32_t level :8;
-		std::uint32_t leaf :1;
-		std::uint32_t group_active :1;
+		std::uint8_t level        :6;
+		std::uint8_t leaf 		  :1;
+		std::uint8_t group_active :1;
 	} flags;
 
 	static double theta_inv;
@@ -182,7 +182,7 @@ public:
 		arc & part_end;
 		arc & children;
 		arc & child_check;
-		arc & box;
+		arc & boxid;
 	}
 	static std::uint64_t get_flop();
 	static double get_pct_active() {
@@ -191,7 +191,7 @@ public:
 	tree() = default;
 	static void set_theta(double);
 	static void reset_flop();
-	tree(range, part_iter, part_iter, int level);
+	tree(box_id_type, part_iter, part_iter, int level);
 	bool refine(int);
 	bool is_leaf() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int workid, int stack_cnt);

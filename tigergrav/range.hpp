@@ -22,6 +22,10 @@ struct range {
 	}
 };
 
+
+using box_id_type = unsigned __int128;
+
+range box_id_to_range(box_id_type id);
 double range_max_span(const range &r);
 range reflect_range(const range&, int dim, double axis);
 vect<double> range_center(const range &r);

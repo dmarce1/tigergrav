@@ -36,7 +36,6 @@ std::atomic<std::uint64_t> tree::flop(0);
 double tree::theta_inv;
 double tree::pct_active;
 
-
 void reset_node_cache();
 
 static std::atomic<int> num_threads(1);
@@ -103,11 +102,11 @@ void tree::set_theta(double t) {
 	}
 }
 
-tree::tree(range box_, part_iter b, part_iter e, int level_) {
+tree::tree(box_id_type id_, part_iter b, part_iter e, int level_) {
 	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
-	box = box_;
+	boxid = id_;
 	flags.level = level_;
 	flags.leaf = true;
 }
@@ -118,34 +117,13 @@ bool tree::refine(int stack_cnt) {
 //		sleep(100);
 //	}
 	const auto &opts = options::get();
-//	auto myparts = part_vect_read(part_begin, part_end).get();
-//	bool abortme = false;
-//	for (const auto &p : myparts) {
-//		const auto x = pos_to_double(p.x);
-//		if (!in_range(x, box)) {
-//			printf("Found particle out of range!\n");
-//			printf("%e %e %e\n", x[0], x[1], x[2]);
-//			for (int dim = 0; dim < NDIM; dim++) {
-//				printf("%e %e\n", box.min[dim], box.max[dim]);
-//			}
-//			abortme = true;
-//		}
-//	}
-//	if (abortme) {
-//		abort();
-//	}
 
 	if (part_end - part_begin > opts.parts_per_node && is_leaf()) {
 		double max_span = 0.0;
-		range prange;
-//		if (part_end - part_begin > 512 * opts.parts_per_node) {
-		prange = box;
-//		} else {
-//			prange = part_vect_range(part_begin, part_end);
-//		}
+		range box = box_id_to_range(boxid);
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
-			const auto this_span = prange.max[dim] - prange.min[dim];
+			const auto this_span = box.max[dim] - box.min[dim];
 //			const auto this_span = box.max[dim] - box.min[dim];
 			if (this_span > max_span) {
 				max_span = this_span;
@@ -163,8 +141,8 @@ bool tree::refine(int stack_cnt) {
 			mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
 		}
 //		}
-		auto rcl = hpx::new_<tree>(localities[part_vect_locality_id(part_begin)], boxl, part_begin, mid_iter, flags.level + 1);
-		auto rcr = hpx::new_<tree>(localities[part_vect_locality_id(mid_iter)], boxr, mid_iter, part_end, flags.level + 1);
+		auto rcl = hpx::new_<tree>(localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
+		auto rcr = hpx::new_<tree>(localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
 
 		children[1] = rcr.get();
 		children[0] = rcl.get();
@@ -198,10 +176,11 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	}
 
 	if (part_end - part_begin == 0) {
+		range box = box_id_to_range(boxid);
 		multipole_return rc;
 		multi.m = 0.0;
 		for (int dim = 0; dim < NDIM; dim++) {
-			multi.x[dim] = 0.5 * (box.max[dim] - box.min[dim]);
+			multi.x[dim] = double_to_pos(0.5 * (box.max[dim] - box.min[dim]));
 		}
 		multi.num_active = 0;
 		multi.r = 0.0;
@@ -211,8 +190,8 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		return rc;
 	}
 	if (is_leaf()) {
-		multi.x = part_vect_center_of_mass(part_begin, part_end).second;
-		multi = part_vect_multipole_info(multi.x, do_out ? 0 : mrung, part_begin, part_end);
+		multi.x = double_to_pos(part_vect_center_of_mass(part_begin, part_end).second);
+		multi = part_vect_multipole_info(pos_to_double(multi.x), do_out ? 0 : mrung, part_begin, part_end);
 		prange = part_vect_range(part_begin, part_end);
 		flop += (part_end - part_begin) * 64;
 	} else {
@@ -227,31 +206,34 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		ml = rcl.get();
 		multi.m() = ml.m.m() + mr.m.m();
 		if (multi.m() != 0.0) {
-			multi.x = (ml.m.x * ml.m.m() + mr.m.x * mr.m.m()) / multi.m();
+			multi.x = double_to_pos((pos_to_double(ml.m.x) * ml.m.m() + pos_to_double(mr.m.x) * mr.m.m()) / multi.m());
 		} else {
 			ERROR();
 		}
-		multi.m = (ml.m.m >> (ml.m.x - multi.x)) + (mr.m.m >> (mr.m.x - multi.x));
+		const auto multixdouble = pos_to_double(multi.x);
+		const auto mlmxdouble = pos_to_double(ml.m.x);
+		const auto mrmxdouble = pos_to_double(mr.m.x);
+		multi.m = (ml.m.m >> (mlmxdouble - multixdouble)) + (mr.m.m >> (mrmxdouble - multixdouble));
 		multi.num_active = ml.m.num_active + mr.m.num_active;
-		if( ml.m.m() == 0.0) {
+		if (ml.m.m() == 0.0) {
 			multi.r = mr.m.r;
-		} else if( mr.m.m() ==0.0) {
+		} else if (mr.m.m() == 0.0) {
 			multi.r = ml.m.r;
 		} else {
-			multi.r = std::max(abs(ml.m.x - multi.x) + ml.m.r, abs(mr.m.x - multi.x) + mr.m.r);
+			multi.r = std::max(abs(mlmxdouble - multixdouble) + ml.m.r, abs(mrmxdouble - multixdouble) + mr.m.r);
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
 			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
 			prange.min[dim] = std::min(ml.r.min[dim], mr.r.min[dim]);
 		}
-		double rmax = abs(multi.x - vect<double>( { prange.min[0], prange.min[1], prange.min[2] }));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.max[0], prange.min[1], prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.min[0], prange.max[1], prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.max[0], prange.max[1], prange.min[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.min[0], prange.min[1], prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.max[0], prange.min[1], prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
-		rmax = std::max(rmax, abs(multi.x - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
+		double rmax = abs(multixdouble - vect<double>( { prange.min[0], prange.min[1], prange.min[2] }));
+		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.min[1], prange.min[2] })));
+		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.min[2] })));
+		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.min[2] })));
+		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.min[1], prange.max[2] })));
+		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.min[1], prange.max[2] })));
+		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
+		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
 		multi.r = std::min(multi.r, (float) rmax);
 		child_check[0] = ml.c;
 		child_check[1] = mr.c;
@@ -260,7 +242,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		gwork_checkin(gwork_id);
 	}
 	auto rc = multipole_return( { multi, prange, get_check_item() });
-	if( flags.level == 0 ) {
+	if (flags.level == 0) {
 		pct_active = (double) multi.num_active / (double) opts.problem_size;
 	}
 	return rc;
@@ -276,7 +258,7 @@ node_attr tree::get_node_attributes() const {
 multi_src tree::get_multi_srcs() const {
 	multi_src attr;
 	attr.m = multi.m;
-	attr.x = multi.x;
+	attr.x = pos_to_double(multi.x);
 	return attr;
 }
 
@@ -352,7 +334,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		return 0;
 	}
 
-	L = L << (multi.x - Lcom);
+	const auto multixdouble = pos_to_double(multi.x);
+	L = L << (multixdouble - Lcom);
 
 	std::vector<check_item> next_dchecklist;
 	std::vector<check_item> next_echecklist;
@@ -372,7 +355,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		if (c.pend == c.pbegin) {
 			continue;
 		}
-		const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
+		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
 		const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 		if (far) {
 			if (c.flags.opened) {
@@ -395,7 +378,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			if (c.pend == c.pbegin) {
 				continue;
 			}
-			const auto dx = ewald_far_separation(multi.x - c.x, multi.r);
+			const auto dx = ewald_far_separation(multixdouble - pos_to_double(c.x), multi.r);
 			const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 			if (far) {
 				if (c.flags.opened) {
@@ -417,15 +400,15 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	for (auto &v : dmulti_futs) {
 		multi_srcs.push_back(v.get());
 	}
-	flop += gravity_CC_direct(L, multi.x, multi_srcs);
-	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters));
+	flop += gravity_CC_direct(L, multixdouble, multi_srcs);
+	flop += gravity_CP_direct(L, multixdouble, part_vect_read_positions(dsource_iters));
 	if (opts.ewald) {
 		multi_srcs.resize(0);
 		for (auto &v : emulti_futs) {
 			multi_srcs.push_back(v.get());
 		}
-		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
-		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters));
+		flop += gravity_CC_ewald(L, multixdouble, multi_srcs);
+		flop += gravity_CP_ewald(L, multixdouble, part_vect_read_positions(esource_iters));
 	}
 	for (auto &f : dfuts) {
 		auto c = f.get();
@@ -443,10 +426,10 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	next_echecklist.resize(0);
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
-			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out, stack_cnt);
+			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multixdouble, L, min_rung, do_out, stack_cnt);
 		}, true, part_end - part_begin, stack_cnt);
 		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
-			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multi.x, L, min_rung, do_out, stack_cnt);
+			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multixdouble, L, min_rung, do_out, stack_cnt);
 		}, false, part_end - part_begin, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
@@ -464,7 +447,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 				if (c.pend == c.pbegin) {
 					continue;
 				}
-				const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
+				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
 				const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 				if (c.flags.opened) {
 					dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -496,7 +479,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 					if (c.pend == c.pbegin) {
 						continue;
 					}
-					const auto dx = ewald_far_separation(multi.x - c.x, multi.r);
+					const auto dx = ewald_far_separation(multixdouble - pos_to_double(c.x), multi.r);
 					const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 					if (c.flags.opened) {
 						esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -526,7 +509,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		fptr->resize(xptr->size());
 		int j = 0;
 		for (auto i = xptr->begin(); i != xptr->end(); i++) {
-			force this_f = L.translate_L2(vect<float>(pos_to_double((*xptr)[j]) - multi.x));
+			force this_f = L.translate_L2(vect<float>(pos_to_double((*xptr)[j]) - multixdouble));
 			(*fptr)[j].phi = this_f.phi;
 			(*fptr)[j].g = this_f.g;
 			j++;
@@ -583,11 +566,12 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 
 	next_checklist.reserve(NCHILD * checklist.size());
 
+	const auto multixdouble = pos_to_double(multi.x);
 	for (auto c : checklist) {
 		if (c.pend == c.pbegin) {
 			continue;
 		}
-		const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
+		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
 		const bool far = dx > (multi.r + c.r + 2.0 * L) * theta_inv;
 		if (!far) {
 			if (c.flags.is_leaf) {
@@ -630,7 +614,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 				if (c.pend == c.pbegin) {
 					continue;
 				}
-				const auto dx = opts.ewald ? ewald_near_separation(multi.x - c.x) : abs(multi.x - c.x);
+				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
 				const bool far = dx > (multi.r + c.r + 2.0 * L) * theta_inv;
 				if (c.flags.opened) {
 					source_futs.push_back(part_vect_read_group(c.pbegin, c.pend));

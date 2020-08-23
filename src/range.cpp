@@ -130,3 +130,40 @@ bool operator==(const range &a, const range &b) {
 bool operator!=(const range &a, const range &b) {
 	return !(a == b);
 }
+
+range box_id_to_range(box_id_type id) {
+	vect<double> x = 0.0;
+	vect<double> dx = 1.0;
+
+
+	while (id != 1) {
+//		printf( "%lli\n", id);
+		if (id == 0) {
+			printf("Logic error line %i file %s\n", __LINE__, __FILE__);
+			abort();
+		}
+		const auto tmp1 = x[0];
+		const auto tmp2 = dx[0];
+		x[0] = x[2];
+		x[2] = x[1];
+		x[1] = tmp1;
+		dx[0] = dx[2];
+		dx[2] = dx[1];
+		dx[1] = tmp2;
+		if (id & 1) {
+			x[0] = 0.5 * x[0] + 0.5;
+		} else {
+			x[0] = 0.5 * x[0];
+		}
+		dx[0] *= 0.5;
+		id >>= 1;
+	}
+	range r;
+	r.min = x;
+	for (int dim = 0; dim < NDIM; dim++) {
+		r.max[dim] = r.min[dim] + dx[dim];
+	}
+	return r;
+
+}
+

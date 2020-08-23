@@ -572,7 +572,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 	}
 	const auto this_end = std::min(part_end, e);
 	rc.m = 0.0;
-	rc.x = com;
+	rc.x = double_to_pos(com);
 	multipole<simd_float> M;
 	vect<simd_double> Xcom;
 	M = simd_float(0.0);
@@ -616,7 +616,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 	rc.r = 0.0;
 	rc.num_active = 0;
 	for (part_iter i = b; i < this_end; i++) {
-		rc.r = std::max(rc.r, (float) abs(pos_to_double(parts(i).x) - rc.x)); // 12 OP
+		rc.r = std::max(rc.r, (float) abs(pos_to_double(parts(i).x) - pos_to_double(rc.x))); // 12 OP
 		if (parts(i).flags.rung >= mrung) {
 			rc.num_active++;
 		}
