@@ -290,10 +290,10 @@ bool tree::is_leaf() const {
 }
 
 struct workspace {
-	std::vector<hpx::future<node_attr>> dfuts;
-	std::vector<hpx::future<node_attr>> efuts;
-	std::vector<hpx::future<multi_src>> dmulti_futs;
-	std::vector<hpx::future<multi_src>> emulti_futs;
+	std::vector<future_data<node_attr>> dfuts;
+	std::vector<future_data<node_attr>> efuts;
+	std::vector<future_data<multi_src>> dmulti_futs;
+	std::vector<future_data<multi_src>> emulti_futs;
 	std::vector<std::pair<part_iter, part_iter>> dsource_iters;
 	std::vector<std::pair<part_iter, part_iter>> esource_iters;
 	std::vector<multi_src> multi_srcs;
@@ -571,7 +571,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	}
 
 	std::vector<check_item> next_checklist;
-	std::vector<hpx::future<node_attr>> futs;
+	std::vector<future_data<node_attr>> futs;
 	std::vector<particle_group_info> sources;
 	std::vector<hpx::future<std::vector<particle_group_info>>> source_futs;
 
@@ -742,15 +742,15 @@ hpx::future<node_attr> read_node_cache(raw_id_type id) {
 	});
 }
 
-hpx::future<node_attr> raw_tree_client::get_node_attributes() const {
+future_data<node_attr> raw_tree_client::get_node_attributes() const {
+	future_data<node_attr> data;
 	if (myid == ptr.loc_id) {
 		tree *tree_ptr = reinterpret_cast<tree*>(ptr.ptr);
-		return hpx::async(hpx::launch::deferred, [tree_ptr]() {
-			return tree_ptr->get_node_attributes();
-		});
+		data.data = tree_ptr->get_node_attributes();
 	} else {
-		return read_node_cache(ptr);
+		data.fut = read_node_cache(ptr);
 	}
+	return data;
 }
 
 hpx::future<multi_src> get_multi_srcs_(raw_id_type id);
@@ -786,14 +786,14 @@ hpx::future<multi_src> read_multipole_cache(raw_id_type id) {
 	});
 }
 
-hpx::future<multi_src> raw_tree_client::get_multi_srcs() const {
+future_data<multi_src> raw_tree_client::get_multi_srcs() const {
+	future_data<multi_src> data;
 	if (myid == ptr.loc_id) {
 		tree *tree_ptr = reinterpret_cast<tree*>(ptr.ptr);
-		return hpx::async(hpx::launch::deferred, [tree_ptr]() {
-			return tree_ptr->get_multi_srcs();
-		});
+		data.data = tree_ptr->get_multi_srcs();
 	} else {
-		return read_multipole_cache(ptr);
+		data.fut = read_multipole_cache(ptr);
 	}
+	return data;
 }
 

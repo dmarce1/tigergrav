@@ -397,7 +397,7 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 				out.rung = parts(i).flags.rung;
 				rc.out.push_back(out);
 			}
-			if (do_out) {
+			if (do_out && opts.groups) {
 				particle p = parts(i);
 				if (p.flags.group != DEFAULT_GROUP) {
 					int proc = part_vect_locality_id(p.flags.group);

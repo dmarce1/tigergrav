@@ -23,6 +23,19 @@
 
 class tree;
 
+template<class T>
+struct future_data {
+	hpx::future<T> fut;
+	T data;
+	T get() {
+		if( fut.valid()) {
+			return fut.get();
+		} else {
+			return data;
+		}
+	}
+};
+
 using mutex_type = hpx::lcos::local::spinlock;
 template<class T>
 using future_type = hpx::future<T>;
@@ -69,8 +82,8 @@ class raw_tree_client {
 public:
 	raw_tree_client() = default;
 	raw_tree_client(raw_id_type ptr_);
-	hpx::future<node_attr> get_node_attributes() const;
-	hpx::future<multi_src> get_multi_srcs() const;
+	future_data<node_attr> get_node_attributes() const;
+	future_data<multi_src> get_multi_srcs() const;
 	int get_locality() const {
 		return ptr.loc_id;
 	}

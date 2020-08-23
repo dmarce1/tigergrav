@@ -13,6 +13,7 @@ public:
 	std::uint64_t problem_size;
 	bool cosmic;
 	bool glass;
+	bool groups;
 	double theta;
 	double eta;
 	double soft_len;
@@ -34,6 +35,7 @@ public:
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc & groups;
 		arc & link_len;
 		arc & H0;
 		arc & G;

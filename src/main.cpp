@@ -28,17 +28,17 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 	root_ptr.compute_multipoles(mrung, do_out, null_gwork_id, 0);
 //	gwork_show();
 	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
-	if (do_out && ! opts.solver_test) {
+	if (do_out && !opts.solver_test && opts.groups) {
 		auto tstart = timer();
-		printf( "Finding groups\n");
+		printf("Finding groups\n");
 		part_vect_init_groups();
 		tree::set_theta(0.99);
 		do {
-			printf( ".\n");
-		} while (root_ptr.find_groups(root_list,0));
+			printf(".\n");
+		} while (root_ptr.find_groups(root_list, 0));
 		groups_reset();
 		tree::set_theta(opts.theta);
-		printf( "Done finding groups in %e seconds\n", timer() - tstart);
+		printf("Done finding groups in %e seconds\n", timer() - tstart);
 
 	}
 //	printf("Multipoles took %e seconds\n", timer() - start);
@@ -47,7 +47,7 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 	L = 0.0;
 	root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
 	auto rc = part_vect_kick_return();
-	if( do_out&& ! opts.solver_test) {
+	if (do_out && !opts.solver_test && opts.groups) {
 		groups_finish1();
 		part_vect_find_groups2();
 		groups_finish2();
@@ -196,7 +196,9 @@ int hpx_main(int argc, char *argv[]) {
 		ekin = kr.stats.kin;
 		if (do_out) {
 			output_particles(kr.out, "parts.0.silo");
-			groups_output(0);
+			if (opts.groups) {
+				groups_output(0);
+			}
 		}
 		dt = rung_to_dt(kr.rung);
 		while (t < opts.t_max) {
@@ -233,7 +235,9 @@ int hpx_main(int argc, char *argv[]) {
 				last_epot = epot;
 				epot = kr.stats.pot;
 				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
-				groups_output(oi-1);
+				if (opts.groups) {
+					groups_output(oi - 1);
+				}
 			}
 			t = time_to_double(itime);
 			dt = rung_to_dt(kr.rung);
