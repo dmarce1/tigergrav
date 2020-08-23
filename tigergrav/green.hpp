@@ -63,8 +63,6 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 371 + 763 * NREAL + 66 *
 	static const periodic_parts periodic;
 	expansion<simd_double> D;
 	D = 0.0;
-	const float huge = std::numeric_limits<float>::max() / 100.0;
-	const float tiny = std::numeric_limits<float>::min() * 10.0;
 	vect<T> n;
 	vect<float> h;
 	static const ewald_indices indices_real(EWALD_REAL_N2);

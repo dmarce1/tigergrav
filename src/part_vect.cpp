@@ -40,19 +40,19 @@ static mutex_type group_mtx[GROUP_MTX_SIZE];
 kick_return kick_rc;
 mutex_type kick_rc_mtx;
 
-HPX_PLAIN_ACTION(part_vect_init);
-HPX_PLAIN_ACTION(part_vect_read_position);
-HPX_PLAIN_ACTION(part_vect_read_group);
-HPX_PLAIN_ACTION(part_vect_range);
-HPX_PLAIN_ACTION(part_vect_reset);
-HPX_PLAIN_ACTION(part_vect_center_of_mass);
-HPX_PLAIN_ACTION(part_vect_multipole_info);
-HPX_PLAIN_ACTION(part_vect_drift);
-HPX_PLAIN_ACTION(part_vect_read_active_positions);
-HPX_PLAIN_ACTION(part_vect_kick);
-HPX_PLAIN_ACTION(part_vect_init_groups);
-HPX_PLAIN_ACTION(part_vect_find_groups);
-HPX_PLAIN_ACTION(part_vect_kick_return);
+HPX_PLAIN_ACTION (part_vect_init);
+HPX_PLAIN_ACTION (part_vect_read_position);
+HPX_PLAIN_ACTION (part_vect_read_group);
+HPX_PLAIN_ACTION (part_vect_range);
+HPX_PLAIN_ACTION (part_vect_reset);
+HPX_PLAIN_ACTION (part_vect_center_of_mass);
+HPX_PLAIN_ACTION (part_vect_multipole_info);
+HPX_PLAIN_ACTION (part_vect_drift);
+HPX_PLAIN_ACTION (part_vect_read_active_positions);
+HPX_PLAIN_ACTION (part_vect_kick);
+HPX_PLAIN_ACTION (part_vect_init_groups);
+HPX_PLAIN_ACTION (part_vect_find_groups);
+HPX_PLAIN_ACTION (part_vect_kick_return);
 
 inline particle& parts(part_iter i) {
 	const int j = i - part_begin;
@@ -156,8 +156,8 @@ int round_robin(int me, int round, int N) {
 void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, int dim);
 std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid, double xmid, int dim, std::vector<particle>);
 
-HPX_PLAIN_ACTION(part_vect_sort_begin);
-HPX_PLAIN_ACTION(part_vect_sort_end);
+HPX_PLAIN_ACTION (part_vect_sort_begin);
+HPX_PLAIN_ACTION (part_vect_sort_end);
 
 mutex_type sort_mutex;
 
@@ -279,8 +279,8 @@ std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid
 	return low;
 }
 
-HPX_PLAIN_ACTION(part_vect_read);
-HPX_PLAIN_ACTION(part_vect_write);
+HPX_PLAIN_ACTION (part_vect_read);
+HPX_PLAIN_ACTION (part_vect_write);
 
 void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts) {
 	const auto id = part_vect_locality_id(b);
@@ -339,7 +339,7 @@ void part_vect_group_proc1(std::vector<particle> ps) {
 	}
 }
 
-HPX_PLAIN_ACTION(part_vect_group_proc1);
+HPX_PLAIN_ACTION (part_vect_group_proc1);
 
 hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &&f) {
 	kick_return rc;
@@ -370,7 +370,7 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 					}
 				}
 				const double a = abs(f[j].g * opts.G) * a3inv;
-				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len / (a + eps)));
+				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len * (128.0 / 315.0) / (a + eps)));
 				rung_type rung = dt_to_rung(dt);
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
@@ -444,8 +444,8 @@ void part_vect_group_proc2(std::vector<particle> ps) {
 	}
 }
 
-HPX_PLAIN_ACTION(part_vect_group_proc2);
-HPX_PLAIN_ACTION(part_vect_find_groups2);
+HPX_PLAIN_ACTION (part_vect_group_proc2);
+HPX_PLAIN_ACTION (part_vect_find_groups2);
 
 void part_vect_find_groups2() {
 	std::vector<hpx::future<void>> futs;
@@ -828,7 +828,7 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 
 part_iter part_vect_count_lo(part_iter, part_iter, double xmid, int dim);
 
-HPX_PLAIN_ACTION(part_vect_count_lo);
+HPX_PLAIN_ACTION (part_vect_count_lo);
 
 part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
 //	printf( "part_vect_count_lo\n");

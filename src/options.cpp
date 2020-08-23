@@ -33,9 +33,9 @@ bool options::process_options(int argc, char *argv[]) {
 
 	command_opts.add_options() //
 	("help", "produce help message") //
-	("config_file", po::value<std::string>(&config_file)->default_value(""), "configuration file") //
-	("init_file", po::value<std::string>(&init_file)->default_value(""), "initialization file from N-GenIC") //
-	("problem", po::value<std::string>(&problem)->default_value("cosmos"), "problem type") //
+	("config_file", po::value < std::string > (&config_file)->default_value(""), "configuration file") //
+	("init_file", po::value < std::string > (&init_file)->default_value(""), "initialization file from N-GenIC") //
+	("problem", po::value < std::string > (&problem)->default_value("cosmos"), "problem type") //
 	("solver_test", po::value<bool>(&solver_test)->default_value(0), "test gravity solver") //
 	("cosmic", po::value<bool>(&cosmic)->default_value(1), "Use Friedman equation") //
 	("glass", po::value<bool>(&glass)->default_value(0), "Produce glass file") //
@@ -44,7 +44,7 @@ bool options::process_options(int argc, char *argv[]) {
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("nout", po::value<int>(&nout)->default_value(32), "number of outputs") //
 	("parts_per_node", po::value<int>(&parts_per_node)->default_value(32), "maximum number of particles on a node") //
-	("problem_size", po::value<std::uint64_t>(&problem_size)->default_value(4096), "number of particles") //
+	("problem_size", po::value < std::uint64_t > (&problem_size)->default_value(4096), "number of particles") //
 	("theta", po::value<double>(&theta)->default_value(0.5), "separation parameter") //
 	("code_to_cm", po::value<double>(&code_to_cm)->default_value(4.40811e26), "size of box in centimeters") //
 	("code_to_cm_per_s", po::value<double>(&code_to_cm_per_s)->default_value(3e10), "code time units") //
@@ -79,7 +79,7 @@ bool options::process_options(int argc, char *argv[]) {
 	po::notify(vm);
 
 	if (soft_len == -1) {
-		soft_len = 0.02 * std::pow(problem_size, -1.0 / 3.0);
+		soft_len = 0.02 * std::pow(problem_size, -1.0 / 3.0) * (315.0 / 128.0);
 	}
 	if (out_parts < 0) {
 		out_parts = problem_size;
@@ -102,7 +102,7 @@ bool options::process_options(int argc, char *argv[]) {
 	G = Gcgs / pow(code_to_cm, 3) * code_to_g * pow(code_to_s, 2);
 	clight = ccgs / code_to_cm * code_to_s;
 	m_tot = omega_m * 3.0 * H0 * H0 / (8 * M_PI * G);
-	cosmo_init(1.0,H0);
+	cosmo_init(1.0, H0);
 	set(*this);
 	if (init_file == "") {
 		if (cosmic) {
@@ -126,25 +126,25 @@ bool options::process_options(int argc, char *argv[]) {
 	if (dt_max < 0.0) {
 		dt_max = t_max / 64.0;
 	}
-	if( glass ) {
+	if (glass) {
 		G = 1.0;
 		m_tot = 1.0;
 		cosmic = false;
 	}
 	set(*this);
 	for (int i = 1; i < sz; i++) {
-		futs.push_back(hpx::async<set_options_action>(loc[i], *this));
+		futs.push_back(hpx::async < set_options_action > (loc[i], *this));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 #define SHOW( opt ) std::cout << std::string( #opt ) << " = " << std::to_string(opt) << '\n';
 #define SHOW_STR( opt ) std::cout << std::string( #opt ) << " = " << opt << '\n';
-	printf( "code_to_s = %e\n", code_to_s);
-	printf( "code_to_g = %e\n", code_to_g);
-	printf( "code_to_cm = %e\n", code_to_cm);
-	printf( "code_to_cm_per_s = %e\n", code_to_cm_per_s);
-	printf( "H0 = %e\n",H0);
-	printf( "G  = %e\n",G);
-	printf( "c  = %e\n",clight);
+	printf("code_to_s = %e\n", code_to_s);
+	printf("code_to_g = %e\n", code_to_g);
+	printf("code_to_cm = %e\n", code_to_cm);
+	printf("code_to_cm_per_s = %e\n", code_to_cm_per_s);
+	printf("H0 = %e\n", H0);
+	printf("G  = %e\n", G);
+	printf("c  = %e\n", clight);
 	SHOW(cosmic);
 	SHOW(dt_max);
 	SHOW(ewald);

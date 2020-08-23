@@ -34,6 +34,8 @@ HPX_REGISTER_COMPONENT(hpx::components::managed_component<tree>, tree);
 
 std::atomic<std::uint64_t> tree::flop(0);
 double tree::theta_inv;
+double tree::pct_active;
+
 
 void reset_node_cache();
 
@@ -106,8 +108,8 @@ tree::tree(range box_, part_iter b, part_iter e, int level_) {
 	part_begin = b;
 	part_end = e;
 	box = box_;
-	level = level_;
-	leaf = true;
+	flags.level = level_;
+	flags.leaf = true;
 }
 
 bool tree::refine(int stack_cnt) {
@@ -136,12 +138,11 @@ bool tree::refine(int stack_cnt) {
 	if (part_end - part_begin > opts.parts_per_node && is_leaf()) {
 		double max_span = 0.0;
 		range prange;
-		// Don't bother choosing a particular bisection plane when lots of particles
-		if (part_end - part_begin > 512 * opts.parts_per_node) {
-			prange = box;
-		} else {
-			prange = part_vect_range(part_begin, part_end);
-		}
+//		if (part_end - part_begin > 512 * opts.parts_per_node) {
+		prange = box;
+//		} else {
+//			prange = part_vect_range(part_begin, part_end);
+//		}
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto this_span = prange.max[dim] - prange.min[dim];
@@ -162,12 +163,12 @@ bool tree::refine(int stack_cnt) {
 			mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
 		}
 //		}
-		auto rcl = hpx::new_<tree>(localities[part_vect_locality_id(part_begin)], boxl, part_begin, mid_iter, level + 1);
-		auto rcr = hpx::new_<tree>(localities[part_vect_locality_id(mid_iter)], boxr, mid_iter, part_end, level + 1);
+		auto rcl = hpx::new_<tree>(localities[part_vect_locality_id(part_begin)], boxl, part_begin, mid_iter, flags.level + 1);
+		auto rcr = hpx::new_<tree>(localities[part_vect_locality_id(mid_iter)], boxr, mid_iter, part_end, flags.level + 1);
 
 		children[1] = rcr.get();
 		children[0] = rcl.get();
-		leaf = false;
+		flags.leaf = false;
 		return true;
 	} else if (!is_leaf()) {
 		auto rcl = thread_if_avail([=](int stack_cnt) {
@@ -185,14 +186,14 @@ bool tree::refine(int stack_cnt) {
 }
 
 multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int workid, int stack_cnt) {
-	if (level == 0) {
+	if (flags.level == 0) {
 		gwork_reset();
 	}
-	group_active = true;
+	flags.group_active = true;
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= opts.parts_per_node)) {
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 128 * opts.parts_per_node)) {
 		gwork_id = gwork_assign_id();
 	}
 
@@ -252,7 +253,11 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	if (multi.num_active && is_leaf()) {
 		gwork_checkin(gwork_id);
 	}
-	return multipole_return( { multi, prange, get_check_item() });
+	auto rc = multipole_return( { multi, prange, get_check_item() });
+	if( flags.level == 0 ) {
+		pct_active = (double) multi.num_active / (double) opts.problem_size;
+	}
+	return rc;
 }
 
 node_attr tree::get_node_attributes() const {
@@ -276,7 +281,7 @@ check_item tree::get_check_item() const {
 	id.ptr = reinterpret_cast<std::uint64_t>(this);
 	check_item check;
 	check.flags.opened = false;
-	check.flags.is_leaf = leaf;
+	check.flags.is_leaf = flags.leaf;
 	check.pbegin = part_begin;
 	check.pend = part_end;
 	check.x = multi.x;
@@ -286,7 +291,7 @@ check_item tree::get_check_item() const {
 }
 
 bool tree::is_leaf() const {
-	return leaf;
+	return flags.leaf;
 }
 
 struct workspace {
@@ -332,7 +337,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
 	static const double m = opts.m_tot / opts.problem_size;
-	if (level == 0) {
+	if (flags.level == 0) {
 		reset_node_cache();
 		part_vect_reset();
 	}
@@ -343,7 +348,6 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 
 	L = L << (multi.x - Lcom);
 
-	double longl;
 	std::vector<check_item> next_dchecklist;
 	std::vector<check_item> next_echecklist;
 	auto space = get_workspace();
@@ -354,10 +358,6 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	auto &esource_iters = space.esource_iters;
 	auto &dmulti_futs = space.dmulti_futs;
 	auto &emulti_futs = space.emulti_futs;
-
-	if (opts.ewald) {
-		longl = range_max_span(part_vect_range(part_begin, part_end));
-	}
 
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
@@ -389,7 +389,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			if (c.pend == c.pbegin) {
 				continue;
 			}
-			const auto dx = ewald_far_separation(multi.x - c.x, multi.r, longl);
+			const auto dx = ewald_far_separation(multi.x - c.x, multi.r);
 			const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 			if (far) {
 				if (c.flags.opened) {
@@ -490,7 +490,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 					if (c.pend == c.pbegin) {
 						continue;
 					}
-					const auto dx = ewald_far_separation(multi.x - c.x, multi.r, longl);
+					const auto dx = ewald_far_separation(multi.x - c.x, multi.r);
 					const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
 					if (c.flags.opened) {
 						esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -561,7 +561,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
-	if (level == 0) {
+	if (flags.level == 0) {
 		reset_node_cache();
 		part_vect_reset();
 	}
@@ -590,10 +590,10 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			} else {
 				futs.push_back(c.node.get_node_attributes());
 			}
-			group_active = group_active || c.flags.group_active;
+			flags.group_active = flags.group_active || c.flags.group_active;
 		}
 	}
-	if (!group_active) {
+	if (!flags.group_active) {
 		return false;
 	}
 	for (auto &f : futs) {
@@ -614,8 +614,8 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		const auto rc_l = rc_l_fut.get();
 		child_check[0].flags.group_active = rc_l;
 		child_check[1].flags.group_active = rc_r;
-		group_active = rc_r || rc_l;
-		return group_active;
+		flags.group_active = rc_r || rc_l;
+		return flags.group_active;
 	} else {
 		source_futs.resize(0);
 		while (!checklist.empty()) {
@@ -657,8 +657,8 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			}
 		}
 //		printf( "%i\n", sources.size());
-		group_active = part_vect_find_groups(part_begin, part_end, std::move(sources));
-		return group_active;
+		flags.group_active = part_vect_find_groups(part_begin, part_end, std::move(sources));
+		return flags.group_active;
 	}
 }
 

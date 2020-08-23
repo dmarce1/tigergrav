@@ -28,7 +28,7 @@ struct future_data {
 	hpx::future<T> fut;
 	T data;
 	T get() {
-		if( fut.valid()) {
+		if (fut.valid()) {
 			return fut.get();
 		} else {
 			return data;
@@ -63,16 +63,16 @@ class tree_client {
 	id_type ptr;
 public:
 	template<class A>
-	void serialize(A&& arc, unsigned) {
+	void serialize(A &&arc, unsigned) {
 		arc & ptr;
 	}
 	tree_client() = default;
 	tree_client(id_type ptr_);
 	check_item get_check_item() const;
-	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int wid,  int stack_cnt) const;
+	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int wid, int stack_cnt) const;
 	double drift(double dt) const;
-	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
-			rung_type min_rung, bool do_output, int stack_cnt) const;
+	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+			bool do_output, int stack_cnt) const;
 	bool find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
 	bool refine(int) const;
 };
@@ -94,16 +94,16 @@ public:
 };
 
 struct check_item {
-	struct {
-		std::uint8_t opened : 1;
-		std::uint8_t is_leaf : 1;
-		std::uint8_t group_active : 1;
-	} flags;
 	raw_tree_client node;
-	double r;
 	vect<double> x;
 	part_iter pbegin;
 	part_iter pend;
+	float r;
+	struct {
+		std::uint8_t opened :1;
+		std::uint8_t is_leaf :1;
+		std::uint8_t group_active :1;
+	} flags;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		bool tmp = flags.opened;
@@ -137,7 +137,7 @@ struct multipole_return {
 	range r;
 	check_item c;
 	template<class A>
-	void serialize(A&& arc, unsigned) {
+	void serialize(A &&arc, unsigned) {
 		arc & m;
 		arc & r;
 		arc & c;
@@ -146,34 +146,48 @@ struct multipole_return {
 
 class tree: public hpx::components::managed_component_base<tree> {
 	multipole_info multi;
-	part_iter part_begin;
-	part_iter part_end;
-	int level;
-	int gwork_id;
 	range box;
-	bool leaf;
-	bool group_active;
 	std::array<tree_client, NCHILD> children;
 	std::array<check_item, NCHILD> child_check;
+	part_iter part_begin;
+	part_iter part_end;
+	int gwork_id;
+	struct {
+		std::uint32_t level :8;
+		std::uint32_t leaf :1;
+		std::uint32_t group_active :1;
+	} flags;
 
 	static double theta_inv;
 	static std::atomic<std::uint64_t> flop;
+	static double pct_active;
+
 
 public:
 	template<class A>
-	void serialize(A&& arc, unsigned) {
-		arc & group_active;
+	void serialize(A &&arc, unsigned) {
+		std::uint32_t tmp;
+		tmp = flags.group_active;
+		arc & tmp;
+		flags.group_active = tmp;
+		tmp = flags.leaf;
+		arc & tmp;
+		flags.leaf = tmp;
+		tmp = flags.level;
+		arc & tmp;
+		flags.level = tmp;
 		arc & gwork_id;
 		arc & multi;
 		arc & part_begin;
 		arc & part_end;
 		arc & children;
 		arc & child_check;
-		arc & level;
 		arc & box;
-		arc & leaf;
 	}
 	static std::uint64_t get_flop();
+	static double get_pct_active() {
+		return pct_active;
+	}
 	tree() = default;
 	static void set_theta(double);
 	static void reset_flop();
@@ -184,17 +198,17 @@ public:
 	node_attr get_node_attributes() const;
 	multi_src get_multi_srcs() const;
 	double drift(double);
-	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
-			rung_type min_rung, bool do_output, int stack_ccnt);
+	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+			bool do_output, int stack_ccnt);
 
 	bool find_groups(std::vector<check_item> checklist, int stack_ccnt);
 
-	check_item get_check_item() const;//
+	check_item get_check_item() const; //
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine); 				//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,find_groups);//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles); 				//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,find_groups); 				//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm); 				//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift); 				//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_check_item);
 	//
 };

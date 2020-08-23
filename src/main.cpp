@@ -83,6 +83,8 @@ int hpx_main(int argc, char *argv[]) {
 	}
 	dtau_out = opts.t_max / opts.nout;
 
+	printf( "Output every %e\n", dtau_out);
+
 	tree::set_theta(opts.theta);
 
 	range root_box;
@@ -154,14 +156,15 @@ int hpx_main(int argc, char *argv[]) {
 			pec_energy += 0.5 * (ekin + last_ekin) * da;
 			//			interaction_statistics istats = root_ptr->get_istats();
 			if (iter % 25 == 0) {
-				printf("%4s %11s %11s %11s %11s %11s %11s %11s %9s %9s %9s %11s ", "i", "t", "tau", "z", "a", "H", "adotdot", "dt", "itime", "max rung",
-						"min act.", "GFLOP");
+				printf("%4s %11s %11s %11s %11s %11s %11s %11s %9s %9s %9s %11s %11s ", "i", "t", "tau", "z", "a", "H", "adotdot", "dt", "itime", "max rung",
+						"min act.", "pct act", "GFLOP");
 				printf(" %11s %11s %11s %11s  %11s %11s\n", "g", "p", "epot", "ekin", "epec", "etot");
 			}
 			printf("%4i %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e  ", iter, t, cosmo_time(), z, a, cosmo_Hubble(), cosmo_adoubledot(), dt);
 			printf("%9x ", (int) itime);
 			printf("%9i ", (int) kr.rung);
 			printf("%9i ", (int) min_rung(itime));
+			printf("%10.1f%% ", 100.0 * tree::get_pct_active());
 			printf("%11.4e ", tree::get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
 //			tree::reset_flop();
 //			tstart = timer();

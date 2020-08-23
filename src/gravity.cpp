@@ -17,17 +17,13 @@ double ewald_near_separation(const vect<double> x) {
 	return std::sqrt(d);
 }
 
-double ewald_far_separation(const vect<double> x, double r, double l) {
+double ewald_far_separation(const vect<double> x, double r) {
 	static const auto opts = options::get();
 	constexpr double toler = 5.0e-4;
 	static const double r_e = std::pow(toler / 8.0, 1.0 / 3.0) / 2.0;
 	static const auto h = opts.soft_len;
 	if (x.dot(x) == 0.0) {
-		if (r < l / 2.0) {
-			return 4.0 * (r_e + h);
-		} else {
-			return 8.0 * r_e * r / l + 4.0 * h;
-		}
+		return 4.0 * (r_e + h);
 	} else {
 		return std::max(0.25, ewald_near_separation(x));
 	}

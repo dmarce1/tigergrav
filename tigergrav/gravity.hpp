@@ -24,8 +24,8 @@ struct multi_src {
 struct multipole_info {
 	multipole<float> m;
 	vect<double> x;
-	float r;
 	std::uint64_t num_active;
+	float r;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & m;
@@ -46,5 +46,5 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std:
 
 
 double ewald_near_separation(const vect<double> x);
-double ewald_far_separation(const vect<double> x, double r, double l);
+double ewald_far_separation(const vect<double> x, double r);
 void init_ewald();
