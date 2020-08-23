@@ -54,7 +54,7 @@ mutex_type groups_mtx;
 std::unordered_map<int, gwork_group> groups;
 
 std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<pos_type>> *x, const std::vector<std::pair<part_iter, part_iter>> &y,
-		std::function<hpx::future<void>(void)> &&complete) {
+		std::function<hpx::future<void>(void)> &&complete, bool do_phi) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
 	static const auto h = opts.soft_len;
@@ -75,8 +75,8 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	unit.fptr = g;
 	unit.xptr = x;
 	auto iter = groups.find(id);
-	if( iter == groups.end()) {
-		printf( "Error - work group %i not found\n", id);
+	if (iter == groups.end()) {
+		printf("Error - work group %i not found\n", id);
 		abort();
 	}
 	auto &entry = iter->second;
@@ -182,7 +182,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				Phi[i] = 0.0;
 			}
 
-			flop += y.size() * xcount * 121;
+			flop += y.size() * xcount * (103 + do_phi * 11);
 			for (int i = 0; i < X.size(); i++) {
 				for (int j = 0; j < y.size(); j++) {
 					vect<simd_int> Y;
@@ -211,9 +211,9 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 
 					const simd_float f1 = rinv3;
 					simd_float f2 = n35o16;
-					f2 = fmadd(f2, roh2, p135o16);                   // 2 / 0
-					f2 = fmadd(f2, roh2, n189o16);                   // 2 / 0
-					f2 = fmadd(f2, roh2, p105o16);                    // 2 / 0
+					f2 = fmadd(f2, roh2, p135o16);                   // 1 / 0
+					f2 = fmadd(f2, roh2, n189o16);                   // 1 / 0
+					f2 = fmadd(f2, roh2, p105o16);                    // 1 / 0
 					f2 *= H3inv;                                                       // 1 / 0
 
 					const auto dXM = dX * m;
@@ -221,17 +221,19 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 						G[i][dim] -= simd_double(dXM[dim] * (sw1 * f1 + sw2 * f2));    //12 / 6
 					}
 
-					// 13S + 2D = 15
-					const simd_float p1 = rinv;
+					if (do_phi) {
+						// 13S + 2D = 15
+						const simd_float p1 = rinv;
 
-					simd_float p2 = p35o128;
-					p2 = fmadd(p2, roh2, n45o32);				   // 2 / 0
-					p2 = fmadd(p2, roh2, p189o64);               // 2 / 0
-					p2 = fmadd(p2, roh2, n105o32);               // 2 / 0
-					p2 = fmadd(p2, roh2, p315o128);              // 2 / 0
-					p2 *= Hinv;                                                    // 1 / 0
+						simd_float p2 = p35o128;
+						p2 = fmadd(p2, roh2, n45o32);				   // 1 / 0
+						p2 = fmadd(p2, roh2, p189o64);               // 1 / 0
+						p2 = fmadd(p2, roh2, n105o32);               // 1 / 0
+						p2 = fmadd(p2, roh2, p315o128);              // 1 / 0
+						p2 *= Hinv;                                                    // 1 / 0
 
-					Phi[i] -= simd_double((sw1 * p1 + sw2 * p2) * m);              // 4 / 2
+						Phi[i] -= simd_double((sw1 * p1 + sw2 * p2) * m);              // 4 / 2
+					}
 
 				}
 			}
@@ -281,7 +283,7 @@ void gwork_reset() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<gwork_reset_action>(localities[i]));
+			futs.push_back(hpx::async < gwork_reset_action > (localities[i]));
 		}
 	}
 	groups.clear();

@@ -557,7 +557,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 				(*fptr)[i].phi -= phi_self;
 			}
 			return part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr));
-		});
+		}, do_out);
 
 	}
 	trash_workspace(std::move(space));
