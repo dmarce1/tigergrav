@@ -79,7 +79,7 @@ bool options::process_options(int argc, char *argv[]) {
 	po::notify(vm);
 
 	if (soft_len == -1) {
-		soft_len = 0.02 * std::pow(problem_size, -1.0 / 3.0) * (315.0 / 128.0);
+		soft_len = 0.02 * std::pow(problem_size, -1.0 / 3.0);
 	}
 	if (out_parts < 0) {
 		out_parts = problem_size;

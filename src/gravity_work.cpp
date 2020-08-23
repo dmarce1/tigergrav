@@ -61,15 +61,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	static const simd_float H3inv(1.0 / h / h / h);
 	static const simd_float Hinv(1.0 / h);
 	static const simd_float H(h);
-	static const simd_float n35o16 = simd_float(-35.0 / 16.0);
-	static const simd_float p135o16 = simd_float(+135.0 / 16.0);
-	static const simd_float n189o16 = simd_float(-189.0 / 16.0);
-	static const simd_float p105o16 = simd_float(105.0 / 16.0);
-	static const simd_float p35o128 = simd_float(35.0 / 128.0);
-	static const simd_float n45o32 = simd_float(-45.0 / 32.0);
-	static const simd_float p189o64 = simd_float(+189.0 / 64.0);
-	static const simd_float n105o32 = simd_float(-105.0 / 32.0);
-	static const simd_float p315o128 = simd_float(+315.0 / 128.0);
+	static const simd_float halfH(0.5 * h);
 	bool do_work;
 	gwork_unit unit;
 	unit.fptr = g;
@@ -182,7 +174,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				Phi[i] = 0.0;
 			}
 
-			flop += y.size() * xcount * (103 + do_phi * 11);
+			flop += y.size() * xcount * (107 + do_phi * 21);
 			for (int i = 0; i < X.size(); i++) {
 				for (int j = 0; j < y.size(); j++) {
 					vect<simd_int> Y;
@@ -192,47 +184,64 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 					}
 					if (opts.ewald) {
 						for (int dim = 0; dim < NDIM; dim++) {
-							dX[dim] = simd_float(simd_double(X[i][dim] - Y[dim]) * simd_double(POS_INV));
-							// 0 / 9
+							dX[dim] = simd_float(simd_double(X[i][dim] - Y[dim]) * simd_double(POS_INV)); // 18
 						}
 					} else {
 						for (int dim = 0; dim < NDIM; dim++) {
 							dX[dim] = simd_float(simd_double(X[i][dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
 						}
 					}
-					const simd_float r2 = dX.dot(dX);								   // 5 / 0
-					const simd_float r = sqrt(r2);									   // 7 / 0
-					const simd_float rinv = simd_float(1) / max(r, H);                 //36 / 0
-					const simd_float rinv3 = rinv * rinv * rinv;                       // 2 / 0
-					simd_float sw1 = r > H;                                            // 1 / 0
-					simd_float sw2 = (simd_float(1.0) - sw1);                          // 1 / 0
-					const simd_float roh = min(r * Hinv, 1);                           // 2 / 0
-					const simd_float roh2 = roh * roh;                                 // 1 / 0
+					const simd_float r2 = dX.dot(dX);								   // 5
+					const simd_float r = sqrt(r2);									   // 7
+					const simd_float rinv = simd_float(1) / max(r, halfH);             //36
+					const simd_float rinv3 = rinv * rinv * rinv;                       // 2
+					simd_float sw1 = r > H;                                            // 2
+					simd_float sw3 = r < halfH;                                        // 2
+					simd_float sw2 = simd_float(1.0) - sw1 - sw3;                      // 3
+					const simd_float roh = min(r * Hinv, 1);                           // 2
+					const simd_float roh2 = roh * roh;                                 // 1
+					const simd_float roh3 = roh2 * roh;                                // 1
 
 					const simd_float f1 = rinv3;
-					simd_float f2 = n35o16;
-					f2 = fmadd(f2, roh2, p135o16);                   // 1 / 0
-					f2 = fmadd(f2, roh2, n189o16);                   // 1 / 0
-					f2 = fmadd(f2, roh2, p105o16);                    // 1 / 0
-					f2 *= H3inv;                                                       // 1 / 0
+
+					simd_float f2 = simd_float(-32.0 / 3.0);
+					f2 = fmadd(f2, roh, simd_float(+192.0 / 5.0));						// 1
+					f2 = fmadd(f2, roh, simd_float(-48.0));								// 1
+					f2 = fmadd(f2, roh, simd_float(+64.0 / 3.0));						// 1
+					f2 = fmadd(f2, roh3, simd_float(-1.0 / 15.0));						// 1
+					f2 *= rinv3;														// 1
+
+					simd_float f3 = simd_float(+32.0);
+					f3 = fmadd(f3, roh, simd_float(-192.0 / 5.0));						// 1
+					f3 = fmadd(f3, roh2, simd_float(+32.0 / 3.0));						// 1
+					f3 *= H3inv;                                                       	// 1
+
+					simd_float f = sw1 * f1 + sw2 * f2 + sw3 * f3;						// 5
 
 					const auto dXM = dX * m;
 					for (int dim = 0; dim < NDIM; dim++) {
-						G[i][dim] -= simd_double(dXM[dim] * (sw1 * f1 + sw2 * f2));    //12 / 6
+						G[i][dim] -= simd_double(dXM[dim] * f);    						// 15
 					}
 
 					if (do_phi) {
 						// 13S + 2D = 15
 						const simd_float p1 = rinv;
 
-						simd_float p2 = p35o128;
-						p2 = fmadd(p2, roh2, n45o32);				   // 1 / 0
-						p2 = fmadd(p2, roh2, p189o64);               // 1 / 0
-						p2 = fmadd(p2, roh2, n105o32);               // 1 / 0
-						p2 = fmadd(p2, roh2, p315o128);              // 1 / 0
-						p2 *= Hinv;                                                    // 1 / 0
+						simd_float p2 = simd_float(+32.0 / 15.0);						// 1
+						p2 = fmadd(p2, roh, simd_float(-48.0 / 5.0));					// 1
+						p2 = fmadd(p2, roh, simd_float(+16.0));							// 1
+						p2 = fmadd(p2, roh, simd_float(-32.0 / 3.0));					// 1
+						p2 = fmadd(p2, roh2, simd_float(+16.0 / 5.0));					// 1
+						p2 = fmadd(p2, roh, simd_float(-1.0 / 15.0));					// 1
+						p2 *= rinv;                                                    	// 1
 
-						Phi[i] -= simd_double((sw1 * p1 + sw2 * p2) * m);              // 4 / 2
+						simd_float p3 = simd_float(-32.0 / 5.0);
+						p3 = fmadd(p3, roh, simd_float(+48.0 / 5.0));					// 1
+						p3 = fmadd(p3, roh2, simd_float(-16.0 / 3.0));					// 1
+						p3 = fmadd(p3, roh2, simd_float(+14.0 / 5.0));					// 1
+						p3 *= Hinv;														// 1
+
+						Phi[i] -= simd_double((sw1 * p1 + sw2 * p2 + sw3 * p3) * m);    // 10
 					}
 
 				}

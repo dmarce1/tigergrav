@@ -551,7 +551,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			static const auto opts = options::get();
 			static const auto m = opts.m_tot / opts.problem_size;
 			static const auto h = opts.soft_len;
-			static const auto phi_self = (-315.0 / 128.0) * m / h;
+			static const auto phi_self = (-2.8) * m / h;
 			xptr->size();
 			for (int i = 0; i < fptr->size(); i++) {
 				(*fptr)[i].phi -= phi_self;

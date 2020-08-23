@@ -174,19 +174,23 @@ public:
 		return simd_float(0.0) - *this;
 	}
 	inline simd_float& operator+=(const simd_float &other) {
-		*this = *this + other;
+		v[0] = _mmx_add_ps(v[0], other.v[0]);
+		v[1] = _mmx_add_ps(v[1], other.v[1]);
 		return *this;
 	}
 	inline simd_float& operator-=(const simd_float &other) {
-		*this = *this - other;
+		v[0] = _mmx_sub_ps(v[0], other.v[0]);
+		v[1] = _mmx_sub_ps(v[1], other.v[1]);
 		return *this;
 	}
 	inline simd_float& operator*=(const simd_float &other) {
-		*this = *this * other;
+		v[0] = _mmx_mul_ps(v[0], other.v[0]);
+		v[1] = _mmx_mul_ps(v[1], other.v[1]);
 		return *this;
 	}
 	inline simd_float& operator/=(const simd_float &other) {
-		*this = *this / other;
+		v[0] = _mmx_div_ps(v[0], other.v[0]);
+		v[1] = _mmx_div_ps(v[1], other.v[1]);
 		return *this;
 	}
 
@@ -232,7 +236,7 @@ public:
 
 	friend simd_float two_pow(const simd_float &r);
 	friend void sincos(const simd_float &x, simd_float *s, simd_float *c);
-	simd_float operator<(simd_float other) const {
+	simd_float operator<(simd_float other) const { // 2
 		simd_float rc;
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -247,7 +251,7 @@ public:
 #endif
 		return rc;
 	}
-	simd_float operator>(simd_float other) const {
+	simd_float operator>(simd_float other) const { // 2
 		simd_float rc;
 		static const simd_float one(1);
 		static const simd_float zero(0);
@@ -319,11 +323,6 @@ public:
 	inline simd_int operator/(int d) const {
 		const simd_int other = 1.0 / d;
 		return *this * other;
-	}
-
-	inline simd_int operator*=(int d) {
-		*this = *this * d;
-		return *this;
 	}
 	inline int& operator[](std::size_t i) {
 		return reinterpret_cast<int*>(&v)[i];
@@ -502,25 +501,32 @@ public:
 		const simd_double other = 1.0 / d;
 		return *this * other;
 	}
-
-	inline simd_double operator*=(double d) {
-		*this = *this * d;
-		return *this;
-	}
 	inline simd_double& operator+=(const simd_double &other) {
-		*this = *this + other;
+		a[0] = _mmx_add_pd(a[0], other.a[0]);
+		a[1] = _mmx_add_pd(a[1], other.a[1]);
+		a[2] = _mmx_add_pd(a[2], other.a[2]);
+		a[3] = _mmx_add_pd(a[3], other.a[3]);
 		return *this;
 	}
 	inline simd_double& operator-=(const simd_double &other) {
-		*this = *this - other;
+		a[0] = _mmx_sub_pd(a[0], other.a[0]);
+		a[1] = _mmx_sub_pd(a[1], other.a[1]);
+		a[2] = _mmx_sub_pd(a[2], other.a[2]);
+		a[3] = _mmx_sub_pd(a[3], other.a[3]);
 		return *this;
 	}
 	inline simd_double& operator*=(const simd_double &other) {
-		*this = *this * other;
+		a[0] = _mmx_mul_pd(a[0], other.a[0]);
+		a[1] = _mmx_mul_pd(a[1], other.a[1]);
+		a[2] = _mmx_mul_pd(a[2], other.a[2]);
+		a[3] = _mmx_mul_pd(a[3], other.a[3]);
 		return *this;
 	}
 	inline simd_double& operator/=(const simd_double &other) {
-		*this = *this / other;
+		a[0] = _mmx_div_pd(a[0], other.a[0]);
+		a[1] = _mmx_div_pd(a[1], other.a[1]);
+		a[2] = _mmx_div_pd(a[2], other.a[2]);
+		a[3] = _mmx_div_pd(a[3], other.a[3]);
 		return *this;
 	}
 
@@ -547,7 +553,7 @@ public:
 
 }SIMDALIGN;
 
-inline simd_float two_pow(const simd_float &r) {											// 21
+inline simd_float two_pow(const simd_float &r) {											// 13
 	static const simd_float zero = simd_float(0.0);
 	static const simd_float one = simd_float(1.0);
 	static const simd_float c1 = simd_float(std::log(2));
@@ -583,14 +589,14 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 #endif
 	auto x = r - r0;
 	auto y = c8;
-	y = fmadd(y, x, c7);																		// 2
-	y = fmadd(y, x, c6);																		// 2
-	y = fmadd(y, x, c5);																		// 2
-	y = fmadd(y, x, c4);																		// 2
-	y = fmadd(y, x, c3);																		// 2
-	y = fmadd(y, x, c2);																		// 2
-	y = fmadd(y, x, c1);																		// 2
-	y = fmadd(y, x, one);																		// 2
+	y = fmadd(y, x, c7);																		// 1
+	y = fmadd(y, x, c6);																		// 1
+	y = fmadd(y, x, c5);																		// 1
+	y = fmadd(y, x, c4);																		// 1
+	y = fmadd(y, x, c3);																		// 1
+	y = fmadd(y, x, c2);																		// 1
+	y = fmadd(y, x, c1);																		// 1
+	y = fmadd(y, x, one);																		// 1
 #ifdef USE_AVX512
 	static const auto sevenf =  _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f);
 	auto imm00 = _mm512_add_epi32(n[0], sevenf); // 1
@@ -626,7 +632,7 @@ inline simd_float round(const simd_float a) {
 	return v;
 }
 
-inline simd_float sin(const simd_float &x0) {						// 17
+inline simd_float sin(const simd_float &x0) {						// 12
 	auto x = x0;
 	// From : http://mooooo.ooo/chebyshev-sine-approximation/
 	static const simd_float pi_major(3.1415927);
@@ -634,22 +640,22 @@ inline simd_float sin(const simd_float &x0) {						// 17
 	x = x - round(x * (1.0 / (2.0 * M_PI))) * (2.0 * M_PI);			// 4
 	const simd_float x2 = x * x;									// 1
 	simd_float p = simd_float(0.00000000013291342);
-	p = fmadd(p, x2, simd_float(-0.000000023317787));				// 2
-	p = fmadd(p, x2, simd_float(0.0000025222919));					// 2
-	p = fmadd(p, x2, simd_float(-0.00017350505));					// 2
-	p = fmadd(p, x2, simd_float(0.0066208798));						// 2
-	p = fmadd(p, x2, simd_float(-0.10132118));						// 2
+	p = fmadd(p, x2, simd_float(-0.000000023317787));				// 1
+	p = fmadd(p, x2, simd_float(0.0000025222919));					// 1
+	p = fmadd(p, x2, simd_float(-0.00017350505));					// 1
+	p = fmadd(p, x2, simd_float(0.0066208798));						// 1
+	p = fmadd(p, x2, simd_float(-0.10132118));						// 1
 	const auto x1 = (x - pi_major - pi_minor);						// 2
 	const auto x3 = (x + pi_major + pi_minor);						// 2
 	auto res = x1 * x3 * p * x;										// 3
 	return res;
 }
 
-inline simd_float cos(const simd_float &x) {
+inline simd_float cos(const simd_float &x) {		// 13
 	return sin(x + simd_float(M_PI / 2.0));
 }
 
-inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {
+inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {// 25
 //#ifdef __AVX512F__
 //	s->v = _mm512_sincos_ps(&(c->v),x.v);
 //#else
@@ -658,7 +664,7 @@ inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {
 //#endif
 }
 
-inline simd_float exp(simd_float a) { 	// 24
+inline simd_float exp(simd_float a) { 	// 16
 	static const simd_float c0 = 1.0 / std::log(2);
 	static const auto hi = simd_float(88);
 	static const auto lo = simd_float(-88);
@@ -667,7 +673,7 @@ inline simd_float exp(simd_float a) { 	// 24
 	return two_pow(a * c0);
 }
 
-inline simd_float erfcexp(const simd_float &x, simd_float *e) {				// 82
+inline simd_float erfcexp(const simd_float &x, simd_float *e) {				// 76
 	simd_float v;
 	const simd_float p(0.3275911);
 	const simd_float a1(0.254829592);
@@ -680,7 +686,7 @@ inline simd_float erfcexp(const simd_float &x, simd_float *e) {				// 82
 	const simd_float t3 = t2 * t1;											// 1
 	const simd_float t4 = t2 * t2;											// 1
 	const simd_float t5 = t2 * t3;											// 1
-	*e = exp(-x * x);														// 24
+	*e = exp(-x * x);														// 16
 	return (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * *e; 			// 11
 	return v;
 }

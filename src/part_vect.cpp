@@ -370,7 +370,7 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 					}
 				}
 				const double a = abs(f[j].g * opts.G) * a3inv;
-				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len * (128.0 / 315.0) / (a + eps)));
+				double dt = std::min(opts.dt_max, opts.eta * std::sqrt(opts.soft_len * (1.0/2.8) / (a + eps)));
 				rung_type rung = dt_to_rung(dt);
 				rung = std::max(rung, min_rung);
 				rc.rung = std::max(rc.rung, rung);
