@@ -233,7 +233,13 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		}
 		multi.m = (ml.m.m >> (ml.m.x - multi.x)) + (mr.m.m >> (mr.m.x - multi.x));
 		multi.num_active = ml.m.num_active + mr.m.num_active;
-		multi.r = std::max(abs(ml.m.x - multi.x) + ml.m.r, abs(mr.m.x - multi.x) + mr.m.r);
+		if( ml.m.m() == 0.0) {
+			multi.r = mr.m.r;
+		} else if( mr.m.m() ==0.0) {
+			multi.r = ml.m.r;
+		} else {
+			multi.r = std::max(abs(ml.m.x - multi.x) + ml.m.r, abs(mr.m.x - multi.x) + mr.m.r);
+		}
 		for (int dim = 0; dim < NDIM; dim++) {
 			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
 			prange.min[dim] = std::min(ml.r.min[dim], mr.r.min[dim]);
