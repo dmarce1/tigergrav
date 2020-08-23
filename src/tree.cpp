@@ -54,11 +54,11 @@ struct raw_id_type_hash {
 
 template<class F>
 inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
-	const auto static N = options::get().problem_size / localities.size() / (8 * hardware_concurrency);
+//	const auto static N = options::get().problem_size / localities.size() / (4 * hardware_concurrency);
 	bool thread;
 //	printf( "%i\n", (int) num_threads);
 //	int count = num_threads++;
-	if ((nparts >= N) && left) {
+	if (left && num_threads < 4 * hardware_concurrency) {
 		thread = true;
 	} else {
 //		num_threads--;
@@ -71,7 +71,7 @@ inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
 	}
 	if (thread) {
 		num_threads++;
-//		printf( "Threading %i\n", (int) num_threads);
+//		printf("Threading %i %i\n", (int) num_threads, 4 * hardware_concurrency);
 		auto rc = hpx::async([](F &&f) {
 			auto rc = f(0);
 			num_threads--;
@@ -162,8 +162,8 @@ bool tree::refine(int stack_cnt) {
 			mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
 		}
 //		}
-		auto rcl = hpx::new_ < tree > (localities[part_vect_locality_id(part_begin)], boxl, part_begin, mid_iter, level + 1);
-		auto rcr = hpx::new_ < tree > (localities[part_vect_locality_id(mid_iter)], boxr, mid_iter, part_end, level + 1);
+		auto rcl = hpx::new_<tree>(localities[part_vect_locality_id(part_begin)], boxl, part_begin, mid_iter, level + 1);
+		auto rcr = hpx::new_<tree>(localities[part_vect_locality_id(mid_iter)], boxr, mid_iter, part_end, level + 1);
 
 		children[1] = rcr.get();
 		children[0] = rcl.get();
@@ -192,7 +192,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 512 * opts.parts_per_node)) {
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 64 * opts.parts_per_node)) {
 		gwork_id = gwork_assign_id();
 	}
 
@@ -541,8 +541,15 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 //			if (esource_iters.size())
 //				printf("%i %i %e %e %e\n", gwork_id, esource_iters.size(), multi.r, h, 2.0 * (multi.r + h));
 		}
-		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, [this,min_rung, do_out, fptr,xptr]() {
+		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, [this, min_rung, do_out, fptr, xptr]() {
+			static const auto opts = options::get();
+			static const auto m = opts.m_tot / opts.problem_size;
+			static const auto h = opts.soft_len;
+			static const auto phi_self = (-315.0 / 128.0) * m / h;
 			xptr->size();
+			for (int i = 0; i < fptr->size(); i++) {
+				(*fptr)[i].phi -= phi_self;
+			}
 			return part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr));
 		});
 
@@ -686,7 +693,7 @@ mutex_type node_cache_mtx[NODE_CACHE_SIZE];
 std::unordered_map<raw_id_type, hpx::shared_future<multi_src>, raw_id_type_hash> multipole_cache[NODE_CACHE_SIZE];
 mutex_type multipole_cache_mtx[NODE_CACHE_SIZE];
 
-HPX_PLAIN_ACTION(reset_node_cache);
+HPX_PLAIN_ACTION (reset_node_cache);
 
 void reset_node_cache() {
 	std::vector<hpx::future<void>> futs;

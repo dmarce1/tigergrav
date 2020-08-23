@@ -19,13 +19,13 @@ using mutex_type = hpx::lcos::local::spinlock;
 
 std::atomic<int> next_id_base(0);
 
-HPX_PLAIN_ACTION(gwork_reset);
+HPX_PLAIN_ACTION (gwork_reset);
 
 struct gwork_unit {
 	part_iter yb;
 	part_iter ye;
-	std::vector<force>* fptr;
-	std::vector<vect<pos_type>>* xptr;
+	std::vector<force> *fptr;
+	std::vector<vect<pos_type>> *xptr;
 };
 
 struct gwork_super_unit {
@@ -42,24 +42,34 @@ struct gwork_group {
 	mutex_type mtx;
 	int workadded;
 	int mcount;
+	bool first_call;
 	gwork_group() {
 		mcount = 0;
 		workadded = 0;
+		first_call = true;
 	}
 };
 
 mutex_type groups_mtx;
 std::unordered_map<int, gwork_group> groups;
 
-std::uint64_t gwork_pp_complete(int id, std::vector<force>* g, std::vector<vect<pos_type>>* x,
-		const std::vector<std::pair<part_iter, part_iter>> &y, std::function<hpx::future<void>(void)> &&complete) {
+std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<pos_type>> *x, const std::vector<std::pair<part_iter, part_iter>> &y,
+		std::function<hpx::future<void>(void)> &&complete) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
 	static const auto h = opts.soft_len;
 	static const simd_float H3inv(1.0 / h / h / h);
 	static const simd_float Hinv(1.0 / h);
 	static const simd_float H(h);
-	static const auto phi_self = (-315.0 / 128.0) * m / h;
+	static const simd_float n35o16 = simd_float(-35.0 / 16.0);
+	static const simd_float p135o16 = simd_float(+135.0 / 16.0);
+	static const simd_float n189o16 = simd_float(-189.0 / 16.0);
+	static const simd_float p105o16 = simd_float(105.0 / 16.0);
+	static const simd_float p35o128 = simd_float(35.0 / 128.0);
+	static const simd_float n45o32 = simd_float(-45.0 / 32.0);
+	static const simd_float p189o64 = simd_float(+189.0 / 64.0);
+	static const simd_float n105o32 = simd_float(-105.0 / 32.0);
+	static const simd_float p315o128 = simd_float(+315.0 / 128.0);
 	bool do_work;
 	gwork_unit unit;
 	unit.fptr = g;
@@ -67,6 +77,11 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force>* g, std::vector<vect<
 	auto &entry = groups[id];
 	{
 		std::lock_guard<mutex_type> lock(entry.mtx);
+		if (entry.first_call) {
+			entry.first_call = false;
+			entry.units.reserve(entry.mcount);
+			entry.complete.reserve(entry.mcount);
+		}
 		for (auto &j : y) {
 			unit.yb = j.first;
 			unit.ye = j.second;
@@ -90,14 +105,30 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force>* g, std::vector<vect<
 		});
 
 		std::vector<gwork_super_unit> sunits;
+		int sunit_count = 1;
+		int max_ucount = 0;
+		int this_ucount = 1;
+		for (int i = 1; i < entry.units.size(); i++) {
+			if (entry.units[i].yb != entry.units[i - 1].yb) {
+				max_ucount = std::max(max_ucount, this_ucount);
+				this_ucount = 1;
+				sunit_count++;
+			} else {
+				this_ucount++;
+			}
+		}
+		max_ucount = std::max(max_ucount, this_ucount);
+		sunits.reserve(sunit_count);
 		gwork_super_unit this_sunit;
 		this_sunit.yb = entry.units[0].yb;
 		this_sunit.ye = entry.units[0].ye;
+		this_sunit.fs.reserve(max_ucount);
+		this_sunit.xs.reserve(max_ucount);
 		for (int i = 0; i < entry.units.size(); i++) {
 			if (this_sunit.yb != entry.units[i].yb) {
 				sunits.push_back(std::move(this_sunit));
-				this_sunit.fs.resize(0);
-				this_sunit.xs.resize(0);
+				this_sunit.fs.reserve(max_ucount);
+				this_sunit.xs.reserve(max_ucount);
 				this_sunit.yb = entry.units[i].yb;
 				this_sunit.ye = entry.units[i].ye;
 			}
@@ -105,11 +136,13 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force>* g, std::vector<vect<
 			this_sunit.xs.push_back(entry.units[i].xptr);
 		}
 		sunits.push_back(std::move(this_sunit));
+		decltype(entry.units)().swap(entry.units);
 
 		std::vector<vect<pos_type>> y;
 		std::vector<vect<simd_int>> X;
 		std::vector<vect<simd_double>> G;
 		std::vector<simd_double> Phi;
+		y.reserve(opts.parts_per_node);
 		for (auto &sunit : sunits) {
 			y = part_vect_read_position(sunit.yb, sunit.ye).get();
 			int xcount = 0;
@@ -177,11 +210,10 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force>* g, std::vector<vect<
 						const simd_float roh2 = roh * roh;                                 // 1 / 0
 
 						const simd_float f1 = rinv3;
-
-						simd_float f2 = simd_float(-35.0 / 16.0);
-						f2 = fmadd(f2, roh2, simd_float(+135.0 / 16.0));                   // 2 / 0
-						f2 = fmadd(f2, roh2, simd_float(-189.0 / 16.0));                   // 2 / 0
-						f2 = fmadd(f2, roh2, simd_float(105.0 / 16.0));                    // 2 / 0
+						simd_float f2 = n35o16;
+						f2 = fmadd(f2, roh2, p135o16);                   // 2 / 0
+						f2 = fmadd(f2, roh2, n189o16);                   // 2 / 0
+						f2 = fmadd(f2, roh2, p105o16);                    // 2 / 0
 						f2 *= H3inv;                                                       // 1 / 0
 
 						const auto dXM = dX * m;
@@ -192,11 +224,11 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force>* g, std::vector<vect<
 						// 13S + 2D = 15
 						const simd_float p1 = rinv;
 
-						simd_float p2 = simd_float(35.0 / 128.0);
-						p2 = fmadd(p2, roh2, simd_float(-45.0 / 32.0));				   // 2 / 0
-						p2 = fmadd(p2, roh2, simd_float(+189.0 / 64.0));               // 2 / 0
-						p2 = fmadd(p2, roh2, simd_float(-105.0 / 32.0));               // 2 / 0
-						p2 = fmadd(p2, roh2, simd_float(+315.0 / 128.0));              // 2 / 0
+						simd_float p2 = p35o128;
+						p2 = fmadd(p2, roh2, n45o32);				   // 2 / 0
+						p2 = fmadd(p2, roh2, p189o64);               // 2 / 0
+						p2 = fmadd(p2, roh2, n105o32);               // 2 / 0
+						p2 = fmadd(p2, roh2, p315o128);              // 2 / 0
 						p2 *= Hinv;                                                    // 1 / 0
 
 						Phi[i] -= simd_double((sw1 * p1 + sw2 * p2) * m);              // 4 / 2
@@ -219,6 +251,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force>* g, std::vector<vect<
 		}
 
 		std::vector<hpx::future<void>> futs;
+		futs.reserve(entry.complete.size());
 		for (auto &cfunc : entry.complete) {
 			futs.push_back(cfunc());
 		}

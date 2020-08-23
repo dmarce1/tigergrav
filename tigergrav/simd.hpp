@@ -133,7 +133,7 @@ public:
 	}
 	inline float sum() const {
 		float sum = 0.0;
-		for (int i = 0; i < 2 *SIMD_VLEN; i++) {
+		for (int i = 0; i < 2 * SIMD_VLEN; i++) {
 			sum += (*this)[i];
 		}
 		return sum;
@@ -271,7 +271,7 @@ private:
 	_simd_int v[2];
 public:
 	static constexpr std::size_t size() {
-		return 2*SIMD_VLEN;
+		return 2 * SIMD_VLEN;
 	}
 	simd_int() = default;
 	inline ~simd_int() = default;
@@ -438,7 +438,7 @@ public:
 
 	}
 
-	operator simd_float() const {
+	inline operator simd_float() const {
 		float_union u;
 #ifdef USE_AVX512
 		u.m1[0] = _mm512_cvtpd_ps(a[0]);
@@ -592,16 +592,18 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	y = fmadd(y, x, c1);																		// 2
 	y = fmadd(y, x, one);																		// 2
 #ifdef USE_AVX512
-	auto imm00 = _mm512_add_epi32(n[0], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f)); // 1
-	auto imm01 = _mm512_add_epi32(n[1], _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f)); // 1
+	static const auto sevenf =  _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f);
+	auto imm00 = _mm512_add_epi32(n[0], sevenf); // 1
+	auto imm01 = _mm512_add_epi32(n[1], sevenf); // 1
 	imm00 = _mm512_slli_epi32(imm00, 23);
 	imm01 = _mm512_slli_epi32(imm01, 23);
 	r0.v[0] = _mm512_castsi512_ps(imm00);
 	r0.v[1] = _mm512_castsi512_ps(imm01);
 #endif
 #ifdef USE_AVX2
-	auto imm00 = _mm256_add_epi32(n[0], _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
-	auto imm01 = _mm256_add_epi32(n[1], _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f));
+	static const auto sevenf = _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f);
+	auto imm00 = _mm256_add_epi32(n[0], sevenf);
+	auto imm01 = _mm256_add_epi32(n[1], sevenf);
 	imm00 = _mm256_slli_epi32(imm00, 23);
 	imm01 = _mm256_slli_epi32(imm01, 23);
 	r0.v[0] = _mm256_castsi256_ps(imm00);
@@ -697,8 +699,12 @@ inline simd_float copysign(const simd_float &y, const simd_float &x) {
 	simd_float v;
 	constexpr float signbit = -0.f;
 	static simd_float const avx_signbit = simd_float(signbit);
-	v.v[0] = _mmx_or_ps(_mmx_and_ps(avx_signbit.v[0], x.v[0]), _mmx_andnot_ps(avx_signbit.v[0], y.v[0])); // (avx_signbit & from) | (~avx_signbit & to)
-	v.v[1] = _mmx_or_ps(_mmx_and_ps(avx_signbit.v[1], x.v[1]), _mmx_andnot_ps(avx_signbit.v[1], y.v[1])); // (avx_signbit & from) | (~avx_signbit & to)
+	const auto tmp0 = _mmx_andnot_ps(avx_signbit.v[0], y.v[0]);
+	const auto tmp1 = _mmx_andnot_ps(avx_signbit.v[1], y.v[1]);
+	const auto tmp2 = _mmx_and_ps(avx_signbit.v[0], x.v[0]);
+	const auto tmp3 = _mmx_and_ps(avx_signbit.v[1], x.v[1]);
+	v.v[0] = _mmx_or_ps(tmp2, tmp0); // (avx_signbit & from) | (~avx_signbit & to)
+	v.v[1] = _mmx_or_ps(tmp3, tmp1); // (avx_signbit & from) | (~avx_signbit & to)
 	return v;
 }
 
