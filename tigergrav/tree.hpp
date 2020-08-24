@@ -93,17 +93,26 @@ public:
 	}
 };
 
+struct check_flags {
+	std::uint8_t opened :1;
+	std::uint8_t is_leaf :1;
+	std::uint8_t group_active :1;
+	check_flags& operator=( check_flags f) {
+		opened = f.opened;
+		is_leaf = f.is_leaf;
+		group_active = f.group_active;
+		return *this;
+	}
+};
+
 struct check_item {
 	raw_tree_client node;
 	vect<pos_type> x;
+	box_id_type boxid;
 	part_iter pbegin;
 	part_iter pend;
 	float r;
-	struct {
-		std::uint8_t opened :1;
-		std::uint8_t is_leaf :1;
-		std::uint8_t group_active :1;
-	} flags;
+	check_flags flags;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		bool tmp = flags.opened;
@@ -120,6 +129,7 @@ struct check_item {
 		arc & x;
 		arc & pbegin;
 		arc & pend;
+		arc & boxid;
 	}
 
 };
@@ -148,22 +158,27 @@ struct multipole_return {
 
 class tree: public hpx::components::managed_component_base<tree> {
 	multipole_info multi;
+	std::array<vect<pos_type>, NCHILD> cx;
 	std::array<tree_client, NCHILD> children;
-	std::array<check_item, NCHILD> child_check;
+	std::array<raw_tree_client, NCHILD> cnode;
+	std::array<part_iter, NCHILD> cpbegin;
+	std::array<part_iter, NCHILD> cpend;
 	box_id_type boxid;
 	part_iter part_begin;
 	part_iter part_end;
+	std::array<float, NCHILD> cr;
+	std::array<check_flags, NCHILD> cflags;
 	int gwork_id;
+
 	struct {
-		std::uint8_t level        :6;
-		std::uint8_t leaf 		  :1;
+		std::uint8_t level :6;
+		std::uint8_t leaf :1;
 		std::uint8_t group_active :1;
 	} flags;
 
 	static double theta_inv;
 	static std::atomic<std::uint64_t> flop;
 	static double pct_active;
-
 
 public:
 	template<class A>
@@ -183,8 +198,23 @@ public:
 		arc & part_begin;
 		arc & part_end;
 		arc & children;
-		arc & child_check;
 		arc & boxid;
+		arc & cnode;
+		arc & cx;
+		arc & cpbegin;
+		arc & cpend;
+		arc & cr;
+		for( int i = 0; i < NCHILD; i++) {
+			tmp = cflags[i].opened;
+			arc & tmp;
+			cflags[i].opened = tmp;
+			tmp = cflags[i].is_leaf;
+			arc & tmp;
+			cflags[i].is_leaf = tmp;
+			tmp = cflags[i].group_active;
+			arc & tmp;
+			cflags[i].group_active = tmp;
+		}
 	}
 	static std::uint64_t get_flop();
 	static double get_pct_active() {
@@ -206,11 +236,11 @@ public:
 	bool find_groups(std::vector<check_item> checklist, int stack_ccnt);
 
 	check_item get_check_item() const; //
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine); 				//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles); 				//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,find_groups); 				//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm); 				//
-	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift); 				//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,find_groups);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_check_item);
 	//
 };

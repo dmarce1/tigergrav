@@ -96,7 +96,7 @@ void tree::set_theta(double t) {
 	if (myid == 0) {
 		std::vector<hpx::future<void>> futs;
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<set_theta_action>(localities[i], t));
+			futs.push_back(hpx::async < set_theta_action > (localities[i], t));
 		}
 		hpx::wait_all(futs.begin(), futs.end());
 	}
@@ -141,8 +141,8 @@ bool tree::refine(int stack_cnt) {
 			mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
 		}
 //		}
-		auto rcl = hpx::new_<tree>(localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
-		auto rcr = hpx::new_<tree>(localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
+		auto rcl = hpx::new_ < tree > (localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
+		auto rcr = hpx::new_ < tree > (localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
 
 		children[1] = rcr.get();
 		children[0] = rcl.get();
@@ -209,7 +209,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		ml = rcl.get();
 		rc.N = ml.N + mr.N;
 		if (rc.N != 0) {
-			multi.x = double_to_pos((pos_to_double(ml.m.x) * ml.N + pos_to_double(mr.m.x) * mr.N) / (double)rc.N);
+			multi.x = double_to_pos((pos_to_double(ml.m.x) * ml.N + pos_to_double(mr.m.x) * mr.N) / (double) rc.N);
 		} else {
 			ERROR();
 		}
@@ -238,8 +238,18 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
 		multi.r = std::min(multi.r, (float) rmax);
-		child_check[0] = ml.c;
-		child_check[1] = mr.c;
+		cnode[0] = ml.c.node;
+		cnode[1] = mr.c.node;
+		cx[0] = ml.c.x;
+		cx[1] = mr.c.x;
+		cr[0] = ml.c.r;
+		cr[1] = mr.c.r;
+		cpbegin[0] = ml.c.pbegin;
+		cpbegin[1] = mr.c.pbegin;
+		cpend[0] = ml.c.pend;
+		cpend[1] = mr.c.pend;
+		cflags[0] = ml.c.flags;
+		cflags[1] = mr.c.flags;
 	}
 	if (multi.num_active && is_leaf()) {
 		gwork_checkin(gwork_id);
@@ -255,8 +265,16 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 
 node_attr tree::get_node_attributes() const {
 	node_attr attr;
-	attr.children[0] = child_check[0];
-	attr.children[1] = child_check[1];
+	for (int i = 0; i < NCHILD; i++) {
+		attr.children[i].node = cnode[i];
+		attr.children[i].x = cx[i];
+		attr.children[i].r = cr[i];
+		attr.children[i].pbegin = cpbegin[i];
+		attr.children[i].pend = cpend[i];
+		attr.children[i].flags = cflags[i];
+	}
+	attr.children[0].boxid = boxid << 1;
+	attr.children[1].boxid = (boxid << 1) + 1;
 	return attr;
 }
 
@@ -342,6 +360,11 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	const auto multixdouble = pos_to_double(multi.x);
 	L = L << (multixdouble - Lcom);
 
+	constexpr double ewald_toler = 1.0e-3;
+	static const float r_ewald = std::pow(ewald_toler / 8.0, 1.0 / 3.0);
+
+	const float rmax = range_max_span(part_vect_range(part_begin, part_end));
+
 	std::vector<check_item> next_dchecklist;
 	std::vector<check_item> next_echecklist;
 	auto space = get_workspace();
@@ -361,7 +384,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			continue;
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-		const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
+		const bool far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
 		if (far) {
 			if (c.flags.opened) {
 				dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -383,8 +406,9 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			if (c.pend == c.pbegin) {
 				continue;
 			}
-			const auto dx = ewald_far_separation(multixdouble - pos_to_double(c.x), multi.r);
-			const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
+			const auto dX = multixdouble - pos_to_double(c.x);
+			const auto dx = ewald_far_separation(dX, multi.r);
+			const bool far = ((dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h))) || (dX.dot(dX) == 0.0 && rmax < r_ewald);
 			if (far) {
 				if (c.flags.opened) {
 					esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -453,7 +477,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 					continue;
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-				const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
+				const bool far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
+				;
 				if (c.flags.opened) {
 					dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
 				} else {
@@ -484,8 +509,9 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 					if (c.pend == c.pbegin) {
 						continue;
 					}
-					const auto dx = ewald_far_separation(multixdouble - pos_to_double(c.x), multi.r);
-					const bool far = dx > (multi.r + c.r + 2 * h) * theta_inv;
+					const auto dX = multixdouble - pos_to_double(c.x);
+					const auto dx = ewald_far_separation(dX, multi.r);
+					const bool far = ((dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h))) || (dX.dot(dX) == 0.0 && rmax < r_ewald);
 					if (c.flags.opened) {
 						esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
 					} else {
@@ -607,8 +633,8 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		}, false, part_end - part_begin, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
-		child_check[0].flags.group_active = rc_l;
-		child_check[1].flags.group_active = rc_r;
+		cflags[0].group_active = rc_l;
+		cflags[1].group_active = rc_r;
 		flags.group_active = rc_r || rc_l;
 		return flags.group_active;
 	} else {
@@ -642,7 +668,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			next_checklist.resize(0);
 		}
 		range prange = part_vect_range(part_begin, part_end);
-		prange = expand_range(prange, 1.00001 * L);
+		prange = range_expand(prange, 1.00001 * L);
 		for (auto &f : source_futs) {
 			auto v = f.get();
 			for (auto &s : v) {
@@ -667,7 +693,7 @@ std::uint64_t tree::get_flop() {
 	std::vector<hpx::future<std::uint64_t>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<get_flop_action>(localities[i]));
+			futs.push_back(hpx::async < get_flop_action > (localities[i]));
 		}
 	}
 	auto total = (std::uint64_t) flop;
@@ -694,7 +720,7 @@ void reset_node_cache() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<reset_node_cache_action>(localities[i]));
+			futs.push_back(hpx::async < reset_node_cache_action > (localities[i]));
 		}
 	}
 	for (int i = 0; i < NODE_CACHE_SIZE; i++) {
@@ -712,7 +738,7 @@ hpx::future<node_attr> get_node_attributes_(raw_id_type id) {
 	if (myid == id.loc_id) {
 		return hpx::make_ready_future(reinterpret_cast<tree*>(id.ptr)->get_node_attributes());
 	} else {
-		return hpx::async<get_node_attributes_action>(localities[id.loc_id], id);
+		return hpx::async < get_node_attributes_action > (localities[id.loc_id], id);
 	}
 }
 
@@ -721,7 +747,7 @@ hpx::future<node_attr> read_node_cache(raw_id_type id) {
 	std::unique_lock<mutex_type> lock(node_cache_mtx[index]);
 	auto iter = node_cache[index].find(id);
 	if (iter == node_cache[index].end()) {
-		hpx::lcos::local::promise<hpx::future<node_attr>> promise;
+		hpx::lcos::local::promise < hpx::future < node_attr >> promise;
 		auto fut = promise.get_future();
 		node_cache[index][id] = fut.then([](decltype(fut) f) {
 			return f.get().get();
@@ -756,7 +782,7 @@ hpx::future<multi_src> get_multi_srcs_(raw_id_type id) {
 	if (myid == id.loc_id) {
 		return hpx::make_ready_future(reinterpret_cast<tree*>(id.ptr)->get_multi_srcs());
 	} else {
-		return hpx::async<get_multi_srcs_action>(localities[id.loc_id], id);
+		return hpx::async < get_multi_srcs_action > (localities[id.loc_id], id);
 	}
 }
 
@@ -765,7 +791,7 @@ hpx::future<multi_src> read_multipole_cache(raw_id_type id) {
 	std::unique_lock<mutex_type> lock(multipole_cache_mtx[index]);
 	auto iter = multipole_cache[index].find(id);
 	if (iter == multipole_cache[index].end()) {
-		hpx::lcos::local::promise<hpx::future<multi_src>> promise;
+		hpx::lcos::local::promise < hpx::future < multi_src >> promise;
 		auto fut = promise.get_future();
 		multipole_cache[index][id] = fut.then([](decltype(fut) f) {
 			return f.get().get();

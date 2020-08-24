@@ -43,7 +43,7 @@ bool options::process_options(int argc, char *argv[]) {
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("nout", po::value<int>(&nout)->default_value(64), "number of outputs") //
-	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
+	("parts_per_node", po::value<int>(&parts_per_node)->default_value(-1), "maximum number of particles on a node") //
 	("problem_size", po::value < std::uint64_t > (&problem_size)->default_value(4096), "number of particles") //
 	("theta", po::value<double>(&theta)->default_value(0.5), "separation parameter") //
 	("code_to_cm", po::value<double>(&code_to_cm)->default_value(4.40811e26), "size of box in centimeters") //
@@ -77,7 +77,6 @@ bool options::process_options(int argc, char *argv[]) {
 		}
 	}
 	po::notify(vm);
-
 	if (soft_len == -1) {
 		soft_len = 0.02 * std::pow(problem_size, -1.0 / 3.0);
 	}
@@ -122,6 +121,9 @@ bool options::process_options(int argc, char *argv[]) {
 		set(*this);
 		cosmos c;
 		t_max = -c.advance_to_scale(1.0 / (1.0 + z0));
+	}
+	if (parts_per_node < 0) {
+		parts_per_node = 64;
 	}
 	if (dt_max < 0.0) {
 		dt_max = t_max / 64.0;
