@@ -70,6 +70,10 @@ part_vect initial_particle_set(std::string pn, int N, int Nout) {
 
 	} else {
 		parts = load_particles(opts.init_file);
+		double prob_out = (double) opts.out_parts / (double) opts.problem_size;
+		for (int i = 0; i < parts.size(); i++) {
+			parts[i].flags.out = bool(rand() < prob_out);
+		}
 		if (parts.size() != N) {
 			printf("Size mismatch in initialize.cpp %li %i\n", parts.size(), N);
 		}
