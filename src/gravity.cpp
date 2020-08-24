@@ -187,8 +187,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 	static const auto h2 = h * h;
 	static const simd_float H(h);
 	static const simd_float H2(h2);
-	vect<simd_int> X;
-	vect<simd_double> Y;
+	vect<simd_int> X, Y;
 	multipole<simd_float> M;
 	std::vector<vect<simd_double>> G(x.size(), vect<simd_double>(simd_float(0)));
 	std::vector<simd_double> Phi(x.size(), simd_double(0.0));
@@ -214,18 +213,14 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 			for (int dim = 0; dim < NDIM; dim++) {
 				X[dim] = x[i][dim];
 			}
-
 			vect<simd_float> dX;
-			vect<simd_float> dXimage;
-			for (int dim = 0; dim < NDIM; dim++) {
-				const simd_double dist = simd_double(X[dim]) * simd_double(POS_INV) + simd_double(0.5) - Y[dim]; // 0 / 12
-				dX[dim] = simd_float(dist);             														 // 0 / 3
-				dXimage[dim] = simd_float(simd_double(1) - abs(dist));											 // 0 / 6
-			}
-			if (ewald) {
+			if (opts.ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					const auto absdx = abs(dX[dim]);															  // 3 / 0
-					dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  					  // 12  / 0
+					dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+				}
+			} else {
+				for (int dim = 0; dim < NDIM; dim++) {
+					dX[dim] = simd_float(simd_double(X[dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
 				}
 			}
 			std::pair<simd_double, vect<simd_double>> this_f;
@@ -247,7 +242,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 	return 581 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<double> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -260,7 +255,7 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<double> &x, std
 	static const auto h2 = h * h;
 	static const simd_float H(h);
 	static const simd_float H2(h2);
-	vect<simd_double> X, Y;
+	vect<simd_int> X, Y;
 	multipole<simd_float> M;
 	expansion<simd_double> Lacc;
 	Lacc = simd_double(0);
@@ -288,16 +283,13 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<double> &x, std
 		}
 
 		vect<simd_float> dX;
-		vect<simd_float> dXimage;
-		for (int dim = 0; dim < NDIM; dim++) {
-			const simd_double dist = X[dim] - Y[dim];							// 0 / 3
-			dX[dim] = simd_float(dist);             							// 0 / 3
-			dXimage[dim] = simd_float(simd_double(1) - abs(dist));				// 0 / 6
-		}
-		if (ewald) {
+		if (opts.ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				const auto absdx = abs(dX[dim]);											// 3 / 0
-				dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  	// 12 / 0
+				dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+			}
+		} else {
+			for (int dim = 0; dim < NDIM; dim++) {
+				dX[dim] = simd_float(simd_double(X[dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
 			}
 		}
 		multipole_interaction(Lacc, M, dX);												// 986
@@ -310,7 +302,7 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<double> &x, std
 	return 1025 * cnt1;
 }
 
-std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<double> &x, std::vector<vect<pos_type>> y) {
+std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<pos_type> &x, std::vector<vect<pos_type>> y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -324,8 +316,7 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<double> &x, std
 	static const auto h2 = h * h;
 	static const simd_float H(h);
 	static const simd_float H2(h2);
-	vect<simd_int> Y;
-	vect<simd_double> X;
+	vect<simd_int> Y, X;
 	simd_float M;
 	expansion<simd_double> Lacc;
 	Lacc = simd_double(0);
@@ -352,16 +343,13 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<double> &x, std
 			}
 		}
 		vect<simd_float> dX;
-		vect<simd_float> dXimage;
-		for (int dim = 0; dim < NDIM; dim++) {
-			const simd_double dist = X[dim] - (simd_double(Y[dim]) * simd_double(POS_INV) + simd_double(0.5));			// 0 / 12
-			dX[dim] = simd_float(dist);             																	// 0 / 3
-			dXimage[dim] = simd_float(simd_double(1) - abs(dist));														// 0 / 6
-		}
-		if (ewald) {
+		if (opts.ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				const auto absdx = abs(dX[dim]);																		// 3 / 0
-				dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								//12 / 0
+				dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+			}
+		} else {
+			for (int dim = 0; dim < NDIM; dim++) {
+				dX[dim] = simd_float(simd_double(X[dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
 			}
 		}
 		multipole_interaction(Lacc, M, dX);												// 	401
@@ -516,8 +504,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	static const auto h2 = h * h;
 	static const simd_float H(h);
 	static const simd_float H2(h2);
-	vect<simd_int> X;
-	vect<simd_double> Y;
+	vect<simd_int> X, Y;
 	multipole<simd_float> M;
 	std::vector<vect<simd_double>> G(x.size(), vect<float>(0.0));
 	std::vector<simd_double> Phi(x.size(), simd_double(0.0));
@@ -545,15 +532,8 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 			}
 
 			vect<simd_float> dX;
-			vect<simd_float> dXimage;
 			for (int dim = 0; dim < NDIM; dim++) {
-				const simd_double dist = simd_double(X[dim]) * simd_double(POS_INV) + simd_double(0.5) - Y[dim];        // 0 / 12
-				dX[dim] = simd_float(dist);             																// 0 / 3
-				dXimage[dim] = simd_float(simd_double(1) - abs(dist));													// 0 / 6
-			}
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto absdx = abs(dX[dim]);																		// 3  / 0
-				dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								// 12 / 0
+				dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
 			}
 			std::pair<simd_double, vect<simd_double>> this_f;
 			multipole_interaction(this_f, M, dX, true);	// 251466
@@ -574,7 +554,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	return 251531 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<double> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, std::vector<multi_src> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -587,7 +567,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<double> &x, std:
 	static const auto h2 = h * h;
 	static const simd_float H(h);
 	static const simd_float H2(h2);
-	vect<simd_double> X, Y;
+	vect<simd_int> X, Y;
 	multipole<simd_float> M;
 	expansion<simd_double> Lacc;
 	Lacc = simd_double(0);
@@ -614,15 +594,8 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<double> &x, std:
 			}
 		}
 		vect<simd_float> dX;
-		vect<simd_float> dXimage;
 		for (int dim = 0; dim < NDIM; dim++) {
-			const simd_double dist = X[dim] - Y[dim];										// 0 / 3
-			dX[dim] = simd_float(dist);             										// 0 / 3
-			dXimage[dim] = simd_float(simd_double(1) - abs(dist));							// 0 / 6
-		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			const auto absdx = abs(dX[dim]);												// 3 / 0
-			dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  		//12 / 0
+			dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
 		}
 		multipole_interaction(Lacc, M, dX, true);											// 251936
 	}
@@ -634,7 +607,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<double> &x, std:
 	return 251975 * cnt1;
 }
 
-std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std::vector<vect<pos_type>> y) {
+std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<pos_type> &x, std::vector<vect<pos_type>> y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -648,8 +621,7 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std:
 	static const auto h2 = h * h;
 	static const simd_float H(h);
 	static const simd_float H2(h2);
-	vect<simd_int> Y;
-	vect<simd_double> X;
+	vect<simd_int> Y, X;
 	simd_float M;
 	expansion<simd_double> Lacc;
 	Lacc = simd_double(0);
@@ -676,15 +648,8 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<double> &x, std:
 			}
 		}
 		vect<simd_float> dX;
-		vect<simd_float> dXimage;
 		for (int dim = 0; dim < NDIM; dim++) {
-			const simd_double dist = X[dim] - (simd_double(Y[dim]) * simd_double(POS_INV) + simd_double(0.5));		// 0 / 12
-			dX[dim] = simd_float(dist);             																// 0 / 3
-			dXimage[dim] = simd_float(simd_double(1) - abs(dist));													// 0 / 6
-		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			const auto absdx = abs(dX[dim]);																		// 3 / 0
-			dX[dim] = copysign(min(absdx, dXimage[dim]), dX[dim] * (half - absdx));  								//12 / 0
+			dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
 		}
 		multipole_interaction(Lacc, M, dX, true);										// 251176
 	}

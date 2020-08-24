@@ -263,7 +263,7 @@ node_attr tree::get_node_attributes() const {
 multi_src tree::get_multi_srcs() const {
 	multi_src attr;
 	attr.m = multi.m;
-	attr.x = pos_to_double(multi.x);
+	attr.x = multi.x;
 	return attr;
 }
 
@@ -405,15 +405,15 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	for (auto &v : dmulti_futs) {
 		multi_srcs.push_back(v.get());
 	}
-	flop += gravity_CC_direct(L, multixdouble, multi_srcs);
-	flop += gravity_CP_direct(L, multixdouble, part_vect_read_positions(dsource_iters));
+	flop += gravity_CC_direct(L, multi.x, multi_srcs);
+	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters));
 	if (opts.ewald) {
 		multi_srcs.resize(0);
 		for (auto &v : emulti_futs) {
 			multi_srcs.push_back(v.get());
 		}
-		flop += gravity_CC_ewald(L, multixdouble, multi_srcs);
-		flop += gravity_CP_ewald(L, multixdouble, part_vect_read_positions(esource_iters));
+		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
+		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters));
 	}
 	for (auto &f : dfuts) {
 		auto c = f.get();

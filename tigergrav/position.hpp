@@ -29,7 +29,7 @@ inline vect<double> pos_to_double(vect<pos_type> x) {
 
 inline pos_type double_to_pos(double x) {
 	const auto y = x - 0.5;
-	auto z = std::round(y * POS_MAX);
+	auto z = std::lround(y * POS_MAX);
 	if( z >= POS_MAX / 2.0 ) {
 		z -= POS_MAX;
 	}
