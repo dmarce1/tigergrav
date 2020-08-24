@@ -97,10 +97,12 @@ struct check_flags {
 	std::uint8_t opened :1;
 	std::uint8_t is_leaf :1;
 	std::uint8_t group_active :1;
+	std::uint8_t last_active :1;
 	check_flags& operator=( check_flags f) {
 		opened = f.opened;
 		is_leaf = f.is_leaf;
 		group_active = f.group_active;
+		last_active = f.last_active;
 		return *this;
 	}
 };
@@ -124,6 +126,9 @@ struct check_item {
 		tmp = flags.group_active;
 		arc & tmp;
 		flags.group_active = tmp;
+		tmp = flags.last_active;
+		arc & tmp;
+		flags.last_active = tmp;
 		arc & node;
 		arc & r;
 		arc & x;
@@ -169,6 +174,7 @@ class tree: public hpx::components::managed_component_base<tree> {
 	std::array<float, NCHILD> cr;
 	std::array<check_flags, NCHILD> cflags;
 	int gwork_id;
+	mutable mutex_type mtx;
 
 	struct {
 		std::uint8_t level :6;
@@ -214,6 +220,9 @@ public:
 			tmp = cflags[i].group_active;
 			arc & tmp;
 			cflags[i].group_active = tmp;
+			tmp = cflags[i].last_active;
+			arc & tmp;
+			cflags[i].last_active = tmp;
 		}
 	}
 	static std::uint64_t get_flop();

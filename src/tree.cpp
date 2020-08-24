@@ -271,10 +271,13 @@ node_attr tree::get_node_attributes() const {
 		attr.children[i].r = cr[i];
 		attr.children[i].pbegin = cpbegin[i];
 		attr.children[i].pend = cpend[i];
-		attr.children[i].flags = cflags[i];
 	}
 	attr.children[0].boxid = boxid << 1;
 	attr.children[1].boxid = (boxid << 1) + 1;
+	std::lock_guard<mutex_type> lock(mtx);
+	for (int i = 0; i < NCHILD; i++) {
+		attr.children[i].flags = cflags[i];
+	}
 	return attr;
 }
 
@@ -603,7 +606,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			continue;
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-		const bool far = dx > (multi.r + c.r + 2.0 * L) * theta_inv;
+		const bool far = dx > multi.r + c.r + 2.0 * L;
 		if (!far) {
 			if (c.flags.is_leaf) {
 				c.flags.opened = true;
@@ -611,7 +614,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			} else {
 				futs.push_back(c.node.get_node_attributes());
 			}
-			flags.group_active = flags.group_active || c.flags.group_active;
+			flags.group_active = flags.group_active || (c.flags.group_active || c.flags.last_active);
 		}
 	}
 	if (!flags.group_active) {
@@ -633,8 +636,13 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		}, false, part_end - part_begin, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
-		cflags[0].group_active = rc_l;
-		cflags[1].group_active = rc_r;
+		{
+			std::lock_guard<mutex_type> lock(mtx);
+			cflags[0].last_active = cflags[0].group_active;
+			cflags[1].last_active = cflags[1].group_active;
+			cflags[0].group_active = rc_l;
+			cflags[1].group_active = rc_r;
+		}
 		flags.group_active = rc_r || rc_l;
 		return flags.group_active;
 	} else {
@@ -646,7 +654,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 					continue;
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-				const bool far = dx > (multi.r + c.r + 2.0 * L) * theta_inv;
+				const bool far = dx > multi.r + c.r + 2.0 * L;
 				if (c.flags.opened) {
 					source_futs.push_back(part_vect_read_group(c.pbegin, c.pend));
 				} else if (!far) {
