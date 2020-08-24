@@ -30,13 +30,12 @@ HPX_REGISTER_ACTION(get_check_item_action_type);
 HPX_REGISTER_COMPONENT(hpx::components::managed_component<tree>, tree);
 #endif
 
-#define MAX_STACK 10
-
-#define WORKGROUP_SIZE (64 * opts.parts_per_node)
+#define MAX_STACK 9
 
 std::atomic<std::uint64_t> tree::flop(0);
 double tree::theta_inv;
 double tree::pct_active;
+std::uint64_t workgroup_size;
 
 void reset_node_cache();
 
@@ -56,22 +55,26 @@ struct raw_id_type_hash {
 };
 
 template<class F>
-inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
+inline auto thread_if_avail(F &&f, bool left, int nparts, int depth, bool local, int stack_cnt) {
 	const auto opts = options::get();
 	bool thread;
 
-	if (nparts > WORKGROUP_SIZE) {
-		if (left && num_threads < 4 * hardware_concurrency) {
-			thread = true;
-		} else {
-			if (stack_cnt == MAX_STACK - 1) {
+	if (!local || depth == MAX_STACK) {
+		thread = true;
+	} else {
+		if (nparts > workgroup_size) {
+			if (left && num_threads < 4 * hardware_concurrency) {
 				thread = true;
 			} else {
-				thread = false;
+				if (stack_cnt == MAX_STACK - 1) {
+					thread = true;
+				} else {
+					thread = false;
+				}
 			}
+		} else {
+			thread = false;
 		}
-	} else {
-		thread = (nparts > WORKGROUP_SIZE / 2) || (stack_cnt > MAX_STACK);
 	}
 	if (thread) {
 		num_threads++;
@@ -92,9 +95,15 @@ HPX_PLAIN_ACTION(tree::set_theta, set_theta_action);
 
 void tree::set_theta(double t) {
 	set_theta_action action;
-	theta_inv = 1.0 / t;
+
 	localities = hpx::find_all_localities();
 	myid = hpx::get_locality_id();
+	theta_inv = 1.0 / t;
+	const auto opts = options::get();
+	const int sz1 = 64 * opts.parts_per_node;
+	const int sz2 = opts.problem_size / localities.size() / std::thread::hardware_concurrency() / 4;
+	workgroup_size = std::min(sz1, sz2);
+
 	if (myid == 0) {
 		std::vector<hpx::future<void>> futs;
 		for (int i = 1; i < localities.size(); i++) {
@@ -113,7 +122,7 @@ tree::tree(box_id_type id_, part_iter b, part_iter e, int level_) {
 	flags.leaf = true;
 }
 
-bool tree::refine(int stack_cnt) {
+std::pair<bool, std::uint8_t> tree::refine(int stack_cnt) {
 //	printf("Forming %i %i\n", b, e);
 //	if( level_ == 1 ) {
 //		sleep(100);
@@ -149,19 +158,22 @@ bool tree::refine(int stack_cnt) {
 		children[1] = rcr.get();
 		children[0] = rcl.get();
 		flags.leaf = false;
-		return true;
+		flags.depth = 1;
+		return std::make_pair(true, 1);
 	} else if (!is_leaf()) {
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].refine(stack_cnt);
-		}, true, part_end - part_begin, stack_cnt);
+		}, true, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
 			return children[1].refine(stack_cnt);
-		}, false, part_end - part_begin, stack_cnt);
-		bool rc1 = rcr.get();
-		bool rc2 = rcl.get();
-		return rc1 || rc2;
+		}, false, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		auto rc1 = rcr.get();
+		auto rc2 = rcl.get();
+		flags.depth = 1 + std::max(rc1.second, rc2.second);
+		return std::make_pair(rc1.first || rc2.first, (int)(flags.depth));
 	} else {
-		return false;
+		flags.depth = 0;
+		return std::make_pair(false, 0);
 	}
 }
 
@@ -173,7 +185,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= WORKGROUP_SIZE)) {
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= workgroup_size)) {
 		gwork_id = gwork_assign_id();
 	}
 
@@ -203,10 +215,10 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		multipole_return ml, mr;
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
-		}, true, part_end - part_begin, stack_cnt);
+		}, true, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
 			return children[1].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
-		}, false, part_end - part_begin, stack_cnt);
+		}, false, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
 		rc.N = ml.N + mr.N;
@@ -466,10 +478,10 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
 			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multixdouble, L, min_rung, do_out, stack_cnt);
-		}, true, part_end - part_begin, stack_cnt);
+		}, true, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
 		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
 			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multixdouble, L, min_rung, do_out, stack_cnt);
-		}, false, part_end - part_begin, stack_cnt);
+		}, false, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 	} else {
@@ -646,10 +658,10 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
 			return children[0].find_groups(std::move(checklist), stack_cnt);
-		}, true, part_end - part_begin, stack_cnt);
+		}, true, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
 		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
 			return children[1].find_groups(std::move(checklist), stack_cnt);
-		}, false, part_end - part_begin, stack_cnt);
+		}, false, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		{

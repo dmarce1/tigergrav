@@ -87,7 +87,9 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 	static const std::uint64_t L2 = L * L;
 	const auto this_end = std::min(e, part_end);
 	bool rc = false;
-	{
+	bool this_rc;
+	do {
+		this_rc = false;
 		hpx::future<bool> fut;
 		if (this_end != e) {
 			fut = hpx::async < part_vect_find_groups_action > (localities[myid + 1], this_end, e, others);
@@ -109,7 +111,7 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 					}
 					if (this_id != other.id) {
 						const auto g = std::min(this_id, other.id);
-						rc = rc || (parts(i).flags.group != g);
+						this_rc = this_rc || (parts(i).flags.group != g);
 						parts(i).flags.group = g;
 					}
 				}
@@ -117,12 +119,11 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 		}
 		if (this_end != e) {
 			const bool other_rc = fut.get();
-			rc = rc || other_rc;
+			this_rc = this_rc || other_rc;
 		}
+		rc = rc || this_rc;
 	}
-	if (rc) {
-		part_vect_find_groups(b, e, std::move(others));
-	}
+	while (this_rc);
 	return rc;
 }
 

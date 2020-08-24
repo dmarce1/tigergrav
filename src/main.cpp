@@ -95,8 +95,10 @@ int hpx_main(int argc, char *argv[]) {
 	if (opts.solver_test) {
 		printf("Computing direct solution first\n");
 		tree_client root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
-		while (root_ptr.refine(0)) {
-		}
+		std::pair<bool, std::uint8_t> refine_rc;
+		do {
+			refine_rc = root_ptr.refine(0);
+		} while (refine_rc.first);
 		tree::set_theta(1e-10);
 		auto kr = solve_gravity(root_ptr, min_rung(0), true);
 		std::sort(kr.out.begin(), kr.out.end());
@@ -104,8 +106,10 @@ int hpx_main(int argc, char *argv[]) {
 		printf("%11s %11s %11s %11s %11s %11s %11s %11s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
 			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
-			while (root_ptr.refine(0)) {
-			}
+			std::pair<bool, std::uint8_t> refine_rc;
+			do {
+				refine_rc = root_ptr.refine(0);
+			} while (refine_rc.first);
 			tree::set_theta(theta);
 			tree::reset_flop();
 			auto start = timer();
@@ -121,9 +125,11 @@ int hpx_main(int argc, char *argv[]) {
 		printf("Forming tree\n");
 		auto tstart = timer();
 		tree_client root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
-		while (root_ptr.refine(0)) {
+		std::pair<bool, std::uint8_t> refine_rc;
+		do {
 			printf("Refining\n");
-		}
+			refine_rc = root_ptr.refine(0);
+		} while (refine_rc.first);
 		printf("Done forming tree took %e seconds\n", timer() - tstart);
 
 		double t = 0.0;
@@ -153,11 +159,11 @@ int hpx_main(int argc, char *argv[]) {
 			pec_energy += 0.5 * (ekin + last_ekin) * da;
 			//			interaction_statistics istats = root_ptr->get_istats();
 			if (iter % 25 == 0) {
-				printf("%4s %11s %11s %11s %11s %11s %11s %11s %9s %9s %9s %11s %11s ", "i", "t", "tau", "z", "a", "H", "adotdot", "dt", "itime", "max rung",
+				printf("%4s %4s %11s %11s %11s %11s %11s %11s %11s %9s %9s %9s %11s %11s ", "i", "depth","t", "tau", "z", "a", "H", "adotdot", "dt", "itime", "max rung",
 						"min act.", "pct act", "GFLOP");
 				printf(" %11s %11s %11s %11s  %11s %11s\n", "g", "p", "epot", "ekin", "epec", "etot");
 			}
-			printf("%4i %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e  ", iter, t, cosmo_time(), z, a, cosmo_Hubble(), cosmo_adoubledot(), dt);
+			printf("%4i %4i %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e  ", iter, refine_rc.second, t, cosmo_time(), z, a, cosmo_Hubble(), cosmo_adoubledot(), dt);
 			printf("%9x ", (int) itime);
 			printf("%9i ", (int) kr.rung);
 			printf("%9i ", (int) min_rung(itime));
@@ -192,7 +198,7 @@ int hpx_main(int argc, char *argv[]) {
 			cosmo_advance(0.0);
 		}
 		kr = solve_gravity(root_ptr, min_rung(0), do_out);
-		if( !opts.gravity) {
+		if (!opts.gravity) {
 			return hpx::finalize();
 		}
 		last_epot = epot = kr.stats.pot;
@@ -225,8 +231,9 @@ int hpx_main(int argc, char *argv[]) {
 			root_ptr = hpx::invalid_id;
 //			printf( "Forming tree\n");
 			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
-			while (root_ptr.refine(0)) {
-			}
+			do {
+				refine_rc = root_ptr.refine(0);
+			} while (refine_rc.first);
 //			printf("Tree took %e seconds\n", timer() - ts);
 			itime = inc(itime, kr.rung);
 			if (time_to_double(itime) >= opts.t_max) {

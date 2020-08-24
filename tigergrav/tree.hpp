@@ -35,7 +35,7 @@ struct future_data {
 		}
 	}
 	template<class A>
-	void serialize(A&& arc, unsigned) {
+	void serialize(A &&arc, unsigned) {
 		arc & data;
 		arc & fut;
 	}
@@ -71,6 +71,9 @@ public:
 	void serialize(A &&arc, unsigned) {
 		arc & ptr;
 	}
+	bool local() const {
+		return hpx::naming::get_locality_id_from_gid(ptr) == hpx::get_locality_id();
+	}
 	tree_client() = default;
 	tree_client(id_type ptr_);
 	check_item get_check_item() const;
@@ -79,7 +82,7 @@ public:
 	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_cnt) const;
 	bool find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
-	bool refine(int) const;
+	std::pair<bool,std::uint8_t> refine(int) const;
 };
 
 class raw_tree_client {
@@ -103,7 +106,7 @@ struct check_flags {
 	std::uint8_t is_leaf :1;
 	std::uint8_t group_active :1;
 	std::uint8_t last_active :1;
-	check_flags& operator=( check_flags f) {
+	check_flags& operator=(check_flags f) {
 		opened = f.opened;
 		is_leaf = f.is_leaf;
 		group_active = f.group_active;
@@ -182,9 +185,10 @@ class tree: public hpx::components::managed_component_base<tree> {
 	mutable mutex_type mtx;
 
 	struct {
-		std::uint8_t level :6;
-		std::uint8_t leaf :1;
-		std::uint8_t group_active :1;
+		std::uint16_t level :6;
+		std::uint16_t depth :6;
+		std::uint16_t leaf :1;
+		std::uint16_t group_active :1;
 	} flags;
 
 	static double theta_inv;
@@ -204,6 +208,9 @@ public:
 		tmp = flags.level;
 		arc & tmp;
 		flags.level = tmp;
+		tmp = flags.depth;
+		arc & tmp;
+		flags.depth = tmp;
 		arc & gwork_id;
 		arc & multi;
 		arc & part_begin;
@@ -215,7 +222,7 @@ public:
 		arc & cpbegin;
 		arc & cpend;
 		arc & cr;
-		for( int i = 0; i < NCHILD; i++) {
+		for (int i = 0; i < NCHILD; i++) {
 			tmp = cflags[i].opened;
 			arc & tmp;
 			cflags[i].opened = tmp;
@@ -238,7 +245,7 @@ public:
 	static void set_theta(double);
 	static void reset_flop();
 	tree(box_id_type, part_iter, part_iter, int level);
-	bool refine(int);
+	std::pair<bool,std::uint8_t> refine(int);
 	bool is_leaf() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int workid, int stack_cnt);
 	node_attr get_node_attributes() const;
@@ -248,6 +255,7 @@ public:
 			bool do_output, int stack_ccnt);
 
 	bool find_groups(std::vector<check_item> checklist, int stack_ccnt);
+
 
 	check_item get_check_item() const; //
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine);//
@@ -279,7 +287,7 @@ inline double tree_client::drift(double dt) const {
 	return tree::drift_action()(ptr, dt);
 }
 
-inline bool tree_client::refine(int stack_cnt) const {
+inline std::pair<bool,std::uint8_t> tree_client::refine(int stack_cnt) const {
 	return tree::refine_action()(ptr, stack_cnt);
 }
 
