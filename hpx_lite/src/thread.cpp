@@ -430,8 +430,9 @@ void thread_initialize() {
 #endif
 
 #ifndef SERIAL
-	std::size_t nproc = hwloc_get_nbobjs_by_type(topology(), HWLOC_OBJ_PU);
 	std::size_t ncore = hwloc_get_nbobjs_by_type(topology(), HWLOC_OBJ_CORE);
+	std::size_t nproc = hwloc_get_nbobjs_by_type(topology(), HWLOC_OBJ_PU);
+//	std::size_t nproc = ncore;
 	std::size_t pu_per_core = nproc / ncore;
 #else
 	std::size_t nproc = 1;

@@ -364,7 +364,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	L = L << (multixdouble - Lcom);
 
 	constexpr double ewald_toler = 1.0e-3;
-	static const float r_ewald = std::pow(ewald_toler / 8.0, 1.0 / 3.0);
+	static const float r_ewald = 2.0 * opts.theta * std::pow(ewald_toler / 8.0, 1.0 / 3.0);
 
 	const float rmax = range_max_span(part_vect_range(part_begin, part_end));
 
@@ -411,7 +411,12 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			}
 			const auto dX = multixdouble - pos_to_double(c.x);
 			const auto dx = ewald_far_separation(dX, multi.r);
-			const bool far = ((dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h))) || (dX.dot(dX) == 0.0 && rmax < r_ewald);
+			bool far;
+			if( dX.dot(dX) > 0.0 ) {
+				far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
+			} else {
+				far = rmax < r_ewald;
+			}
 			if (far) {
 				if (c.flags.opened) {
 					esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -514,7 +519,12 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 					}
 					const auto dX = multixdouble - pos_to_double(c.x);
 					const auto dx = ewald_far_separation(dX, multi.r);
-					const bool far = ((dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h))) || (dX.dot(dX) == 0.0 && rmax < r_ewald);
+					bool far;
+					if( dX.dot(dX) > 0.0 ) {
+						far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
+					} else {
+						far = rmax < r_ewald;
+					}
 					if (c.flags.opened) {
 						esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
 					} else {
@@ -560,6 +570,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 				multi_srcs.push_back(v.get());
 			}
 			flop += gravity_PC_ewald(*fptr, *xptr, multi_srcs);
+//			printf( "%i\n", esource_iters.size());
 			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters));
 //			if (esource_iters.size())
 //				printf("%i %i %e %e %e\n", gwork_id, esource_iters.size(), multi.r, h, 2.0 * (multi.r + h));
@@ -583,7 +594,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 
 bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	static const auto opts = options::get();
-	static const auto L = std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
+	static const auto L = 1.001 * std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
 	if (flags.level == 0) {
 		reset_node_cache();
 		part_vect_reset();
@@ -600,13 +611,16 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 
 	next_checklist.reserve(NCHILD * checklist.size());
 
+	range myrange = range_expand(box_id_to_range(boxid), 0.5 * L);
+
 	const auto multixdouble = pos_to_double(multi.x);
 	for (auto c : checklist) {
 		if (c.pend == c.pbegin) {
 			continue;
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-		const bool far = dx > multi.r + c.r + 2.0 * L;
+		bool far = dx > multi.r + c.r + L;
+		far = far || !ranges_intersect(myrange, range_expand(box_id_to_range(c.boxid), 0.5 * L));
 		if (!far) {
 			if (c.flags.is_leaf) {
 				c.flags.opened = true;
@@ -654,7 +668,8 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 					continue;
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-				const bool far = dx > multi.r + c.r + 2.0 * L;
+				bool far = dx > multi.r + c.r + L;
+				far = far || !ranges_intersect(myrange, range_expand(box_id_to_range(c.boxid), 0.5 * L));
 				if (c.flags.opened) {
 					source_futs.push_back(part_vect_read_group(c.pbegin, c.pend));
 				} else if (!far) {
@@ -676,7 +691,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			next_checklist.resize(0);
 		}
 		range prange = part_vect_range(part_begin, part_end);
-		prange = range_expand(prange, 1.00001 * L);
+		prange = range_expand(prange, L);
 		for (auto &f : source_futs) {
 			auto v = f.get();
 			for (auto &s : v) {

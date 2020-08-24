@@ -139,8 +139,6 @@ public:
 		return sum;
 	}
 
-	inline simd_float(simd_int i);
-
 	inline simd_float& operator=(const simd_float &other) = default;
 	simd_float& operator=(simd_float &&other) = default;
 	inline simd_float operator+(const simd_float &other) const {
@@ -335,17 +333,6 @@ public:
 
 }SIMDALIGN;
 
-inline simd_float::simd_float(simd_int i) {
-#ifdef USE_AVX512
-	v[0] = _mm512_cvtepi32_ps(i.v[0]);
-	v[1] = _mm512_cvtepi32_ps(i.v[1]);
-#endif
-#ifdef USE_AVX2
-	v[0] = _mm256_cvtepi32_ps(i.v[0]);
-	v[1] = _mm256_cvtepi32_ps(i.v[1]);
-#endif
-
-}
 class simd_double {
 private:
 	_simd_double a[4];
@@ -400,60 +387,51 @@ public:
 	};
 
 	inline simd_double(simd_int i) {
-		int_union u;
-		u.m2[0] = i.v[0];
-		u.m2[1] = i.v[1];
 #ifdef USE_AVX512
-		a[0] = _mm512_cvtepi32_pd(u.m1[0]);
-		a[1] = _mm512_cvtepi32_pd(u.m1[1]);
-		a[2] = _mm512_cvtepi32_pd(u.m1[2]);
-		a[3] = _mm512_cvtepi32_pd(u.m1[3]);
+		a[0] = _mm512_cvtepi32_pd(*(reinterpret_cast<__m256i*>(&i.v[0]) + 0));
+		a[1] = _mm512_cvtepi32_pd(*(reinterpret_cast<__m256i*>(&i.v[0]) + 1));
+		a[2] = _mm512_cvtepi32_pd(*(reinterpret_cast<__m256i*>(&i.v[0]) + 2));
+		a[3] = _mm512_cvtepi32_pd(*(reinterpret_cast<__m256i*>(&i.v[0]) + 3));
 #endif
 #ifdef USE_AVX2
-		a[0] = _mm256_cvtepi32_pd(u.m1[0]);
-		a[1] = _mm256_cvtepi32_pd(u.m1[1]);
-		a[2] = _mm256_cvtepi32_pd(u.m1[2]);
-		a[3] = _mm256_cvtepi32_pd(u.m1[3]);
+		a[0] = _mm256_cvtepi32_pd(*(reinterpret_cast<__m128i*>(&i.v[0]) + 0));
+		a[1] = _mm256_cvtepi32_pd(*(reinterpret_cast<__m128i*>(&i.v[0]) + 1));
+		a[2] = _mm256_cvtepi32_pd(*(reinterpret_cast<__m128i*>(&i.v[0]) + 2));
+		a[3] = _mm256_cvtepi32_pd(*(reinterpret_cast<__m128i*>(&i.v[0]) + 3));
 #endif
 
 	}
 
 	inline simd_double(simd_float i) {
-		float_union u;
-		u.m2[0] = i.v[0];
-		u.m2[1] = i.v[1];
 #ifdef USE_AVX512
-		a[0] = _mm512_cvtps_pd(u.m1[0]);
-		a[1] = _mm512_cvtps_pd(u.m1[1]);
-		a[2] = _mm512_cvtps_pd(u.m1[2]);
-		a[3] = _mm512_cvtps_pd(u.m1[3]);
+		a[0] = _mm512_cvtps_pd(*(reinterpret_cast<__m256*>(&i.v[0]) + 0));
+		a[1] = _mm512_cvtps_pd(*(reinterpret_cast<__m256*>(&i.v[0]) + 1));
+		a[2] = _mm512_cvtps_pd(*(reinterpret_cast<__m256*>(&i.v[0]) + 2));
+		a[3] = _mm512_cvtps_pd(*(reinterpret_cast<__m256*>(&i.v[0]) + 3));
 #endif
 #ifdef USE_AVX2
-		a[0] = _mm256_cvtps_pd(u.m1[0]);
-		a[1] = _mm256_cvtps_pd(u.m1[1]);
-		a[2] = _mm256_cvtps_pd(u.m1[2]);
-		a[3] = _mm256_cvtps_pd(u.m1[3]);
+		a[0] = _mm256_cvtps_pd(*(reinterpret_cast<__m128*>(&i.v[0]) + 0));
+		a[1] = _mm256_cvtps_pd(*(reinterpret_cast<__m128*>(&i.v[0]) + 1));
+		a[2] = _mm256_cvtps_pd(*(reinterpret_cast<__m128*>(&i.v[0]) + 2));
+		a[3] = _mm256_cvtps_pd(*(reinterpret_cast<__m128*>(&i.v[0]) + 3));
 #endif
 
 	}
 
 	inline operator simd_float() const {
-		float_union u;
+		simd_float f;
 #ifdef USE_AVX512
-		u.m1[0] = _mm512_cvtpd_ps(a[0]);
-		u.m1[1] = _mm512_cvtpd_ps(a[1]);
-		u.m1[2] = _mm512_cvtpd_ps(a[2]);
-		u.m1[3] = _mm512_cvtpd_ps(a[3]);
+		*(reinterpret_cast<__m256*>(&f.v[0]) + 0) = _mm512_cvtpd_ps(a[0]);
+		*(reinterpret_cast<__m256*>(&f.v[0]) + 1) = _mm512_cvtpd_ps(a[1]);
+		*(reinterpret_cast<__m256*>(&f.v[0]) + 2) = _mm512_cvtpd_ps(a[2]);
+		*(reinterpret_cast<__m256*>(&f.v[0]) + 3) = _mm512_cvtpd_ps(a[3]);
 #endif
 #ifdef USE_AVX2
-		u.m1[0] = _mm256_cvtpd_ps(a[0]);
-		u.m1[1] = _mm256_cvtpd_ps(a[1]);
-		u.m1[2] = _mm256_cvtpd_ps(a[2]);
-		u.m1[3] = _mm256_cvtpd_ps(a[3]);
+		*(reinterpret_cast<__m128*>(&f.v[0]) + 0) = _mm256_cvtpd_ps(a[0]);
+		*(reinterpret_cast<__m128*>(&f.v[0]) + 1) = _mm256_cvtpd_ps(a[1]);
+		*(reinterpret_cast<__m128*>(&f.v[0]) + 2) = _mm256_cvtpd_ps(a[2]);
+		*(reinterpret_cast<__m128*>(&f.v[0]) + 3) = _mm256_cvtpd_ps(a[3]);
 #endif
-		simd_float f;
-		f.v[0] = u.m2[0];
-		f.v[1] = u.m2[1];
 		return f;
 	}
 
@@ -655,7 +633,7 @@ inline simd_float cos(const simd_float &x) {		// 13
 	return sin(x + simd_float(M_PI / 2.0));
 }
 
-inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {// 25
+inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {		// 25
 //#ifdef __AVX512F__
 //	s->v = _mm512_sincos_ps(&(c->v),x.v);
 //#else

@@ -19,7 +19,7 @@
 #include <fenv.h>
 
 double timer(void) {
-	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
+	return std::chrono::duration_cast < std::chrono::milliseconds > (std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
 kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bool first_call = false) {
@@ -45,12 +45,15 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 	start = timer();
 	expansion<double> L;
 	L = 0.0;
-	root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
-	auto rc = part_vect_kick_return();
-	if (do_out && !opts.solver_test && opts.groups) {
-		groups_finish1();
-		part_vect_find_groups2();
-		groups_finish2();
+	kick_return rc;
+	if (opts.gravity) {
+		root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
+		rc = part_vect_kick_return();
+		if (do_out && !opts.solver_test && opts.groups) {
+			groups_finish1();
+			part_vect_find_groups2();
+			groups_finish2();
+		}
 	}
 //	printf("fmm took %e seconds\n", timer() - start);
 	return rc;
@@ -83,16 +86,15 @@ int hpx_main(int argc, char *argv[]) {
 	}
 	dtau_out = opts.t_max / opts.nout;
 
-	printf( "Output every %e\n", dtau_out);
+	printf("Output every %e\n", dtau_out);
 
 	tree::set_theta(opts.theta);
-
 
 	part_vect_init();
 
 	if (opts.solver_test) {
 		printf("Computing direct solution first\n");
-		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
+		tree_client root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 		while (root_ptr.refine(0)) {
 		}
 		tree::set_theta(1e-10);
@@ -101,7 +103,7 @@ int hpx_main(int argc, char *argv[]) {
 		const auto direct = kr.out;
 		printf("%11s %11s %11s %11s %11s %11s %11s %11s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
-			root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
+			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			while (root_ptr.refine(0)) {
 			}
 			tree::set_theta(theta);
@@ -118,7 +120,7 @@ int hpx_main(int argc, char *argv[]) {
 
 		printf("Forming tree\n");
 		auto tstart = timer();
-		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
+		tree_client root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 		while (root_ptr.refine(0)) {
 			printf("Refining\n");
 		}
@@ -190,6 +192,9 @@ int hpx_main(int argc, char *argv[]) {
 			cosmo_advance(0.0);
 		}
 		kr = solve_gravity(root_ptr, min_rung(0), do_out);
+		if( !opts.gravity) {
+			return hpx::finalize();
+		}
 		last_epot = epot = kr.stats.pot;
 		ekin = kr.stats.kin;
 		if (do_out) {
@@ -219,7 +224,7 @@ int hpx_main(int argc, char *argv[]) {
 			ts = timer();
 			root_ptr = hpx::invalid_id;
 //			printf( "Forming tree\n");
-			root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
+			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			while (root_ptr.refine(0)) {
 			}
 //			printf("Tree took %e seconds\n", timer() - ts);

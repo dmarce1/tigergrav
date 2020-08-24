@@ -34,6 +34,11 @@ struct future_data {
 			return data;
 		}
 	}
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & data;
+		arc & fut;
+	}
 };
 
 using mutex_type = hpx::lcos::local::spinlock;
