@@ -118,7 +118,7 @@ bool options::process_options(int argc, char *argv[]) {
 		z0 = header.redshift;
 		omega_lambda = header.OmegaLambda;
 		problem_size = header.npartTotal[1] + (header.npartTotal[2] * ((std::uint64_t) 1 << (std::uint64_t) 32));
-		out_parts = problem_size;
+//		out_parts = problem_size;
 		set(*this);
 		cosmos c;
 		t_max = -c.advance_to_scale(1.0 / (1.0 + z0));
