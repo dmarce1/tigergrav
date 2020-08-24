@@ -30,7 +30,9 @@ HPX_REGISTER_ACTION(get_check_item_action_type);
 HPX_REGISTER_COMPONENT(hpx::components::managed_component<tree>, tree);
 #endif
 
-#define MAX_STACK 8
+#define MAX_STACK 10
+
+#define WORKGROUP_SIZE (64 * opts.parts_per_node)
 
 std::atomic<std::uint64_t> tree::flop(0);
 double tree::theta_inv;
@@ -55,24 +57,24 @@ struct raw_id_type_hash {
 
 template<class F>
 inline auto thread_if_avail(F &&f, bool left, int nparts, int stack_cnt) {
-//	const auto static N = options::get().problem_size / localities.size() / (4 * hardware_concurrency);
+	const auto opts = options::get();
 	bool thread;
-//	printf( "%i\n", (int) num_threads);
-//	int count = num_threads++;
-	if (left && num_threads < 4 * hardware_concurrency) {
-		thread = true;
-	} else {
-//		num_threads--;
-		if (stack_cnt == MAX_STACK - 1) {
-//			num_threads++;
+
+	if (nparts > WORKGROUP_SIZE) {
+		if (left && num_threads < 4 * hardware_concurrency) {
 			thread = true;
 		} else {
-			thread = false;
+			if (stack_cnt == MAX_STACK - 1) {
+				thread = true;
+			} else {
+				thread = false;
+			}
 		}
+	} else {
+		thread = (nparts > WORKGROUP_SIZE / 2) || (stack_cnt > MAX_STACK);
 	}
 	if (thread) {
 		num_threads++;
-//		printf("Threading %i %i\n", (int) num_threads, 4 * hardware_concurrency);
 		auto rc = hpx::async([](F &&f) {
 			auto rc = f(0);
 			num_threads--;
@@ -171,7 +173,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= 128 * opts.parts_per_node)) {
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= WORKGROUP_SIZE)) {
 		gwork_id = gwork_assign_id();
 	}
 
@@ -412,7 +414,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			const auto dX = multixdouble - pos_to_double(c.x);
 			const auto dx = ewald_far_separation(dX, multi.r);
 			bool far;
-			if( dX.dot(dX) > 0.0 ) {
+			if (dX.dot(dX) > 0.0) {
 				far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
 			} else {
 				far = rmax < r_ewald;
@@ -520,7 +522,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 					const auto dX = multixdouble - pos_to_double(c.x);
 					const auto dx = ewald_far_separation(dX, multi.r);
 					bool far;
-					if( dX.dot(dX) > 0.0 ) {
+					if (dX.dot(dX) > 0.0) {
 						far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
 					} else {
 						far = rmax < r_ewald;
