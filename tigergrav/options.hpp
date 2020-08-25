@@ -11,6 +11,8 @@ public:
 	int out_parts;
 	int parts_per_node;
 	int nout;
+	int workgroup_size;
+	int oversubscription;
 	std::uint64_t problem_size;
 	bool cosmic;
 	bool glass;
@@ -36,6 +38,8 @@ public:
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc & oversubscription;
+		arc & workgroup_size;
 		arc & gravity;
 		arc & groups;
 		arc & link_len;

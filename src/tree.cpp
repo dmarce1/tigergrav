@@ -64,7 +64,7 @@ inline auto thread_if_avail(F &&f, bool left, int nparts, bool force, int stack_
 		thread = true;
 	} else {
 		if (nparts > workgroup_size) {
-			if (left && num_threads < 4 * hardware_concurrency) {
+			if (left && num_threads < opts.oversubscription * hardware_concurrency) {
 				thread = true;
 			} else {
 				thread = (stack_cnt == MAX_STACK - 1);
@@ -97,8 +97,8 @@ void tree::set_theta(double t) {
 	myid = hpx::get_locality_id();
 	theta_inv = 1.0 / t;
 	const auto opts = options::get();
-	const int sz1 = 64 * opts.parts_per_node;
-	const int sz2 = opts.problem_size / localities.size() / std::thread::hardware_concurrency() / 4;
+	const int sz1 = opts.workgroup_size * opts.parts_per_node;
+	const int sz2 = opts.problem_size / localities.size() / std::thread::hardware_concurrency() / opts.oversubscription;
 	workgroup_size = std::min(sz1, sz2);
 
 	if (myid == 0) {
