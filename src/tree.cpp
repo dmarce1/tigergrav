@@ -55,25 +55,21 @@ struct raw_id_type_hash {
 };
 
 template<class F>
-inline auto thread_if_avail(F &&f, bool left, int nparts, int depth, bool local, int stack_cnt) {
+inline auto thread_if_avail(F &&f, bool left, int nparts, bool force, int stack_cnt) {
 	const auto opts = options::get();
 	bool thread;
 
-	if (!local || depth == MAX_STACK) {
+	if (force) {
 		thread = true;
 	} else {
 		if (nparts > workgroup_size) {
 			if (left && num_threads < 4 * hardware_concurrency) {
 				thread = true;
 			} else {
-				if (stack_cnt == MAX_STACK - 1) {
-					thread = true;
-				} else {
-					thread = false;
-				}
+				thread = (stack_cnt == MAX_STACK - 1);
 			}
 		} else {
-			thread = false;
+			thread = (stack_cnt == MAX_STACK - 1);
 		}
 	}
 	if (thread) {
@@ -127,6 +123,12 @@ std::pair<bool, std::uint8_t> tree::refine(int stack_cnt) {
 //	if( level_ == 1 ) {
 //		sleep(100);
 //	}
+	bool force_left, force_right;
+	if (!is_leaf()) {
+		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+		force_left = (!children[0].local()) || force_all;
+		force_right = (!children[1].local()) || force_all;
+	}
 	const auto &opts = options::get();
 
 	if (part_end - part_begin > opts.parts_per_node && is_leaf()) {
@@ -159,20 +161,26 @@ std::pair<bool, std::uint8_t> tree::refine(int stack_cnt) {
 		children[0] = rcl.get();
 		flags.leaf = false;
 		flags.depth = 1;
+		flags.rdepth = 0;
+		flags.ldepth = 0;
 		return std::make_pair(true, 1);
 	} else if (!is_leaf()) {
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].refine(stack_cnt);
-		}, true, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		}, true, part_end - part_begin, force_left, stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
 			return children[1].refine(stack_cnt);
-		}, false, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		}, false, part_end - part_begin, force_right, stack_cnt);
 		auto rc1 = rcr.get();
 		auto rc2 = rcl.get();
+		flags.ldepth = rc1.second;
+		flags.rdepth = rc2.second;
 		flags.depth = 1 + std::max(rc1.second, rc2.second);
-		return std::make_pair(rc1.first || rc2.first, (int)(flags.depth));
+		return std::make_pair(rc1.first || rc2.first, (int) (flags.depth));
 	} else {
 		flags.depth = 0;
+		flags.rdepth = 0;
+		flags.ldepth = 0;
 		return std::make_pair(false, 0);
 	}
 }
@@ -180,6 +188,12 @@ std::pair<bool, std::uint8_t> tree::refine(int stack_cnt) {
 multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int workid, int stack_cnt) {
 	if (flags.level == 0) {
 		gwork_reset();
+	}
+	bool force_left, force_right;
+	if (!is_leaf()) {
+		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+		force_left = (!children[0].local()) || force_all;
+		force_right = (!children[1].local()) || force_all;
 	}
 	flags.group_active = true;
 	const auto &opts = options::get();
@@ -215,10 +229,10 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		multipole_return ml, mr;
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
-		}, true, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		}, true, part_end - part_begin, force_left, stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
 			return children[1].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
-		}, false, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		}, false, part_end - part_begin, force_right, stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
 		rc.N = ml.N + mr.N;
@@ -365,6 +379,12 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
 	static const double m = opts.m_tot / opts.problem_size;
+	bool force_left, force_right;
+	if (!is_leaf()) {
+		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+		force_left = (!children[0].local()) || force_all;
+		force_right = (!children[1].local()) || force_all;
+	}
 	if (flags.level == 0) {
 		reset_node_cache();
 		part_vect_reset();
@@ -478,10 +498,10 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
 			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multixdouble, L, min_rung, do_out, stack_cnt);
-		}, true, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		}, true, part_end - part_begin, force_left, stack_cnt);
 		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
 			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multixdouble, L, min_rung, do_out, stack_cnt);
-		}, false, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		}, false, part_end - part_begin, force_right, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 	} else {
@@ -613,6 +633,12 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		reset_node_cache();
 		part_vect_reset();
 	}
+	bool force_left, force_right;
+	if (!is_leaf()) {
+		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+		force_left = (!children[0].local()) || force_all;
+		force_right = (!children[1].local()) || force_all;
+	}
 
 	if (part_end - part_begin == 0) {
 		return false;
@@ -658,10 +684,10 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
 			return children[0].find_groups(std::move(checklist), stack_cnt);
-		}, true, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		}, true, part_end - part_begin, force_left, stack_cnt);
 		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
 			return children[1].find_groups(std::move(checklist), stack_cnt);
-		}, false, part_end - part_begin, flags.depth, children[0].local(), stack_cnt);
+		}, false, part_end - part_begin, force_right, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		{
