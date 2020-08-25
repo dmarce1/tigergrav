@@ -119,7 +119,7 @@ tree::tree(box_id_type id_, part_iter b, part_iter e, int level_) {
 	flags.leaf = true;
 }
 
-std::pair<bool, std::uint8_t> tree::refine(int stack_cnt) {
+refine_return tree::refine(int stack_cnt) {
 //	printf("Forming %i %i\n", b, e);
 //	if( level_ == 1 ) {
 //		sleep(100);
@@ -132,6 +132,7 @@ std::pair<bool, std::uint8_t> tree::refine(int stack_cnt) {
 	}
 	const auto &opts = options::get();
 
+	refine_return rc;
 	if (part_end - part_begin > opts.parts_per_node && is_leaf()) {
 		double max_span = 0.0;
 		range box = box_id_to_range(boxid);
@@ -164,7 +165,11 @@ std::pair<bool, std::uint8_t> tree::refine(int stack_cnt) {
 		flags.depth = 1;
 		flags.rdepth = 0;
 		flags.ldepth = 0;
-		return std::make_pair(true, 1);
+		rc.max_depth = 1;
+		rc.min_depth = 1;
+		rc.leaves = 2;
+		rc.nodes = 3;
+		rc.rc = true;
 	} else if (!is_leaf()) {
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].refine(stack_cnt);
@@ -174,16 +179,25 @@ std::pair<bool, std::uint8_t> tree::refine(int stack_cnt) {
 		}, false, part_end - part_begin, force_right, stack_cnt);
 		auto rc1 = rcr.get();
 		auto rc2 = rcl.get();
-		flags.ldepth = rc1.second;
-		flags.rdepth = rc2.second;
-		flags.depth = 1 + std::max(rc1.second, rc2.second);
-		return std::make_pair(rc1.first || rc2.first, (int) (flags.depth));
+		flags.ldepth = rc1.max_depth;
+		flags.rdepth = rc2.max_depth;
+		flags.depth = 1 + std::max(rc1.max_depth, rc2.max_depth);
+		rc.max_depth = flags.depth;
+		rc.min_depth = 1 + std::min(rc1.min_depth, rc2.min_depth);
+		rc.leaves = rc1.leaves + rc2.leaves;
+		rc.nodes = rc1.nodes + rc2.nodes + 1;
+		rc.rc = rc1.rc || rc2.rc;
 	} else {
 		flags.depth = 0;
 		flags.rdepth = 0;
 		flags.ldepth = 0;
-		return std::make_pair(false, 0);
+		rc.max_depth = 0;
+		rc.min_depth = 0;
+		rc.leaves = 1;
+		rc.nodes = 1;
+		rc.rc = false;
 	}
+	return rc;
 }
 
 multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int workid, int stack_cnt) {
@@ -376,6 +390,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
 	static const double m = opts.m_tot / opts.problem_size;
+	decltype(group_ranges)().swap(group_ranges);
 	bool force_left, force_right;
 	if (!is_leaf()) {
 		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));

@@ -64,6 +64,21 @@ struct raw_id_type {
 };
 using id_type = hpx::id_type;
 
+struct refine_return {
+	bool rc;
+	int max_depth;
+	int min_depth;
+	std::uint64_t leaves;
+	std::uint64_t nodes;
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & max_depth;
+		arc & min_depth;
+		arc & leaves;
+		arc & nodes;
+	}
+};
+
 class tree_client {
 	id_type ptr;
 public:
@@ -82,7 +97,7 @@ public:
 	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_cnt) const;
 	int find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
-	std::pair<bool, std::uint8_t> refine(int) const;
+	refine_return refine(int) const;
 };
 
 class raw_tree_client {
@@ -233,7 +248,7 @@ public:
 	static void set_theta(double);
 	static void reset_flop();
 	tree(box_id_type, part_iter, part_iter, int level);
-	std::pair<bool, std::uint8_t> refine(int);
+	refine_return refine(int);
 	bool is_leaf() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int workid, int stack_cnt);
 	node_attr get_node_attributes() const;
@@ -274,7 +289,7 @@ inline double tree_client::drift(double dt) const {
 	return tree::drift_action()(ptr, dt);
 }
 
-inline std::pair<bool, std::uint8_t> tree_client::refine(int stack_cnt) const {
+inline refine_return tree_client::refine(int stack_cnt) const {
 	return tree::refine_action()(ptr, stack_cnt);
 }
 
