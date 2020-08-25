@@ -26,10 +26,46 @@ static double a;
 static double ainv;
 static double ainv2;
 
-HPX_PLAIN_ACTION(groups_reset);
-HPX_PLAIN_ACTION(groups_finish1);
-HPX_PLAIN_ACTION(groups_finish2);
-HPX_PLAIN_ACTION(groups_output);
+HPX_PLAIN_ACTION (groups_reset);
+HPX_PLAIN_ACTION (groups_finish1);
+HPX_PLAIN_ACTION (groups_finish2);
+HPX_PLAIN_ACTION (groups_output);
+HPX_PLAIN_ACTION (groups_execute_finders);
+
+std::vector<std::function<bool(void)>> group_finders;
+mutex_type group_finder_mtx;
+
+void groups_add_finder(std::function<bool(void)> f) {
+	std::lock_guard<mutex_type> lock(group_finder_mtx);
+	group_finders.push_back(f);
+}
+
+bool groups_execute_finders() {
+	std::vector<hpx::future<bool>> futs;
+	bool rc = false;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async < groups_execute_finders_action > (localities[i]));
+		}
+	}
+	constexpr int chunk_size = 1024;
+	for (int i = 0; i < group_finders.size(); i += chunk_size) {
+		futs.push_back(hpx::async([i]() {
+			bool rc = false;
+			for (int j = i; j < std::min((int) group_finders.size(), i + chunk_size); j++) {
+				bool this_rc = group_finders[j]();
+				rc = rc || this_rc;
+			}
+			return rc;
+		}));
+	}
+
+	for (int i = 0; i < futs.size(); i++) {
+		bool this_rc = futs[i].get();
+		rc = rc || this_rc;
+	}
+	return rc;
+}
 
 void groups_output(int oi) {
 	if (myid == -1) {
@@ -39,7 +75,7 @@ void groups_output(int oi) {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<groups_output_action>(localities[i], oi));
+			futs.push_back(hpx::async < groups_output_action > (localities[i], oi));
 		}
 	}
 	std::string filename = std::string("groups.") + std::to_string(oi) + "." + std::to_string(myid) + ".dat";
@@ -75,12 +111,13 @@ void groups_reset() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<groups_reset_action>(localities[i]));
+			futs.push_back(hpx::async < groups_reset_action > (localities[i]));
 		}
 	}
 	for (int m = 0; m < NMAP; m++) {
 		map[m].clear();
 	}
+	group_finders.resize(0);
 	a = cosmo_scale().second;
 	ainv = 1.0 / a;
 	ainv2 = ainv * ainv;
@@ -125,7 +162,7 @@ void groups_finish1() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<groups_finish1_action>(localities[i]));
+			futs.push_back(hpx::async < groups_finish1_action > (localities[i]));
 		}
 	}
 	for (int m = 0; m < NMAP; m++) {
@@ -167,7 +204,7 @@ void groups_finish2() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {
 		for (int i = 1; i < localities.size(); i++) {
-			futs.push_back(hpx::async<groups_finish2_action>(localities[i]));
+			futs.push_back(hpx::async < groups_finish2_action > (localities[i]));
 		}
 	}
 

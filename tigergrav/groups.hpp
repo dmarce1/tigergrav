@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tigergrav/particle.hpp>
+#include <functional>
 
 struct group {
 	int N;
@@ -20,6 +21,8 @@ struct group {
 };
 
 
+void groups_add_finder(std::function<bool(void)>);
+bool groups_execute_finders();
 void groups_reset();
 void groups_output(int i);
 void groups_finish1();

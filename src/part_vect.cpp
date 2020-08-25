@@ -87,43 +87,38 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 	static const std::uint64_t L2 = L * L;
 	const auto this_end = std::min(e, part_end);
 	bool rc = false;
-	bool this_rc;
-	do {
-		this_rc = false;
-		hpx::future<bool> fut;
-		if (this_end != e) {
-			fut = hpx::async < part_vect_find_groups_action > (localities[myid + 1], this_end, e, others);
-		}
-		int mtx_index = b % GROUP_MTX_SIZE;
-		std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
-		for (auto i = b; i != this_end; i++) {
-			for (const auto &other : others) {
-				vect<pos_type> dx;
-				vect<std::uint64_t> dxl;
-				dx = parts(i).x - other.x;
-				dxl = dx;
-				const auto dx2 = dxl.dot(dxl);
-				if (dx2 < L2 && dx2 != 0.0) {
-					auto this_id = parts(i).flags.group;
-					if (this_id == DEFAULT_GROUP) {
-						this_id = i - part_begin;
-						parts(i).flags.group = this_id;
-					}
-					if (this_id != other.id) {
-						const auto g = std::min(this_id, other.id);
-						this_rc = this_rc || (parts(i).flags.group != g);
-						parts(i).flags.group = g;
-					}
+	hpx::future<bool> fut;
+	if (this_end != e) {
+		fut = hpx::async < part_vect_find_groups_action > (localities[myid + 1], this_end, e, others);
+	}
+	int mtx_index = b % GROUP_MTX_SIZE;
+	std::lock_guard<mutex_type> lock(group_mtx[mtx_index]);
+	for (auto i = b; i != this_end; i++) {
+		for (const auto &other : others) {
+			vect<pos_type> dx;
+			vect<std::uint64_t> dxl;
+			dx = parts(i).x - other.x;
+			dxl = dx;
+			const auto dx2 = dxl.dot(dxl);
+			if (dx2 < L2 && dx2 != 0.0) {
+				auto this_id = parts(i).flags.group;
+				if (this_id == DEFAULT_GROUP) {
+					this_id = i - part_begin;
+					parts(i).flags.group = this_id;
+					rc = true;
+				}
+				if (this_id != other.id) {
+					const auto g = std::min(this_id, other.id);
+					rc = rc || (parts(i).flags.group != g);
+					parts(i).flags.group = g;
 				}
 			}
 		}
-		if (this_end != e) {
-			const bool other_rc = fut.get();
-			this_rc = this_rc || other_rc;
-		}
-		rc = rc || this_rc;
 	}
-	while (this_rc);
+	if (this_end != e) {
+		const bool other_rc = fut.get();
+		rc = rc || other_rc;
+	}
 	return rc;
 }
 
@@ -703,7 +698,7 @@ inline hpx::future<std::vector<particle_group_info>> part_vect_read_group_cache(
 			return f.get().get();
 		});
 		lock.unlock();
-		promise.set_value(hpx::async < part_vect_read_group_action > (localities[part_vect_locality_id(b)], b, e));
+		promise.set_value(hpx::async < part_vect_read_group_action > (localities[part_vect_locality_id(b)], b, e, range(), false));
 	}
 	return hpx::async(hpx::launch::deferred, [b, index]() {
 		std::unique_lock < mutex_type > lock(group_cache_mtx[index]);
@@ -785,7 +780,7 @@ std::vector<vect<pos_type>> part_vect_read_positions(const std::vector<std::pair
 	return pos;
 }
 
-hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, part_iter e) {
+hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, part_iter e, range r, bool use_range) {
 	if (b >= part_begin && b < part_end) {
 		const int mtx_index = b % GROUP_MTX_SIZE;
 		if (e <= part_end) {
@@ -796,8 +791,10 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 				for (int i = b; i < e; i++) {
 					particle_group_info p;
 					p.x = parts(i).x;
-					p.id = parts(i).flags.group;
-					these_parts.push_back(p);
+					if (!use_range || in_range(pos_to_double(p.x), r)) {
+						p.id = parts(i).flags.group;
+						these_parts.push_back(p);
+					}
 				}
 				return these_parts;
 			});
@@ -811,19 +808,36 @@ hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, 
 					particle_group_info p;
 					const int mtx_index = parts(i).flags.group % GROUP_MTX_SIZE;
 					p.x = parts(i).x;
-					p.id = parts(i).flags.group;
-					these_parts.push_back(p);
+					if (!use_range || in_range(pos_to_double(p.x), r)) {
+						p.id = parts(i).flags.group;
+						these_parts.push_back(p);
+					}
 				}
 				auto next_parts = f.get();
 				for (const auto &p : next_parts) {
-					these_parts.push_back(p);
+					if (!use_range || in_range(pos_to_double(p.x), r)) {
+						these_parts.push_back(p);
+					}
 				}
 				return these_parts;
 			}, std::move(fut));
 
 		}
 	} else {
-		return part_vect_read_group_cache(b, e);
+		auto fut = part_vect_read_group_cache(b, e);
+		return hpx::async(hpx::launch::deferred, [r, use_range](decltype(fut) fut) {
+			auto these_parts = fut.get();
+			if (use_range) {
+				for (int i = 0; i < these_parts.size(); i++) {
+					if (!in_range(pos_to_double(these_parts[i].x), r)) {
+						these_parts[i] = these_parts[these_parts.size() - 1];
+						these_parts.resize(these_parts.size() - 1);
+						i--;
+					}
+				}
+			}
+			return these_parts;
+		},std::move(fut));
 	}
 }
 

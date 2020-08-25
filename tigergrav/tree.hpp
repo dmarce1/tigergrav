@@ -81,7 +81,7 @@ public:
 	double drift(double dt) const;
 	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_cnt) const;
-	bool find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
+	int find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
 	std::pair<bool, std::uint8_t> refine(int) const;
 };
 
@@ -104,13 +104,9 @@ public:
 struct check_flags {
 	std::uint8_t opened :1;
 	std::uint8_t is_leaf :1;
-	std::uint8_t group_active :1;
-	std::uint8_t last_active :1;
 	check_flags& operator=(check_flags f) {
 		opened = f.opened;
 		is_leaf = f.is_leaf;
-		group_active = f.group_active;
-		last_active = f.last_active;
 		return *this;
 	}
 };
@@ -131,12 +127,6 @@ struct check_item {
 		tmp = flags.is_leaf;
 		arc & tmp;
 		flags.is_leaf = tmp;
-		tmp = flags.group_active;
-		arc & tmp;
-		flags.group_active = tmp;
-		tmp = flags.last_active;
-		arc & tmp;
-		flags.last_active = tmp;
 		arc & node;
 		arc & r;
 		arc & x;
@@ -177,20 +167,19 @@ class tree: public hpx::components::managed_component_base<tree> {
 	std::array<part_iter, NCHILD> cpbegin;
 	std::array<part_iter, NCHILD> cpend;
 	box_id_type boxid;
+	std::vector<std::pair<part_iter,part_iter>> group_ranges;
 	part_iter part_begin;
 	part_iter part_end;
 	std::array<float, NCHILD> cr;
 	std::array<check_flags, NCHILD> cflags;
 	int gwork_id;
-	mutable mutex_type mtx;
-
 	struct {
 		std::uint32_t level :6;
 		std::uint32_t depth :6;
 		std::uint32_t rdepth :6;
 		std::uint32_t ldepth :6;
+		std::uint32_t max_iter : 7;
 		std::uint32_t leaf :1;
-		std::uint32_t group_active :1;
 	} flags;
 
 	static double theta_inv;
@@ -201,9 +190,6 @@ public:
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		std::uint32_t tmp;
-		tmp = flags.group_active;
-		arc & tmp;
-		flags.group_active = tmp;
 		tmp = flags.leaf;
 		arc & tmp;
 		flags.leaf = tmp;
@@ -237,12 +223,6 @@ public:
 			tmp = cflags[i].is_leaf;
 			arc & tmp;
 			cflags[i].is_leaf = tmp;
-			tmp = cflags[i].group_active;
-			arc & tmp;
-			cflags[i].group_active = tmp;
-			tmp = cflags[i].last_active;
-			arc & tmp;
-			cflags[i].last_active = tmp;
 		}
 	}
 	static std::uint64_t get_flop();
@@ -262,7 +242,7 @@ public:
 	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_ccnt);
 
-	bool find_groups(std::vector<check_item> checklist, int stack_ccnt);
+	void find_groups(std::vector<check_item> checklist, int stack_ccnt);
 
 	check_item get_check_item() const; //
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine);//
@@ -303,6 +283,7 @@ inline int tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output, stack_cnt);
 }
 
-inline bool tree_client::find_groups(std::vector<check_item> dchecklist, int stack_cnt) const {
-	return tree::find_groups_action()(ptr, std::move(dchecklist), stack_cnt);
+inline int tree_client::find_groups(std::vector<check_item> dchecklist, int stack_cnt) const {
+	tree::find_groups_action()(ptr, std::move(dchecklist), stack_cnt);
+	return 0;
 }

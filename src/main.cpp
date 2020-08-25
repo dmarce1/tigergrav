@@ -29,14 +29,15 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 //	gwork_show();
 	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
 	if (do_out && !opts.solver_test && opts.groups) {
+		groups_reset();
 		auto tstart = timer();
 		printf("Finding groups\n");
 		part_vect_init_groups();
 		tree::set_theta(0.99);
+		root_ptr.find_groups(root_list, 0);
 		do {
 			printf(".\n");
-		} while (root_ptr.find_groups(root_list, 0));
-		groups_reset();
+		} while (groups_execute_finders());
 		tree::set_theta(opts.theta);
 		printf("Done finding groups in %e seconds\n", timer() - tstart);
 
@@ -159,11 +160,12 @@ int hpx_main(int argc, char *argv[]) {
 			pec_energy += 0.5 * (ekin + last_ekin) * da;
 			//			interaction_statistics istats = root_ptr->get_istats();
 			if (iter % 25 == 0) {
-				printf("%4s %4s %11s %11s %11s %11s %11s %11s %11s %9s %9s %9s %11s %11s ", "i", "depth","t", "tau", "z", "a", "H", "adotdot", "dt", "itime", "max rung",
-						"min act.", "pct act", "GFLOP");
+				printf("%4s %4s %11s %11s %11s %11s %11s %11s %11s %9s %9s %9s %11s %11s ", "i", "depth", "t", "tau", "z", "a", "H", "adotdot", "dt", "itime",
+						"max rung", "min act.", "pct act", "GFLOP");
 				printf(" %11s %11s %11s %11s  %11s %11s\n", "g", "p", "epot", "ekin", "epec", "etot");
 			}
-			printf("%4i %4i %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e  ", iter, refine_rc.second, t, cosmo_time(), z, a, cosmo_Hubble(), cosmo_adoubledot(), dt);
+			printf("%4i %4i %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e  ", iter, refine_rc.second, t, cosmo_time(), z, a, cosmo_Hubble(),
+					cosmo_adoubledot(), dt);
 			printf("%9x ", (int) itime);
 			printf("%9i ", (int) kr.rung);
 			printf("%9i ", (int) min_rung(itime));

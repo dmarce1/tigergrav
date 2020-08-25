@@ -65,7 +65,7 @@ hpx::future<std::vector<particle>> part_vect_read(part_iter b, part_iter e);
 void part_vect_init();
 hpx::future<std::vector<vect<pos_type>>> part_vect_read_position(part_iter b, part_iter e);
 std::vector<vect<pos_type>> part_vect_read_positions(const std::vector<std::pair<part_iter,part_iter>>&);
-hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, part_iter e);
+hpx::future<std::vector<particle_group_info>> part_vect_read_group(part_iter b, part_iter e, range r, bool use_range);
 void part_vect_init_groups();
 bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_info>);
 part_iter part_vect_sort(part_iter b, part_iter e, double mid, int dim);

@@ -1,6 +1,7 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/time.hpp>
 #include <tigergrav/tree.hpp>
+#include <tigergrav/groups.hpp>
 
 #include <atomic>
 #include <algorithm>
@@ -195,7 +196,6 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		force_left = (!children[0].local()) || force_all;
 		force_right = (!children[1].local()) || force_all;
 	}
-	flags.group_active = true;
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
@@ -299,13 +299,10 @@ node_attr tree::get_node_attributes() const {
 		attr.children[i].r = cr[i];
 		attr.children[i].pbegin = cpbegin[i];
 		attr.children[i].pend = cpend[i];
+		attr.children[i].flags = cflags[i];
 	}
 	attr.children[0].boxid = boxid << 1;
 	attr.children[1].boxid = (boxid << 1) + 1;
-	std::lock_guard<mutex_type> lock(mtx);
-	for (int i = 0; i < NCHILD; i++) {
-		attr.children[i].flags = cflags[i];
-	}
 	return attr;
 }
 
@@ -626,7 +623,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	return 0;
 }
 
-bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
+void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto L = 1.001 * std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
 	if (flags.level == 0) {
@@ -641,17 +638,15 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	}
 
 	if (part_end - part_begin == 0) {
-		return false;
+		return;
 	}
 
 	std::vector<check_item> next_checklist;
 	std::vector<future_data<node_attr>> futs;
-	std::vector<particle_group_info> sources;
-	std::vector<hpx::future<std::vector<particle_group_info>>> source_futs;
 
 	next_checklist.reserve(NCHILD * checklist.size());
 
-	range myrange = range_expand(box_id_to_range(boxid), 0.5 * L);
+	range myrange = range_expand(box_id_to_range(boxid), L);
 
 	const auto multixdouble = pos_to_double(multi.x);
 	for (auto c : checklist) {
@@ -660,7 +655,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
 		bool far = dx > multi.r + c.r + L;
-		far = far || !ranges_intersect(myrange, range_expand(box_id_to_range(c.boxid), 0.5 * L));
+		far = far || !ranges_intersect(myrange, box_id_to_range(c.boxid));
 		if (!far) {
 			if (c.flags.is_leaf) {
 				c.flags.opened = true;
@@ -668,11 +663,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			} else {
 				futs.push_back(c.node.get_node_attributes());
 			}
-			flags.group_active = flags.group_active || (c.flags.group_active || c.flags.last_active);
 		}
-	}
-	if (!flags.group_active) {
-		return false;
 	}
 	for (auto &f : futs) {
 		auto c = f.get();
@@ -690,17 +681,7 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		}, false, part_end - part_begin, force_right, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
-		{
-			std::lock_guard<mutex_type> lock(mtx);
-			cflags[0].last_active = cflags[0].group_active;
-			cflags[1].last_active = cflags[1].group_active;
-			cflags[0].group_active = rc_l;
-			cflags[1].group_active = rc_r;
-		}
-		flags.group_active = rc_r || rc_l;
-		return flags.group_active;
 	} else {
-		source_futs.resize(0);
 		while (!checklist.empty()) {
 			futs.resize(0);
 			for (auto c : checklist) {
@@ -709,9 +690,12 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
 				bool far = dx > multi.r + c.r + L;
-				far = far || !ranges_intersect(myrange, range_expand(box_id_to_range(c.boxid), 0.5 * L));
+				far = far || !ranges_intersect(myrange, box_id_to_range(c.boxid));
 				if (c.flags.opened) {
-					source_futs.push_back(part_vect_read_group(c.pbegin, c.pend));
+					const auto other_range = part_vect_range(c.pbegin, c.pend);
+					if (ranges_intersect(myrange, other_range)) {
+						group_ranges.push_back(std::make_pair(c.pbegin, c.pend));
+					}
 				} else if (!far) {
 					if (c.flags.is_leaf) {
 						c.flags.opened = true;
@@ -730,19 +714,36 @@ bool tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			std::swap(checklist, next_checklist);
 			next_checklist.resize(0);
 		}
-		range prange = part_vect_range(part_begin, part_end);
-		prange = range_expand(prange, L);
-		for (auto &f : source_futs) {
-			auto v = f.get();
-			for (auto &s : v) {
-				if (in_range(pos_to_double(s.x), prange)) {
-					sources.push_back(s);
-				}
-			}
+		flags.max_iter = 0;
+		while (part_vect_find_groups(part_begin, part_end, part_vect_read_group(part_begin, part_end, range(), false).get())) {
+			flags.max_iter++;
 		}
-//		printf( "%i\n", sources.size());
-		flags.group_active = part_vect_find_groups(part_begin, part_end, std::move(sources));
-		return flags.group_active;
+		flags.max_iter = std::max(1, (int) flags.max_iter);
+		groups_add_finder([=]() {
+			bool rc;
+			if (group_ranges.size()) {
+				std::vector<particle_group_info> sources;
+				for (auto &iter : group_ranges) {
+					auto others = part_vect_read_group(iter.first, iter.second, myrange, true).get();
+					for (int j = 0; j < others.size(); j++) {
+						sources.push_back(others[j]);
+					}
+				}
+				rc = part_vect_find_groups(part_begin, part_end, std::move(sources));
+				int iter = 1;
+				bool this_rc;
+				if (rc && iter < flags.max_iter) {
+					do {
+						sources = part_vect_read_group(part_begin, part_end, range(), false).get();
+						iter++;
+						this_rc = part_vect_find_groups(part_begin, part_end, std::move(sources));
+					} while (this_rc && iter < flags.max_iter);
+				}
+			} else {
+				rc = false;
+			}
+			return rc;
+		});
 	}
 }
 
