@@ -22,10 +22,15 @@ double timer(void) {
 	return std::chrono::duration_cast < std::chrono::milliseconds > (std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
-kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bool first_call = false) {
+double fmm_time;
+double parts_per_sec;
+double fmm_time_total = 1.0e-10;
+double fmm_parts_total = 0.0;
+
+std::pair<kick_return, interaction_stats> solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bool first_call = false) {
 	auto start = timer();
 	static const auto opts = options::get();
-	root_ptr.compute_multipoles(mrung, do_out, null_gwork_id, 0);
+	auto mrc = root_ptr.compute_multipoles(mrung, do_out, null_gwork_id, 0);
 //	gwork_show();
 	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
 	if (do_out && !opts.solver_test && opts.groups) {
@@ -47,20 +52,26 @@ kick_return solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bo
 	expansion<double> L;
 	L = 0.0;
 	kick_return rc;
+	interaction_stats istats;
 	if (opts.gravity) {
-		root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
+		fmm_time = timer();
+		istats = root_ptr.kick_fmm(root_list, root_list, { { 0.5, 0.5, 0.5 } }, L, mrung, do_out, 0);
+		fmm_time = timer() - fmm_time;
 		rc = part_vect_kick_return();
 		if (do_out && !opts.solver_test && opts.groups) {
 			groups_finish1();
 			part_vect_find_groups2();
 			groups_finish2();
 		}
+		parts_per_sec = (double) mrc.m.num_active / fmm_time;
+		fmm_time_total += fmm_time;
+		fmm_parts_total += mrc.m.num_active;
 	}
 //	printf("fmm took %e seconds\n", timer() - start);
-	return rc;
+	return std::make_pair(rc, istats);
 }
 
-std::string print_with_multiplier(std::uint64_t num) {
+std::string to_kform(std::uint64_t num) {
 	int cut = 10;
 	if (num > cut * 1024 * 1024 * 1024) {
 		return std::to_string(num / 1024 / 1024 / 1024) + "T";
@@ -70,6 +81,19 @@ std::string print_with_multiplier(std::uint64_t num) {
 		return std::to_string(num / 1024) + "k";
 	} else {
 		return std::to_string(num) + " ";
+	}
+}
+
+std::string to_kform(double num) {
+	int cut = 10;
+	if (num > cut * 1024 * 1024 * 1024) {
+		return std::to_string((int) (num / 1024 / 1024 / 1024)) + "T";
+	} else if (num > cut * 1024 * 1024) {
+		return std::to_string((int) (num / 1024 / 1024)) + "M";
+	} else if (num > cut * 1024) {
+		return std::to_string(int(num / 1024)) + "k";
+	} else {
+		return std::to_string(int(num)) + " ";
 	}
 }
 
@@ -115,8 +139,8 @@ int hpx_main(int argc, char *argv[]) {
 		} while (refine_rc.rc);
 		tree::set_theta(1e-10);
 		auto kr = solve_gravity(root_ptr, min_rung(0), true);
-		std::sort(kr.out.begin(), kr.out.end());
-		const auto direct = kr.out;
+		std::sort(kr.first.out.begin(), kr.first.out.end());
+		const auto direct = kr.first.out;
 		printf("%11s %11s %11s %11s %11s %11s %11s %11s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
 			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
@@ -130,8 +154,8 @@ int hpx_main(int argc, char *argv[]) {
 			kr = solve_gravity(root_ptr, min_rung(0), true);
 			auto stop = timer();
 			auto flops = tree::get_flop() / (stop - start + 1.0e-10) / std::pow(1024, 3);
-			std::sort(kr.out.begin(), kr.out.end());
-			const auto err = compute_error(kr.out, direct);
+			std::sort(kr.first.out.begin(), kr.first.out.end());
+			const auto err = compute_error(kr.first.out, direct);
 			printf("%11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e \n", theta, stop - start, flops, err.err, err.err99, err.g[0], err.g[1], err.g[2]);
 		}
 	} else {
@@ -149,7 +173,7 @@ int hpx_main(int argc, char *argv[]) {
 		double t = 0.0;
 		int iter = 0;
 		double dt;
-		kick_return kr;
+		std::pair<kick_return, interaction_stats> kr;
 		time_type itime = 0;
 
 		tstart = timer();
@@ -173,37 +197,44 @@ int hpx_main(int argc, char *argv[]) {
 			pec_energy += 0.5 * (ekin + last_ekin) * da;
 			//			interaction_statistics istats = root_ptr->get_istats();
 			if (iter % 25 == 0) {
-				printf("%4s %3s %3s %5s %5s %11s %11s %11s %11s %9s %9s %9s %11s %11s ", "i", "mind", "maxd", "avgd", "nnode", "t", "z", "a", "dt", "itime",
-						"max rung", "min act.", "pct act", "GFLOP");
+				printf("%4s %11s %11s %3s %3s %5s %5s %11s %11s %11s %11s %9s %9s %9s %11s %11s ", "i", "pps", "cps", "mind", "maxd", "avgd", "nnode", "t", "z", "a", "dt",
+						"itime", "max rung", "min act.", "pct act", "GFLOP");
 				printf(" %11s %11s %11s %11s  %11s %11s\n", "g", "p", "epot", "ekin", "epec", "etot");
 			}
 			const auto avg_depth = std::log(refine_rc.leaves) / std::log(2);
-			printf("%4i %4i %4i %5.1f %5s %11.4e %11.4e %11.4e %11.4e  ", iter, refine_rc.min_depth, refine_rc.max_depth, avg_depth,
-					print_with_multiplier(refine_rc.nodes).c_str(), t, z, a, dt);
+			const double cp_skew = (double) kr.second.CP_direct / (double) kr.second.CC_direct;
+			printf("%4i %11.4e %11.4e %4i %4i %5.1f %5s %11.4e %11.4e %11.4e %11.4e  ", iter, fmm_parts_total / fmm_time_total, cp_skew, refine_rc.min_depth,
+					refine_rc.max_depth, avg_depth, to_kform(refine_rc.nodes).c_str(), t, z, a, dt);
 			printf("%9x ", (int) itime);
-			printf("%9i ", (int) kr.rung);
+			printf("%9i ", (int) kr.first.rung);
 			printf("%9i ", (int) min_rung(itime));
 			printf("%10.1f%% ", 100.0 * tree::get_pct_active());
 			printf("%11.4e ", tree::get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
 //			tree::reset_flop();
 //			tstart = timer();
+			FILE *fp = fopen("istats.txt", "at");
+			fprintf(fp, "%11.4e %6s %6s %6s %6s %6s %6s \n", parts_per_sec, to_kform((double) kr.second.CC_direct / fmm_time).c_str(),
+					to_kform((double) kr.second.CP_direct / fmm_time).c_str(), to_kform((double) kr.second.PP_direct / fmm_time).c_str(),
+					to_kform((double) kr.second.CC_ewald / fmm_time).c_str(), to_kform((double) kr.second.CP_ewald / fmm_time).c_str(),
+					to_kform((double) kr.second.PP_ewald / fmm_time).c_str());
+			fclose(fp);
 			if (do_out) {
-				printf("%11.4e ", abs(kr.stats.g));
-				printf("%11.4e ", abs(kr.stats.p));
-				const auto etot = a * (kr.stats.pot + kr.stats.kin) + pec_energy;
+				printf("%11.4e ", abs(kr.first.stats.g));
+				printf("%11.4e ", abs(kr.first.stats.p));
+				const auto etot = a * (kr.first.stats.pot + kr.first.stats.kin) + pec_energy;
 				if (first_show) {
 					etot0 = etot;
 					first_show = false;
 				}
 				const auto eden = std::max(a * ekin, std::abs(etot0));
-				printf("%11.4e %11.4e %11.4e %11.4e %11.4e ", a * kr.stats.pot, a * ekin, pec_energy, etot,
+				printf("%11.4e %11.4e %11.4e %11.4e %11.4e ", a * kr.first.stats.pot, a * ekin, pec_energy, etot,
 						opts.glass ? (epot - last_epot) / epot : (etot - etot0) / eden);
 				FILE *fp = fopen("energy.dat", "at");
-				fprintf(fp, "%11.4e %11.4e %11.4e %11.4e %11.4e\n", a * kr.stats.pot, a * ekin, pec_energy, etot, (etot - etot0) / eden);
+				fprintf(fp, "%11.4e %11.4e %11.4e %11.4e %11.4e\n", a * kr.first.stats.pot, a * ekin, pec_energy, etot, (etot - etot0) / eden);
 				fclose(fp);
 			} else {
 				printf("%11s ", "");
-				printf("%11.4e ", abs(kr.stats.p));
+				printf("%11.4e ", abs(kr.first.stats.p));
 				printf("%11s %11.4e %11.4e %11s ", "", a * ekin, pec_energy, "");
 			}
 //			printf("%f/%f %f/%f %f/%f %f/%f", istats.CC_direct_pct, istats.CC_ewald_pct, istats.CP_direct_pct, istats.CP_ewald_pct, istats.PC_direct_pct,
@@ -220,15 +251,15 @@ int hpx_main(int argc, char *argv[]) {
 		if (!opts.gravity) {
 			return hpx::finalize();
 		}
-		last_epot = epot = kr.stats.pot;
-		ekin = kr.stats.kin;
+		last_epot = epot = kr.first.stats.pot;
+		ekin = kr.first.stats.kin;
 		if (do_out) {
-			output_particles(kr.out, "parts.0.silo");
+			output_particles(kr.first.out, "parts.0.silo");
 			if (opts.groups) {
 				groups_output(0);
 			}
 		}
-		dt = rung_to_dt(kr.rung);
+		dt = rung_to_dt(kr.first.rung);
 		while (t < opts.t_max) {
 			show();
 			auto ts = timer();
@@ -254,7 +285,7 @@ int hpx_main(int argc, char *argv[]) {
 				refine_rc = root_ptr.refine(0);
 			} while (refine_rc.rc);
 //			printf("Tree took %e seconds\n", timer() - ts);
-			itime = inc(itime, kr.rung);
+			itime = inc(itime, kr.first.rung);
 			if (time_to_double(itime) >= opts.t_max) {
 				oi = opts.nout + 1;
 				do_out = true;
@@ -262,14 +293,14 @@ int hpx_main(int argc, char *argv[]) {
 			kr = solve_gravity(root_ptr, min_rung(itime), do_out);
 			if (do_out) {
 				last_epot = epot;
-				epot = kr.stats.pot;
-				output_particles(kr.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
+				epot = kr.first.stats.pot;
+				output_particles(kr.first.out, std::string("parts.") + std::to_string(oi - 1) + ".silo");
 				if (opts.groups) {
 					groups_output(oi - 1);
 				}
 			}
 			t = time_to_double(itime);
-			dt = rung_to_dt(kr.rung);
+			dt = rung_to_dt(kr.first.rung);
 			iter++;
 			if (iter > 10 && opts.glass || t >= opts.t_max) {
 				if (std::abs(epot / last_epot - 1.0) < 5.0e-5 && ekin < 5.0e-11) {

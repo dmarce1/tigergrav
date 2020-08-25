@@ -50,6 +50,7 @@ class multi_src;
 class check_item;
 class multipole_return;
 
+
 struct raw_id_type {
 	int loc_id;
 	std::uint64_t ptr;
@@ -79,6 +80,40 @@ struct refine_return {
 	}
 };
 
+
+
+struct interaction_stats {
+	std::uint64_t PP_direct;
+	std::uint64_t PP_ewald;
+	std::uint64_t CC_direct;
+	std::uint64_t CC_ewald;
+	std::uint64_t CP_direct;
+	std::uint64_t CP_ewald;
+	interaction_stats() {
+		PP_direct = PP_ewald = 0;
+		CP_direct = CP_ewald = 0;
+		CC_direct = CC_ewald = 0;
+	}
+	interaction_stats& operator+=( interaction_stats other) {
+		PP_direct += other.PP_direct;
+		PP_ewald += other.PP_ewald;
+		CC_direct += other.CC_direct;
+		CC_ewald += other.CC_ewald;
+		CP_direct += other.CP_direct;
+		CP_ewald += other.CP_ewald;
+		return *this;
+	}
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & PP_direct;
+		arc & PP_ewald;
+		arc & CP_direct;
+		arc & CP_ewald;
+		arc & CC_direct;
+		arc & CC_ewald;
+	}
+};
+
 class tree_client {
 	id_type ptr;
 public:
@@ -94,7 +129,7 @@ public:
 	check_item get_check_item() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int wid, int stack_cnt) const;
 	double drift(double dt) const;
-	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+	interaction_stats kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_cnt) const;
 	int find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
 	refine_return refine(int) const;
@@ -254,7 +289,7 @@ public:
 	node_attr get_node_attributes() const;
 	multi_src get_multi_srcs() const;
 	double drift(double);
-	int kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+	interaction_stats kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_ccnt);
 
 	void find_groups(std::vector<check_item> checklist, int stack_ccnt);
@@ -293,7 +328,7 @@ inline refine_return tree_client::refine(int stack_cnt) const {
 	return tree::refine_action()(ptr, stack_cnt);
 }
 
-inline int tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
+inline interaction_stats tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_output, int stack_cnt) const {
 	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output, stack_cnt);
 }

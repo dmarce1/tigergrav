@@ -385,13 +385,14 @@ void trash_workspace(workspace &&w) {
 	workspaces.push(std::move(w));
 }
 
-int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
-		bool do_out, int stack_cnt) {
+interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
+		rung_type min_rung, bool do_out, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
 	static const double m = opts.m_tot / opts.problem_size;
 	decltype(group_ranges)().swap(group_ranges);
 	bool force_left, force_right;
+	interaction_stats istats;
 	if (!is_leaf()) {
 		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
 		force_left = (!children[0].local()) || force_all;
@@ -403,7 +404,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	}
 
 	if ((part_end - part_begin == 0) || (!multi.num_active && !do_out)) {
-		return 0;
+		return istats;
 	}
 
 	const auto multixdouble = pos_to_double(multi.x);
@@ -428,6 +429,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	next_dchecklist.reserve(NCHILD * dchecklist.size());
 	next_echecklist.reserve(NCHILD * echecklist.size());
 
+	std::uint64_t dsource_count = 0;
+	std::uint64_t esource_count = 0;
 	for (auto c : dchecklist) {
 		if (c.pend == c.pbegin) {
 			continue;
@@ -437,6 +440,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		if (far) {
 			if (c.flags.opened) {
 				dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
+				dsource_count += c.pend - c.pbegin;
 			} else {
 				dmulti_futs.push_back(c.node.get_multi_srcs());
 			}
@@ -466,6 +470,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			if (far) {
 				if (c.flags.opened) {
 					esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
+					esource_count += c.pend - c.pbegin;
 				} else {
 					emulti_futs.push_back(c.node.get_multi_srcs());
 				}
@@ -485,6 +490,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 	}
 	flop += gravity_CC_direct(L, multi.x, multi_srcs);
 	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters));
+	istats.CC_direct += multi_srcs.size();
+	istats.CP_direct += dsource_count;
 	if (opts.ewald) {
 		multi_srcs.resize(0);
 		for (auto &v : emulti_futs) {
@@ -492,6 +499,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		}
 		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
 		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters));
+		istats.CC_ewald += multi_srcs.size();
+		istats.CP_ewald += esource_count;
 	}
 	for (auto &f : dfuts) {
 		auto c = f.get();
@@ -516,6 +525,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		}, false, part_end - part_begin, force_right, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
+		istats += rc_r;
+		istats += rc_l;
 	} else {
 
 		auto fptr = std::make_shared<std::vector<force>>();
@@ -524,6 +535,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		esource_iters.resize(0);
 		dmulti_futs.resize(0);
 		emulti_futs.resize(0);
+		esource_count = 0;
+		dsource_count = 0;
 		while (!dchecklist.empty()) {
 			dfuts.resize(0);
 			for (auto c : dchecklist) {
@@ -535,6 +548,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 				;
 				if (c.flags.opened) {
 					dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
+					dsource_count += c.pend - c.pbegin;
 				} else {
 					if (far) {
 						dmulti_futs.push_back(c.node.get_multi_srcs());
@@ -573,6 +587,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 					}
 					if (c.flags.opened) {
 						esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
+						esource_count += c.pend - c.pbegin;
 					} else {
 						if (far) {
 							emulti_futs.push_back(c.node.get_multi_srcs());
@@ -610,6 +625,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 		}
 		flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
 //		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
+		istats.CP_direct += xptr->size() * multi_srcs.size();
+		istats.PP_direct += xptr->size() * dsource_count;
 		if (opts.ewald) {
 			multi_srcs.resize(0);
 			for (auto &v : emulti_futs) {
@@ -618,8 +635,8 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 			flop += gravity_PC_ewald(*fptr, *xptr, multi_srcs);
 //			printf( "%i\n", esource_iters.size());
 			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters));
-//			if (esource_iters.size())
-//				printf("%i %i %e %e %e\n", gwork_id, esource_iters.size(), multi.r, h, 2.0 * (multi.r + h));
+			istats.CP_ewald += xptr->size() * multi_srcs.size();
+			istats.PP_ewald += xptr->size() * esource_count;
 		}
 		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, [this, min_rung, do_out, fptr, xptr]() {
 			static const auto opts = options::get();
@@ -635,7 +652,7 @@ int tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> e
 
 	}
 	trash_workspace(std::move(space));
-	return 0;
+	return istats;
 }
 
 void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {

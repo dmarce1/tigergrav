@@ -57,7 +57,6 @@ struct kick_return {
 		arc & out;
 	}
 };
-
 kick_return part_vect_kick_return();
 void part_vect_write_glass();
 void part_vect_write(part_iter b, part_iter e, std::vector<particle> these_parts);
