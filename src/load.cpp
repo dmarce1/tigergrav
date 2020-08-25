@@ -53,24 +53,28 @@ std::vector<particle> load_particles(std::string filename) {
 	std::vector<particle> parts(header.npart[1]);
 //	printf( "%li\n", parts.size());
 	for (int i = 0; i < header.npart[1]; i++) {
-		float x, y, z;
+			float x, y, z;
 		fread(&x, sizeof(float), 1, fp);
 		fread(&y, sizeof(float), 1, fp);
 		fread(&z, sizeof(float), 1, fp);
+		double sep = 0.5 * std::pow(header.npart[1], -1.0 / 3.0);
+		x += sep;
+		y += sep;
+		z += sep;
+		while (x > 1.0) {
+			x -= 1.0;
+		}
+		while (y > 1.0) {
+			y -= 1.0;
+		}
+		while (z > 1.0) {
+			z -= 1.0;
+		}
 		parts[i].x[0] = double_to_pos(x);
 		parts[i].x[1] = double_to_pos(y);
 		parts[i].x[2] = double_to_pos(z);
-		if( x > 1.0 || x < 0.0) {
-			printf( "X out of bounds %e\n", x);
-		}
-		if( y > 1.0 || y < 0.0) {
-			printf( "Y out of bounds %e\n", y);
-		}
-		if( z > 1.0 || z < 0.0) {
-			printf( "X out of bounds %e\n", z);
-		}
 //		printf( "%e %e %e\n", x, y, z);
-	}
+}
 	fread(&dummy, sizeof(dummy), 1, fp);
 	fread(&dummy, sizeof(dummy), 1, fp);
 	const auto c0 = 1.0 / (1.0 + header.redshift);
