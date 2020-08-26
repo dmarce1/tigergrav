@@ -212,12 +212,12 @@ int hpx_main(int argc, char *argv[]) {
 			printf("%11.4e ", tree::get_flop() / (timer() - tstart + 1.0e-20) / pow(1024, 3));
 //			tree::reset_flop();
 //			tstart = timer();
-			FILE *fp = fopen("istats.txt", "at");
-			fprintf(fp, "%11.4e %6s %6s %6s %6s %6s %6s \n", parts_per_sec, to_kform((double) kr.second.CC_direct / fmm_time).c_str(),
-					to_kform((double) kr.second.CP_direct / fmm_time).c_str(), to_kform((double) kr.second.PP_direct / fmm_time).c_str(),
-					to_kform((double) kr.second.CC_ewald / fmm_time).c_str(), to_kform((double) kr.second.CP_ewald / fmm_time).c_str(),
-					to_kform((double) kr.second.PP_ewald / fmm_time).c_str());
-			fclose(fp);
+//			FILE *fp = fopen("istats.txt", "at");
+//			fprintf(fp, "%11.4e %6s %6s %6s %6s %6s %6s \n", parts_per_sec, to_kform((double) kr.second.CC_direct / fmm_time).c_str(),
+//					to_kform((double) kr.second.CP_direct / fmm_time).c_str(), to_kform((double) kr.second.PP_direct / fmm_time).c_str(),
+//					to_kform((double) kr.second.CC_ewald / fmm_time).c_str(), to_kform((double) kr.second.CP_ewald / fmm_time).c_str(),
+//					to_kform((double) kr.second.PP_ewald / fmm_time).c_str());
+//			fclose(fp);
 			if (do_out) {
 				printf("%11.4e ", abs(kr.first.stats.g));
 				printf("%11.4e ", abs(kr.first.stats.p));
