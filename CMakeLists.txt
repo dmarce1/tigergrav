@@ -30,6 +30,7 @@ set(tigergrav_source_files
 	src/initialize.cpp
 	src/load.cpp
 	src/main.cpp
+	src/map.cpp
 	src/new.cpp
 	src/output.cpp
 	src/options.cpp
@@ -53,6 +54,7 @@ set(tigergrav_header_files
 	tigergrav/groups.hpp
 	tigergrav/initialize.hpp
 	tigergrac/load.hpp
+	tigergrav/map.hpp
 	tigergrav/multipole.hpp
 	tigergrav/output.hpp
 	tigergrav/options.hpp

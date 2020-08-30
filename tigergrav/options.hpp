@@ -17,6 +17,7 @@ public:
 	bool cosmic;
 	bool glass;
 	bool groups;
+	bool map;
 	double theta;
 	double eta;
 	double soft_len;
@@ -45,6 +46,7 @@ public:
 		arc & link_len;
 		arc & H0;
 		arc & G;
+		arc & map;
 		arc & clight;
 		arc & code_to_cm_per_s;
 		arc & code_to_cm;

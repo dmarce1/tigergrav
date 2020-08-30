@@ -38,6 +38,7 @@ bool options::process_options(int argc, char *argv[]) {
 	("problem", po::value < std::string > (&problem)->default_value("cosmos"), "problem type") //
 	("solver_test", po::value<bool>(&solver_test)->default_value(0), "test gravity solver") //
 	("cosmic", po::value<bool>(&cosmic)->default_value(1), "Use Friedman equation") //
+	("map", po::value<bool>(&map)->default_value(0), "Produce map output") //
 	("glass", po::value<bool>(&glass)->default_value(0), "Produce glass file") //
 	("groups", po::value<bool>(&groups)->default_value(0), "find groups") //
 	("gravity", po::value<bool>(&gravity)->default_value(1), "solve for gravity") //

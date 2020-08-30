@@ -1,6 +1,9 @@
 #include <hpx/hpx_init.hpp>
 #include <immintrin.h>
 #include <tigergrav/range.hpp>
+#include <tigergrav/vect.hpp>
+
+
 
 int hpx_main(int argc, char *argv[]) {
 	box_id_type id = 0x1E;
