@@ -43,7 +43,7 @@ cosmos::cosmos(double a_, double adot_, double tau_) {
 	tau = tau_;
 	drift_dt = 0.0;
 	kick_dt = 0.0;
-	printf( "adot = %e\n", adot);
+//	printf( "adot = %e\n", adot);
 }
 void cosmos::advance_to_time(double t0) {
 //	printf( "%e\n", a);
@@ -121,6 +121,24 @@ double cosmos::advance_to_scale(double a0) {
 			printf("Unable to find t=0 scale factor\n");
 		}
 	} while (std::abs(a0 / a - 1.0) > 1.0e-10);
+	return t;
+}
+
+
+double cosmos::advance_to_tau(double tau0) {
+	int iters = 0;
+	double t = 0.0;
+	do {
+		const auto dt = (tau0 - tau) * a / 10.0;
+//		printf("%e %e %e %e\n", t, tau, tau0, adot);
+		advance_to_time(dt);
+		t += dt;
+		iters++;
+		if (iters > 1000) {
+			abort();
+			printf("Unable to find t=0 scale factor\n");
+		}
+	} while (std::abs(tau0 / tau - 1.0) > 1.0e-10);
 	return t;
 }
 

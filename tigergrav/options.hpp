@@ -13,6 +13,7 @@ public:
 	int nout;
 	int workgroup_size;
 	int oversubscription;
+	int map_res;
 	std::uint64_t problem_size;
 	bool cosmic;
 	bool glass;
@@ -39,6 +40,7 @@ public:
 
 	template<class Arc>
 	void serialize(Arc &arc, unsigned) {
+		arc & map_res;
 		arc & oversubscription;
 		arc & workgroup_size;
 		arc & gravity;

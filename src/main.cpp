@@ -13,13 +13,14 @@
 #include <tigergrav/tree.hpp>
 #include <tigergrav/groups.hpp>
 #include <tigergrav/cosmo.hpp>
+#include <tigergrav/map.hpp>
 
 #include <algorithm>
 
 #include <fenv.h>
 
 double timer(void) {
-	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
+	return std::chrono::duration_cast < std::chrono::milliseconds > (std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
 double fmm_time;
@@ -118,6 +119,9 @@ int hpx_main(int argc, char *argv[]) {
 		const auto adot0 = cinit.get_Hubble() * a0;
 		printf("Inializing with a = %e, adot = %e, tau = %e\n", a0, adot0, tau_max);
 		cosmo_init(a0, adot0);
+		if (opts.map) {
+			map_init();
+		}
 	} else {
 		cosmo_init(1.0, 0.0);
 		tau_max = opts.t_max;
@@ -132,7 +136,7 @@ int hpx_main(int argc, char *argv[]) {
 
 	if (opts.solver_test) {
 		printf("Computing direct solution first\n");
-		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
+		tree_client root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 		refine_return refine_rc;
 		do {
 			refine_rc = root_ptr.refine(0);
@@ -143,7 +147,7 @@ int hpx_main(int argc, char *argv[]) {
 		const auto direct = kr.first.out;
 		printf("%11s %11s %11s %11s %11s %11s %11s %11s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
-			root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
+			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			refine_return refine_rc;
 			do {
 				refine_rc = root_ptr.refine(0);
@@ -162,7 +166,7 @@ int hpx_main(int argc, char *argv[]) {
 
 		printf("Forming tree\n");
 		auto tstart = timer();
-		tree_client root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
+		tree_client root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 		refine_return refine_rc;
 		do {
 			printf("Refining\n");
@@ -275,12 +279,19 @@ int hpx_main(int argc, char *argv[]) {
 			} else {
 				do_out = false;
 			}
-			ekin = root_ptr.drift(dt);
+			if (opts.map) {
+				map_reset(t + dt);
+			}
+			ekin = root_ptr.drift(t, kr.first.rung);
+			static int mo = 0;
+			if (opts.map) {
+				map_output(t + dt);
+			}
 //			printf("drift took %e seconds\n", timer() - ts);
 			ts = timer();
 			root_ptr = hpx::invalid_id;
 //			printf( "Forming tree\n");
-			root_ptr = hpx::new_<tree>(hpx::find_here(), 1, 0, opts.problem_size, 0).get();
+			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			do {
 				refine_rc = root_ptr.refine(0);
 			} while (refine_rc.rc);

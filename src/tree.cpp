@@ -779,8 +779,8 @@ void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	}
 }
 
-double tree::drift(double dt) {
-	return part_vect_drift(dt);
+double tree::drift(double t,rung_type r) {
+	return part_vect_drift(t, r);
 }
 
 HPX_PLAIN_ACTION(tree::get_flop, get_flop_action);

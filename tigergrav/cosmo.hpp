@@ -36,6 +36,7 @@ public:
 	}
 	void advance_to_time(double t0);
 	double advance_to_scale(double a0);
+	double advance_to_tau(double tau0);
 };
 
 std::pair<double,double> cosmo_scale();

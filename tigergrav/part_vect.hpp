@@ -5,6 +5,7 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/range.hpp>
 #include <tigergrav/gravity.hpp>
+#include <tigergrav/time.hpp>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -73,7 +74,7 @@ int part_vect_locality_id(part_iter);
 void part_vect_reset();
 std::pair<std::uint64_t, vect<double>> part_vect_center_of_mass(part_iter b, part_iter e);
 multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_iter b, part_iter e);
-double part_vect_drift(double dt);
+double part_vect_drift(double t, rung_type);
 std::vector<vect<pos_type>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung);
 hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type rung, bool do_out, std::vector<force>&& f);
 void part_vect_find_groups2();

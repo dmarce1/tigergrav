@@ -128,7 +128,7 @@ public:
 	tree_client(id_type ptr_);
 	check_item get_check_item() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int wid, int stack_cnt) const;
-	double drift(double dt) const;
+	double drift(double t, rung_type r) const;
 	interaction_stats kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_cnt) const;
 	int find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
@@ -288,7 +288,7 @@ public:
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int workid, int stack_cnt);
 	node_attr get_node_attributes() const;
 	multi_src get_multi_srcs() const;
-	double drift(double);
+	double drift(double,rung_type);
 	interaction_stats kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_ccnt);
 
@@ -320,8 +320,8 @@ inline multipole_return tree_client::compute_multipoles(rung_type min_rung, bool
 	return tree::compute_multipoles_action()(ptr, min_rung, do_out, wid, stack_cnt);
 }
 
-inline double tree_client::drift(double dt) const {
-	return tree::drift_action()(ptr, dt);
+inline double tree_client::drift(double t, rung_type r) const {
+	return tree::drift_action()(ptr, t, r);
 }
 
 inline refine_return tree_client::refine(int stack_cnt) const {

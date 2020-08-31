@@ -18,7 +18,7 @@ using mutex_type = hpx::lcos::local::spinlock;
 
 #define NMAP ((std::uint64_t)1024)
 std::unordered_map<std::uint64_t, group> map[NMAP];
-mutex_type mtx[NMAP];
+static mutex_type mtx[NMAP];
 
 static std::vector<hpx::id_type> localities;
 static int myid = -1;
