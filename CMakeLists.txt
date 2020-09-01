@@ -20,10 +20,13 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
 find_package(Silo REQUIRED)
 find_package(Boost REQUIRED)
+enable_language(CUDA)
 
+set(CMAKE_CXX_FLAGS "-march=native")
 
 set(tigergrav_source_files
 	src/cosmo.cpp
+	src/gravity_cuda.cu
 	src/gravity.cpp
 	src/groups.cpp
 	src/initialize.cpp
@@ -47,6 +50,7 @@ set(test_source_files
 set(tigergrav_header_files
 	tiegrgrav/cosmo.hpp
 	tigergrav/defs.hpp
+	tigergrav/gravity_cuda.hpp
 	tigergrav/gravity.hpp
 	tigergrav/green.hpp
 	tigergrav/groups.hpp
@@ -121,12 +125,12 @@ target_link_libraries (tigergrav_lite boost_program_options tcmalloc hpx_lite si
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_include_directories(tigergrav PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(tigergrav PUBLIC "-DUSE_HPX")
-target_compile_options(tigergrav_lite PUBLIC "-O3")
-target_compile_options(tigergrav PUBLIC "-O3")
-target_compile_options(tigergrav PUBLIC "-march=native")
+#target_compile_options(tigergrav_lite PUBLIC "-O3")
+#target_compile_options(tigergrav PUBLIC "-O3")
+#target_compile_options(tigergrav PUBLIC "-march=native")
 target_include_directories(tigergrav_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_compile_options(tigergrav_lite PUBLIC "-DHPX_LITE")
-target_compile_options(tigergrav_lite PUBLIC "-march=native")
+#target_compile_options(tigergrav_lite PUBLIC "-march=native")
 
 target_include_directories(test PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(test PUBLIC -O3 -march=native)

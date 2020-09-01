@@ -1,4 +1,5 @@
 #include <tigergrav/gravity.hpp>
+#include <tigergrav/gravity_cuda.hpp>
 #include <tigergrav/green.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
@@ -169,6 +170,7 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 }
 
 std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> y, bool do_phi) {
+	return gravity_PP_direct_cuda(f, x, y, do_phi);
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -178,7 +180,7 @@ std::uint64_t gravity_PP_direct(std::vector<force> &f, const std::vector<vect<po
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
 	static const simd_float H(h);
-	static const simd_float halfH(0.5*h);
+	static const simd_float halfH(0.5 * h);
 	static const simd_float H2(h * h);
 	static const simd_float Hinv(1.0 / h);
 	static const simd_float H3inv(1.0 / h / h / h);
