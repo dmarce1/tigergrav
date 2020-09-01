@@ -50,8 +50,9 @@ struct gwork_group {
 	}
 };
 
-mutex_type groups_mtx;
-std::unordered_map<int, gwork_group> groups;
+#define GROUP_TABLE_SIZE 1024
+mutex_type groups_mtx[GROUP_TABLE_SIZE];
+std::unordered_map<int, gwork_group> groups[GROUP_TABLE_SIZE];
 
 std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<pos_type>> *x, const std::vector<std::pair<part_iter, part_iter>> &y,
 		std::function<hpx::future<void>(void)> &&complete, bool do_phi) {
@@ -66,28 +67,28 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	gwork_unit unit;
 	unit.fptr = g;
 	unit.xptr = x;
-	auto iter = groups.find(id);
-	if (iter == groups.end()) {
+	const int gi = id % GROUP_TABLE_SIZE;
+	std::unique_lock<mutex_type> lock(groups_mtx[gi]);
+	auto iter = groups[gi].find(id);
+	if (iter == groups[gi].end()) {
 		printf("Error - work group %i not found\n", id);
 		abort();
 	}
 	auto &entry = iter->second;
-	{
-		std::lock_guard<mutex_type> lock(entry.mtx);
-		if (entry.first_call) {
-			entry.first_call = false;
-			entry.units.reserve(entry.mcount);
-			entry.complete.reserve(entry.mcount);
-		}
-		for (auto &j : y) {
-			unit.yb = j.first;
-			unit.ye = j.second;
-			entry.units.push_back(unit);
-		}
-		entry.complete.push_back(std::move(complete));
-		entry.workadded++;
-		do_work = entry.workadded == entry.mcount;
+	if (entry.first_call) {
+		entry.first_call = false;
+		entry.units.reserve(entry.mcount);
+		entry.complete.reserve(entry.mcount);
 	}
+	for (auto &j : y) {
+		unit.yb = j.first;
+		unit.ye = j.second;
+		entry.units.push_back(unit);
+	}
+	entry.complete.push_back(std::move(complete));
+	entry.workadded++;
+	do_work = entry.workadded == entry.mcount;
+	lock.unlock();
 	if (entry.workadded > entry.mcount) {
 		printf("Error too much work added %i %i %i\n", id, entry.workadded, entry.mcount);
 		abort();
@@ -271,22 +272,18 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 			futs.push_back(cfunc());
 		}
 		hpx::wait_all(futs.begin(), futs.end());
-		std::lock_guard<mutex_type> lock(groups_mtx);
-		groups.erase(id);
+		const int gi = id % GROUP_TABLE_SIZE;
+		std::lock_guard < mutex_type > lock(groups_mtx[gi]);
+		groups[gi].erase(id);
 	}
 
 	return flop;
 }
 
-void gwork_show() {
-	for (const auto &group : groups) {
-		printf("%i %i\n", group.first, group.second.mcount);
-	}
-}
-
 void gwork_checkin(int id) {
-	std::lock_guard<mutex_type> lock(groups_mtx);
-	groups[id].mcount++;
+	const int gi = id % GROUP_TABLE_SIZE;
+	std::lock_guard<mutex_type> lock(groups_mtx[gi]);
+	groups[gi][id].mcount++;
 }
 
 void gwork_reset() {
@@ -300,7 +297,9 @@ void gwork_reset() {
 			futs.push_back(hpx::async < gwork_reset_action > (localities[i]));
 		}
 	}
-	groups.clear();
+	for (int i = 0; i < GROUP_TABLE_SIZE; i++) {
+		groups[i].clear();
+	}
 	hpx::wait_all(futs.begin(), futs.end());
 }
 

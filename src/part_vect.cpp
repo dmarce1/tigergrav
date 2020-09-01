@@ -516,7 +516,7 @@ double part_vect_drift(double t, rung_type mrung) {
 				const vect<double> dx = v * drift_dt;
 				vect<double> x = pos_to_double(parts(j).x);
 				if (opts.map) {
-					map_add_particle(x, t,2.0*kick_dt);
+					map_add_particle(x, t, 2.0 * kick_dt);
 				}
 				x += dx;
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -979,3 +979,117 @@ int part_vect_locality_id(part_iter i) {
 	}
 	return std::min(n, N - 1);
 }
+
+struct avg_pos_return {
+	double avg;
+	double max;
+	template<class A>
+	void serialize(A &&arc, unsigned) {
+		arc & avg;
+		arc & max;
+	}
+};
+
+double part_vect_find_median_helper(part_iter b, part_iter e, part_iter median, double xmid, int dim);
+avg_pos_return part_vect_avg_pos(part_iter b, part_iter e, int dim);
+
+HPX_PLAIN_ACTION (part_vect_find_median_helper);
+HPX_PLAIN_ACTION (part_vect_avg_pos);
+
+avg_pos_return part_vect_avg_pos(part_iter b, part_iter e, int dim) {
+	static const auto opts = options::get();
+	std::vector<hpx::future<avg_pos_return>> futs;
+	const part_iter N = localities.size();
+	const part_iter M = opts.problem_size;
+	double max = -std::numeric_limits<double>::max();
+	if (part_end < e) {
+		for (int n = part_vect_locality_id(part_end); n * M / N < e; n++) {
+			auto fut = hpx::async < part_vect_avg_pos_action > (localities[n], n * M / N, std::min(e, (n + 1) * M / N), dim);
+			futs.push_back(std::move(fut));
+		}
+	}
+	const auto this_e = std::min(part_end, e);
+	double avg = 0.0;
+	std::uint64_t count = this_e - b;
+	for (auto i = b; i < this_e; i++) {
+		const auto x = pos_to_double(parts(i).x[dim]);
+		avg += x;
+		max = std::max(max, x);
+	}
+	int j = 0;
+	if (part_end < e) {
+		for (int n = part_vect_locality_id(part_end); n * M / N < e; n++) {
+			const auto rc = futs[j++].get();
+			const auto this_avg = rc.avg;
+			const auto this_count = std::min(e, (n + 1) * M / N) - n * M / N;
+			count += this_count;
+			avg += this_avg * this_count;
+			max = std::max(max, rc.max);
+		}
+	}
+	avg_pos_return rc;
+	avg /= count;
+	rc.avg = avg;
+	rc.max = max;
+	return rc;
+}
+
+inline bool almost_equal(double a, double b) {
+	const auto avg = (a + b) / 2.0;
+	return (a == avg) || (b == avg);
+}
+
+double part_vect_find_median_helper(part_iter b, part_iter e, part_iter median, double xmid, int dim) {
+	double r;
+//	printf("%i %i %i %.8e\n", b, e, median, xmid);
+//	if (e - b == 2) {
+//		printf( "!\n");
+//		for (auto i = b; i < std::min(part_end, e); i++) {
+//			printf("%.8e\n", parts(i).x[dim]);
+//		}
+//
+//	}
+	if (e - b <= 1) {
+		r = xmid;
+	} else {
+		const auto m = part_vect_sort(b, e, xmid, dim);
+		if (median > m && median < e) {
+			const auto newid = part_vect_locality_id(m);
+			avg_pos_return rc;
+			if (newid == myid) {
+				rc = part_vect_avg_pos(m, e, dim);
+			} else {
+				const auto rc = hpx::async < part_vect_avg_pos_action > (localities[newid], m, e, dim).get();
+			}
+			if (almost_equal(rc.max, rc.avg)) {
+				r = rc.max;
+			} else {
+				const auto new_xmid = rc.avg;
+				if (newid == myid) {
+					r = part_vect_find_median_helper(m, e, median, new_xmid, dim);
+				} else {
+					r = hpx::async < part_vect_find_median_helper_action > (localities[newid], m, e, median, new_xmid, dim).get();
+				}
+			}
+		} else if (median >= b && median < m) {
+			const auto rc = part_vect_avg_pos(b, m, dim);
+			if (almost_equal(rc.max, rc.avg)) {
+				r = rc.max;
+			} else {
+				const auto new_xmid = rc.avg;
+				r = part_vect_find_median_helper(b, m, median, new_xmid, dim);
+			}
+		} else if (median == m) {
+			return xmid;
+		} else {
+			assert(false);
+		}
+	}
+	return r;
+}
+
+double part_vect_find_median(part_iter b, part_iter e, int dim) {
+	const auto xmid = part_vect_avg_pos(b, e, dim).avg;
+	return part_vect_find_median_helper(b, e, (b + e) / 2, xmid, dim);
+}
+

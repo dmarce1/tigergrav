@@ -16,6 +16,7 @@ public:
 	int map_res;
 	std::uint64_t problem_size;
 	bool cosmic;
+	bool balanced_tree;
 	bool glass;
 	bool groups;
 	bool map;

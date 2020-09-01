@@ -139,7 +139,6 @@ refine_return tree::refine(int stack_cnt) {
 		int max_dim;
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto this_span = box.max[dim] - box.min[dim];
-//			const auto this_span = box.max[dim] - box.min[dim];
 			if (this_span > max_span) {
 				max_span = this_span;
 				max_dim = dim;
@@ -147,15 +146,16 @@ refine_return tree::refine(int stack_cnt) {
 		}
 		range boxl = box;
 		range boxr = box;
-		double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
-		boxl.max[max_dim] = boxr.min[max_dim] = mid;
 		part_iter mid_iter;
-		if (part_end - part_begin == 0) {
-			mid_iter = part_end;
+		if (opts.balanced_tree) {
+			const auto mid_x = part_vect_find_median(part_begin, part_end, max_dim);
+			mid_iter = (part_begin + part_end) / 2;
+			boxl.max[max_dim] = boxr.min[max_dim] = mid_x;
 		} else {
+			double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
+			boxl.max[max_dim] = boxr.min[max_dim] = mid;
 			mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
 		}
-//		}
 		auto rcl = hpx::new_ < tree > (localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
 		auto rcr = hpx::new_ < tree > (localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
 
@@ -779,7 +779,7 @@ void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 	}
 }
 
-double tree::drift(double t,rung_type r) {
+double tree::drift(double t, rung_type r) {
 	return part_vect_drift(t, r);
 }
 
