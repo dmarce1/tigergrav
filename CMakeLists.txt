@@ -25,7 +25,6 @@ find_package(Boost REQUIRED)
 set(tigergrav_source_files
 	src/cosmo.cpp
 	src/gravity.cpp
-	src/gravity_work.cpp
 	src/groups.cpp
 	src/initialize.cpp
 	src/load.cpp
@@ -49,7 +48,6 @@ set(tigergrav_header_files
 	tiegrgrav/cosmo.hpp
 	tigergrav/defs.hpp
 	tigergrav/gravity.hpp
-	tigergrav/gravity_work.hpp
 	tigergrav/green.hpp
 	tigergrav/groups.hpp
 	tigergrav/initialize.hpp

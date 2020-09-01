@@ -6,7 +6,6 @@
 #include <tigergrav/options.hpp>
 #include <tigergrav/part_vect.hpp>
 #include <tigergrav/range.hpp>
-#include <tigergrav/gravity_work.hpp>
 
 #include <array>
 #include <atomic>
@@ -127,7 +126,7 @@ public:
 	tree_client() = default;
 	tree_client(id_type ptr_);
 	check_item get_check_item() const;
-	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int wid, int stack_cnt) const;
+	multipole_return compute_multipoles(rung_type min_rung, bool do_out,  int stack_cnt) const;
 	double drift(double t, rung_type r) const;
 	interaction_stats kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_cnt) const;
@@ -222,7 +221,6 @@ class tree: public hpx::components::managed_component_base<tree> {
 	part_iter part_end;
 	std::array<float, NCHILD> cr;
 	std::array<check_flags, NCHILD> cflags;
-	int gwork_id;
 	struct {
 		std::uint32_t level :6;
 		std::uint32_t depth :6;
@@ -255,7 +253,6 @@ public:
 		tmp = flags.ldepth;
 		arc & tmp;
 		flags.ldepth = tmp;
-		arc & gwork_id;
 		arc & multi;
 		arc & part_begin;
 		arc & part_end;
@@ -285,7 +282,7 @@ public:
 	tree(box_id_type, part_iter, part_iter, int level);
 	refine_return refine(int);
 	bool is_leaf() const;
-	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int workid, int stack_cnt);
+	multipole_return compute_multipoles(rung_type min_rung, bool do_out,int stack_cnt);
 	node_attr get_node_attributes() const;
 	multi_src get_multi_srcs() const;
 	double drift(double,rung_type);
@@ -316,8 +313,8 @@ inline check_item tree_client::get_check_item() const {
 	return tree::get_check_item_action()(ptr);
 }
 
-inline multipole_return tree_client::compute_multipoles(rung_type min_rung, bool do_out, int wid, int stack_cnt) const {
-	return tree::compute_multipoles_action()(ptr, min_rung, do_out, wid, stack_cnt);
+inline multipole_return tree_client::compute_multipoles(rung_type min_rung, bool do_out,int stack_cnt) const {
+	return tree::compute_multipoles_action()(ptr, min_rung, do_out, stack_cnt);
 }
 
 inline double tree_client::drift(double t, rung_type r) const {

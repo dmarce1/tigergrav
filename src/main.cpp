@@ -31,7 +31,7 @@ double fmm_parts_total = 0.0;
 std::pair<kick_return, interaction_stats> solve_gravity(tree_client root_ptr, rung_type mrung, bool do_out, bool first_call = false) {
 	auto start = timer();
 	static const auto opts = options::get();
-	auto mrc = root_ptr.compute_multipoles(mrung, do_out, null_gwork_id, 0);
+	auto mrc = root_ptr.compute_multipoles(mrung, do_out, 0);
 //	gwork_show();
 	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
 	if (do_out && !opts.solver_test && opts.groups) {
