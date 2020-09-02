@@ -200,7 +200,10 @@ refine_return tree::refine(int stack_cnt) {
 	return rc;
 }
 
-multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stack_cnt) {
+multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int workid, int stack_cnt) {
+	if (flags.level == 0) {
+		gwork_reset();
+	}
 	bool force_left, force_right;
 	if (!is_leaf()) {
 		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
@@ -209,6 +212,10 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 	}
 	const auto &opts = options::get();
 	range prange;
+	gwork_id = workid;
+	if ((gwork_id == null_gwork_id) && (part_end - part_begin <= workgroup_size)) {
+		gwork_id = gwork_assign_id();
+	}
 
 	multipole_return rc;
 	if (part_end - part_begin == 0) {
@@ -235,10 +242,10 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 	} else {
 		multipole_return ml, mr;
 		auto rcl = thread_if_avail([=](int stack_cnt) {
-			return children[0].compute_multipoles(mrung, do_out, stack_cnt);
+			return children[0].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
 		}, true, part_end - part_begin, force_left, stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
-			return children[1].compute_multipoles(mrung, do_out,  stack_cnt);
+			return children[1].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
 		}, false, part_end - part_begin, force_right, stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
@@ -285,6 +292,9 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int stac
 		cpend[1] = mr.c.pend;
 		cflags[0] = ml.c.flags;
 		cflags[1] = mr.c.flags;
+	}
+	if (multi.num_active && is_leaf()) {
+		gwork_checkin(gwork_id);
 	}
 	rc.m = multi;
 	rc.r = prange;
@@ -614,7 +624,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 			multi_srcs.push_back(v.get());
 		}
 		flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
-		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
+//		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
 		istats.CP_direct += xptr->size() * multi_srcs.size();
 		istats.PP_direct += xptr->size() * dsource_count;
 		if (opts.ewald) {
@@ -623,11 +633,22 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 				multi_srcs.push_back(v.get());
 			}
 			flop += gravity_PC_ewald(*fptr, *xptr, multi_srcs);
+//			printf( "%i\n", esource_iters.size());
 			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters));
 			istats.CP_ewald += xptr->size() * multi_srcs.size();
 			istats.PP_ewald += xptr->size() * esource_count;
 		}
-		part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr));
+		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, [this, min_rung, do_out, fptr, xptr]() {
+			static const auto opts = options::get();
+			static const auto m = opts.m_tot / opts.problem_size;
+			static const auto h = opts.soft_len;
+			static const auto phi_self = (-2.8) * m / h;
+			xptr->size();
+			for (int i = 0; i < fptr->size(); i++) {
+				(*fptr)[i].phi -= phi_self;
+			}
+			return part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr));
+		}, do_out);
 
 	}
 	trash_workspace(std::move(space));

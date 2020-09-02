@@ -5,6 +5,7 @@
 #include <tigergrav/cosmo.hpp>
 #include <tigergrav/groups.hpp>
 #include <tigergrav/map.hpp>
+#include <tigergrav/gravity_cuda.hpp>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -648,6 +649,22 @@ void part_vect_reset() {
 	kick_rc.stats.zero();
 	kick_rc.rung = 0;
 	kick_rc.out.clear();
+	if (options::get().cuda) {
+		const auto size = part_end - part_begin;
+		static std::vector<vect<pos_type>> buffer(size);
+		std::vector<hpx::future<void>> futs;
+		const part_iter chunk_size = size / std::thread::hardware_concurrency() + 1;
+		for (part_iter i = 0; i < size; i += chunk_size) {
+			futs.push_back(hpx::async([i, chunk_size, size]() {
+				const auto je = std::min(i + chunk_size, size);
+				for (part_iter j = i; j < je; j++) {
+					buffer[j] = particles[j].x;
+				}
+			}));
+		}
+		hpx::wait_all(futs.begin(), futs.end());
+		cuda_copy_particle_image(part_begin, part_end, buffer);
+	}
 	hpx::wait_all(futs.begin(), futs.end());
 }
 

@@ -13,6 +13,10 @@
 
 #include <vector>
 
+
+using part_iter = std::uint64_t;
+
+
 #define DEFAULT_GROUP ((std::uint64_t) (0xFFFFFFFFFFFFFF))
 
 struct particle {

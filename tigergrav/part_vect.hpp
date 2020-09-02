@@ -13,9 +13,6 @@
 #include <hpx/include/async.hpp>
 #endif
 
-using part_iter = std::uint64_t;
-using const_part_iter = std::uint64_t;
-
 
 struct statistics {
 	vect<double> g;

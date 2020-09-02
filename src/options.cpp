@@ -43,13 +43,14 @@ bool options::process_options(int argc, char *argv[]) {
 	("groups", po::value<bool>(&groups)->default_value(0), "find groups") //
 	("gravity", po::value<bool>(&gravity)->default_value(1), "solve for gravity") //
 	("balanced_tree", po::value<bool>(&balanced_tree)->default_value(0), "balanced tree ") //
+	("cuda", po::value<bool>(&cuda)->default_value(0), "use CUDA") //
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("oversubscription", po::value<int>(&oversubscription)->default_value(4), "thread oversubscription rate hint") //
 	("workgroup_size", po::value<int>(&workgroup_size)->default_value(64), "size of a workgroup in units of parts_per_node") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("nout", po::value<int>(&nout)->default_value(64), "number of outputs") //
 	("map_res", po::value<int>(&map_res)->default_value(1000), "map resolution, long axis") //
-	("parts_per_node", po::value<int>(&parts_per_node)->default_value(64), "maximum number of particles on a node") //
+	("parts_per_node", po::value<int>(&parts_per_node)->default_value(32), "maximum number of particles on a node") //
 	("problem_size", po::value < std::uint64_t > (&problem_size)->default_value(4096), "number of particles") //
 	("theta", po::value<double>(&theta)->default_value(0.5), "separation parameter") //
 	("code_to_cm", po::value<double>(&code_to_cm)->default_value(4.40811e26), "size of box in centimeters") //
