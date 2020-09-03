@@ -28,36 +28,49 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 	CUDA_CHECK(cudaMemcpy(y_vect, parts.data(), size * sizeof(vect<pos_type> ), cudaMemcpyHostToDevice));
 }
 
-#define BLOCKSIZE 256
+#define WORKSIZE 128
+#define NODESIZE 64
+#define NWARP (WORKSIZE/WARPSIZE)
+#define WARPSIZE 32
+#define SYNCRATE 8
 
 __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y, std::pair<part_iter, part_iter> *yiters, int *xindex, int *yindex, float m,
 		float h, bool ewald) {
 
+	const int iwarp = threadIdx.y;
 	const int ui = blockIdx.x;
-	const int l = threadIdx.x;
+	const int l = iwarp * blockDim.x + threadIdx.x;
+	const int n = threadIdx.x;
 	const float Hinv = 1.0 / h;
 	const float H3inv = Hinv * Hinv * Hinv;
 
-	__shared__
-	char shmem[2 * sizeof(force) * BLOCKSIZE + sizeof(vect<pos_type> ) * BLOCKSIZE];
-	auto *X = reinterpret_cast<vect<pos_type>*>(shmem);
-	auto *G = reinterpret_cast<force*>(shmem + sizeof(vect<pos_type> ) * BLOCKSIZE);
-	auto *Gstore = reinterpret_cast<force*>(shmem + (sizeof(force) + sizeof(vect<pos_type> )) * BLOCKSIZE);
+	__shared__ vect<pos_type>
+	X[NODESIZE];
+	__shared__ force
+	G[NWARP][WARPSIZE];
+	__shared__ force
+	Gstore[NWARP][NODESIZE];
+
 	const auto yb = yindex[ui];
 	const auto ye = yindex[ui + 1];
 	const auto xb = xindex[ui];
 	const auto xe = xindex[ui + 1];
 	const auto xsize = xe - xb;
-	const auto ymax = ((ye - yb - 1) / BLOCKSIZE + 1) * BLOCKSIZE + yb;
+	const auto ymax = ((ye - yb - 1) / WORKSIZE + 1) * WORKSIZE + yb;
 	if (l < xsize) {
 		X[l] = x[xb + l];
-		Gstore[l].g = vect<float>(0.0);
-		Gstore[l].phi = 0.0;
 	}
-	for (int yi = yb + l; yi < ymax; yi += BLOCKSIZE) {
+	if (l < NODESIZE) {
+		for( int i = 0; i < NWARP; i++) {
+			Gstore[i][l].g = vect<float>(0.0);
+			Gstore[i][l].phi = 0.0;
+		}
+	}
+	__syncthreads();
+	for (int yi = yb + l; yi < ymax; yi += WORKSIZE) {
 		for (int i = xb; i < xe; i++) {
-			G[l].phi = 0.0;
-			G[l].g = vect<float>(0.0);
+			G[iwarp][n].phi = 0.0;
+			G[iwarp][n].g = vect<float>(0.0);
 			if (yi < ye) {
 				const auto &iter = yiters[yi];
 				const int yb = iter.first;
@@ -114,33 +127,34 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 					}
 					const auto dXM = dX * m;
 					for (int dim = 0; dim < NDIM; dim++) {
-						G[l].g[dim] += double(-dXM[dim] * f);    						// 15
+						G[iwarp][n].g[dim] += double(-dXM[dim] * f);    						// 15
 					}
 					// 13S + 2D = 15
-					G[l].phi += double(-p * m);    						// 10
+					G[iwarp][n].phi += double(-p * m);    						// 10
 				}
 			}
-			__syncthreads();
-			for (int N = BLOCKSIZE / 2; N > 0; N >>= 1) {
-				if (l < N) {
-					G[l].g += G[l + N].g;
-					G[l].phi += G[l + N].phi;
+			for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
+				if (n < N) {
+					G[iwarp][n].g += G[iwarp][n + N].g;
+					G[iwarp][n].phi += G[iwarp][n + N].phi;
 				}
-				__syncthreads();
 			}
-			if (l == 0) {
+			if (n == 0) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					Gstore[i - xb].g[dim] += G[0].g[dim];
+					Gstore[iwarp][i - xb].g[dim] += G[iwarp][0].g[dim];
 				}
-				Gstore[i - xb].phi += G[0].phi;
+				Gstore[iwarp][i - xb].phi += G[iwarp][0].phi;
 			}
 		}
 	}
+	__syncthreads();
 	if (l < xsize) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			atomicAdd(&F[l + xb].g[dim],Gstore[l].g[dim]);
+		for (int i = 0; i < NWARP; i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				atomicAdd(&F[l + xb].g[dim], Gstore[i][l].g[dim]);
+			}
+			atomicAdd(&F[l + xb].phi, Gstore[i][l].phi);
 		}
-		atomicAdd(&F[l + xb].phi, Gstore[l].phi);
 	}
 }
 
@@ -295,8 +309,8 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
-PP_direct_kernel<<<dim3(units.size(),1,1),BLOCKSIZE,0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
-																					CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
+																												CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
@@ -312,11 +326,11 @@ PP_direct_kernel<<<dim3(units.size(),1,1),BLOCKSIZE,0,ctx.stream>>>(ctx.f,ctx.x,
 	return 0;
 }
 
-//#define MAXBLOCKSIZE 512
+//#define MAXWORKSIZE 512
 //
 //__global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y, std::pair<int, int> *yiters, int yiter_start, float m, float h, bool ewald) {
 //	const int i = blockIdx.x;
-//	const int blocksize = blockDim.x;
+//	const int WORKSIZE = blockDim.x;
 //	const int l = threadIdx.x;
 //	const float Hinv = 1.0 / h;
 //	const float H3inv = 1.0 / (h * h * h);
