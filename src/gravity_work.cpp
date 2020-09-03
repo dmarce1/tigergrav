@@ -110,23 +110,27 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	std::uint64_t flop = 0;
 	if (do_work) {
 
-		if (opts.cuda && cuda_thread_count() / std::max((int) thread_cnt, 1) < 4) {
+		if (opts.cuda && cuda_thread_count() / std::max((int) thread_cnt, 1) < 16) {
 			for (auto &unit : entry.cunits) {
-//				std::vector<std::pair<part_iter, part_iter>> tmp;
-//				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
-//					return a.first < b.first;
-//				});
-//				tmp.reserve(unit.yiters.size());
-//				tmp.push_back(unit.yiters[0]);
-//				for (int i = 1; i < unit.yiters.size(); i++) {
-//					if (tmp.back().second == unit.yiters[i].first) {
-//						tmp.back().second = unit.yiters[i].second;
-//					} else {
-//						tmp.push_back(unit.yiters[i]);
-//					}
-//				}
-//				printf("%i %i\n", unit.yiters.size(), tmp.size());
-//				unit.yiters = std::move(tmp);
+				std::vector<std::pair<part_iter, part_iter>> tmp;
+				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
+					return a.first < b.first;
+				});
+				constexpr int group_size = 128;
+				for (auto &this_iter : unit.yiters) {
+					const int this_size = this_iter.second - this_iter.first;
+					for (int j = this_iter.first; j < this_iter.second; j += group_size) {
+						std::pair<part_iter, part_iter> iter;
+						iter.first = j * group_size + this_iter.first;
+						iter.second = std::min(this_iter.second, (part_iter) ((j + 1) * group_size + this_iter.first));
+						tmp.push_back(iter);
+					}
+				}
+				unit.yiters = std::move(tmp);
+				//			printf("%i %i\n", unit.yiters.size(), tmp.size());
+				for (int i = 0; i < tmp.size(); i++) {
+					//			printf( "---%i\n", tmp[i].second - tmp[i].first);
+				}
 				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
 					const auto da = a.second - a.first;
 					const auto db = b.second - b.first;
