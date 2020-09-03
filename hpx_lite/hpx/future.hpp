@@ -137,7 +137,15 @@ public:
 		*this = std::move(other);
 	}
 
-	T get() {
+	const T& get() const {
+		std::lock_guard < hpx::mutex > lock(*ptr->mtx);
+		if (!ptr->ready) {
+			ptr->data = ptr->fut.get();
+			ptr->ready = true;
+		}
+		return ptr->data;
+	}
+	T& get() {
 		std::lock_guard < hpx::mutex > lock(*ptr->mtx);
 		if (!ptr->ready) {
 			ptr->data = ptr->fut.get();

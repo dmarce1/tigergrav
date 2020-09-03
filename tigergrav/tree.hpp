@@ -210,7 +210,7 @@ struct multipole_return {
 };
 
 class tree: public hpx::components::managed_component_base<tree> {
-	multipole_info multi;
+	multi_src multi;
 	std::array<vect<pos_type>, NCHILD> cx;
 	std::array<tree_client, NCHILD> children;
 	std::array<raw_tree_client, NCHILD> cnode;
@@ -222,7 +222,9 @@ class tree: public hpx::components::managed_component_base<tree> {
 	part_iter part_end;
 	std::array<float, NCHILD> cr;
 	std::array<check_flags, NCHILD> cflags;
+	std::uint64_t num_active;
 	int gwork_id;
+	float r;
 	struct {
 		std::uint32_t level :6;
 		std::uint32_t depth :6;
@@ -257,6 +259,8 @@ public:
 		flags.ldepth = tmp;
 		arc & gwork_id;
 		arc & multi;
+		arc & r;
+		arc & num_active;
 		arc & part_begin;
 		arc & part_end;
 		arc & children;

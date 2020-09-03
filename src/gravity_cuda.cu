@@ -46,10 +46,10 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 
 	__shared__ vect<pos_type>
 	X[NODESIZE];
+	__shared__ vect<pos_type>
+	Ymem[WORKSIZE][SYNCRATE];
 	__shared__ force
 	G[NWARP][WARPSIZE];
-	__shared__ force
-	Gstore[NWARP][NODESIZE];
 
 	const auto yb = yindex[ui];
 	const auto ye = yindex[ui + 1];
@@ -60,23 +60,20 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 	if (l < xsize) {
 		X[l] = x[xb + l];
 	}
-	if (l < NODESIZE) {
-		for (int i = 0; i < NWARP; i++) {
-			Gstore[i][l].g = vect<float>(0.0);
-			Gstore[i][l].phi = 0.0;
-		}
-	}
 	__syncthreads();
-	for (int i = xb; i < xe; i++) {
-		G[iwarp][n].phi = 0.0;
-		G[iwarp][n].g = vect<float>(0.0);
-		for (int yi = yb + l; yi < ymax; yi += WORKSIZE) {
+	for (int yi = yb + l; yi < ymax; yi += WORKSIZE) {
+		int jb, je;
+		if (yi < ye) {
+			jb = yiters[yi].first;
+			je = yiters[yi].second;
+			memcpy(Ymem[l], y + jb, (je - jb) * sizeof(vect<pos_type> ));
+		}
+		for (int i = xb; i < xe; i++) {
+			G[iwarp][n].phi = 0.0;
+			G[iwarp][n].g = vect<float>(0.0);
 			if (yi < ye) {
-				const auto &iter = yiters[yi];
-				const int yb = iter.first;
-				const int ye = iter.second;
-				for (int j = yb; j < ye; j++) {
-					const vect<pos_type> Y = y[j];
+				for (int j = jb; j < je; j++) {
+					const vect<pos_type> Y = Ymem[l][j - jb];
 					vect<float> dX;
 					if (ewald) {
 						for (int dim = 0; dim < NDIM; dim++) {
@@ -133,29 +130,25 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 					G[iwarp][n].phi += double(-p * m);    						// 10
 				}
 			}
-		}
-		for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
-			if (n < N) {
-				G[iwarp][n].g += G[iwarp][n + N].g;
-				G[iwarp][n].phi += G[iwarp][n + N].phi;
+			for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
+				if (n < N) {
+					G[iwarp][n].g += G[iwarp][n + N].g;
+					G[iwarp][n].phi += G[iwarp][n + N].phi;
+				}
 			}
-		}
-		if (n == 0) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				Gstore[iwarp][i - xb].g[dim] += G[iwarp][0].g[dim];
+			__syncthreads();
+			if (l == 0) {
+				for (int iw = 0; iw < NWARP; iw++) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						F[i].g[dim] += G[iw][0].g[dim];
+					}
+					F[i].phi += G[iw][0].phi;
+				}
 			}
-			Gstore[iwarp][i - xb].phi += G[iwarp][0].phi;
+			__syncthreads();
 		}
 	}
-	__syncthreads();
-	if (l < xsize) {
-		for (int i = 0; i < NWARP; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				atomicAdd(&F[l + xb].g[dim], Gstore[i][l].g[dim]);
-			}
-			atomicAdd(&F[l + xb].phi, Gstore[i][l].phi);
-		}
-	}
+
 }
 
 struct cuda_context {
@@ -310,7 +303,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
 PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
-																													CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+																																					CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}

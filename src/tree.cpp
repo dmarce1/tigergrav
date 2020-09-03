@@ -225,9 +225,12 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		for (int dim = 0; dim < NDIM; dim++) {
 			multi.x[dim] = double_to_pos(0.5 * (box.max[dim] - box.min[dim]));
 		}
-		multi.num_active = 0;
-		multi.r = 0.0;
-		rc.m = multi;
+		num_active = 0;
+		r = 0.0;
+		rc.m.m = multi.m;
+		rc.m.x = multi.x;
+		rc.m.r = r;
+		rc.m.r = num_active;
 		rc.r = box;
 		rc.c = get_check_item();
 		return rc;
@@ -236,7 +239,11 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		const auto com = part_vect_center_of_mass(part_begin, part_end);
 		rc.N = com.first;
 		multi.x = double_to_pos(com.second);
-		multi = part_vect_multipole_info(pos_to_double(multi.x), do_out ? 0 : mrung, part_begin, part_end);
+		auto tmp = part_vect_multipole_info(pos_to_double(multi.x), do_out ? 0 : mrung, part_begin, part_end);
+		multi.m = tmp.m;
+		multi.x = tmp.x;
+		r = tmp.r;
+		num_active = tmp.num_active;
 		prange = part_vect_range(part_begin, part_end);
 		flop += (part_end - part_begin) * 64;
 	} else {
@@ -259,13 +266,13 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		const auto mlmxdouble = pos_to_double(ml.m.x);
 		const auto mrmxdouble = pos_to_double(mr.m.x);
 		multi.m = (ml.m.m >> (mlmxdouble - multixdouble)) + (mr.m.m >> (mrmxdouble - multixdouble));
-		multi.num_active = ml.m.num_active + mr.m.num_active;
+		num_active = ml.m.num_active + mr.m.num_active;
 		if (ml.N == 0) {
-			multi.r = mr.m.r;
+			r = mr.m.r;
 		} else if (mr.N == 0) {
-			multi.r = ml.m.r;
+			r = ml.m.r;
 		} else {
-			multi.r = std::max(abs(mlmxdouble - multixdouble) + ml.m.r, abs(mrmxdouble - multixdouble) + mr.m.r);
+			r = std::max(abs(mlmxdouble - multixdouble) + ml.m.r, abs(mrmxdouble - multixdouble) + mr.m.r);
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
 			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
@@ -279,7 +286,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.min[1], prange.max[2] })));
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
-		multi.r = std::min(multi.r, (float) rmax);
+		r = std::min(r, (float) rmax);
 		cnode[0] = ml.c.node;
 		cnode[1] = mr.c.node;
 		cx[0] = ml.c.x;
@@ -293,14 +300,17 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		cflags[0] = ml.c.flags;
 		cflags[1] = mr.c.flags;
 	}
-	if (multi.num_active && is_leaf()) {
+	if (num_active && is_leaf()) {
 		gwork_checkin(gwork_id);
 	}
-	rc.m = multi;
+	rc.m.m = multi.m;
+	rc.m.x = multi.x;
+	rc.m.r = r;
+	rc.m.num_active =num_active;
 	rc.r = prange;
 	rc.c = get_check_item();
 	if (flags.level == 0) {
-		pct_active = (double) multi.num_active / (double) opts.problem_size;
+		pct_active = (double) num_active / (double) opts.problem_size;
 	}
 	return rc;
 }
@@ -321,10 +331,7 @@ node_attr tree::get_node_attributes() const {
 }
 
 multi_src tree::get_multi_srcs() const {
-	multi_src attr;
-	attr.m = multi.m;
-	attr.x = multi.x;
-	return attr;
+	return multi;
 }
 
 check_item tree::get_check_item() const {
@@ -338,7 +345,7 @@ check_item tree::get_check_item() const {
 	check.pbegin = part_begin;
 	check.pend = part_end;
 	check.x = multi.x;
-	check.r = multi.r;
+	check.r = r;
 	check.node = raw_tree_client(id);
 	return check;
 }
@@ -403,7 +410,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 		part_vect_reset();
 	}
 
-	if ((part_end - part_begin == 0) || (!multi.num_active && !do_out)) {
+	if ((part_end - part_begin == 0) || (!num_active && !do_out)) {
 		return istats;
 	}
 
@@ -436,7 +443,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 			continue;
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-		const bool far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
+		const bool far = dx > (r + c.r) * theta_inv && dx > (r + c.r + h);
 		if (far) {
 			if (c.flags.opened) {
 				dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -460,10 +467,10 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 				continue;
 			}
 			const auto dX = multixdouble - pos_to_double(c.x);
-			const auto dx = ewald_far_separation(dX, multi.r);
+			const auto dx = ewald_far_separation(dX, r);
 			bool far;
 			if (dX.dot(dX) > 0.0) {
-				far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
+				far = dx > (r + c.r) * theta_inv && dx > (r + c.r + h);
 			} else {
 				far = rmax < r_ewald;
 			}
@@ -544,7 +551,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 					continue;
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-				const bool far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
+				const bool far = dx > (r + c.r) * theta_inv && dx > (r + c.r + h);
 				;
 				if (c.flags.opened) {
 					dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
@@ -578,10 +585,10 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 						continue;
 					}
 					const auto dX = multixdouble - pos_to_double(c.x);
-					const auto dx = ewald_far_separation(dX, multi.r);
+					const auto dx = ewald_far_separation(dX, r);
 					bool far;
 					if (dX.dot(dX) > 0.0) {
-						far = dx > (multi.r + c.r) * theta_inv && dx > (multi.r + c.r + h);
+						far = dx > (r + c.r) * theta_inv && dx > (r + c.r + h);
 					} else {
 						far = rmax < r_ewald;
 					}
@@ -686,7 +693,7 @@ void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 			continue;
 		}
 		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-		bool far = dx > multi.r + c.r + L;
+		bool far = dx > r + c.r + L;
 		far = far || !ranges_intersect(myrange, box_id_to_range(c.boxid));
 		if (!far) {
 			if (c.flags.is_leaf) {
@@ -721,7 +728,7 @@ void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 					continue;
 				}
 				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-				bool far = dx > multi.r + c.r + L;
+				bool far = dx > r + c.r + L;
 				far = far || !ranges_intersect(myrange, box_id_to_range(c.boxid));
 				if (c.flags.opened) {
 					const auto other_range = part_vect_range(c.pbegin, c.pend);
