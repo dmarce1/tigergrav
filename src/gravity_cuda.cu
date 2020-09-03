@@ -28,123 +28,120 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 	CUDA_CHECK(cudaMemcpy(y_vect, parts.data(), size * sizeof(vect<pos_type> ), cudaMemcpyHostToDevice));
 }
 
-#define BLOCKSIZE 64
-#define GRIDSIZE 64
+#define BLOCKSIZE 256
 
 __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y, std::pair<part_iter, part_iter> *yiters, int *xindex, int *yindex, float m,
 		float h, bool ewald) {
 
 	const int ui = blockIdx.x;
-	const int si = blockIdx.y;
 	const int l = threadIdx.x;
 	const float Hinv = 1.0 / h;
-	const float H3inv = 1.0 / (h * h * h);
+	const float H3inv = Hinv * Hinv * Hinv;
 
 	__shared__
 	char shmem[2 * sizeof(force) * BLOCKSIZE + sizeof(vect<pos_type> ) * BLOCKSIZE];
-
 	auto *X = reinterpret_cast<vect<pos_type>*>(shmem);
 	auto *G = reinterpret_cast<force*>(shmem + sizeof(vect<pos_type> ) * BLOCKSIZE);
-	auto *Gstore = reinterpret_cast<force*>(shmem + sizeof(force) * BLOCKSIZE + sizeof(vect<pos_type> ) * BLOCKSIZE);
-
-	int xb = xindex[ui];
-	int xe = xindex[ui + 1];
-	if (l < xe - xb) {
-		X[l] = x[xindex[ui] + l];
+	auto *Gstore = reinterpret_cast<force*>(shmem + (sizeof(force) + sizeof(vect<pos_type> )) * BLOCKSIZE);
+	const auto yb = yindex[ui];
+	const auto ye = yindex[ui + 1];
+	const auto xb = xindex[ui];
+	const auto xe = xindex[ui + 1];
+	const auto xsize = xe - xb;
+	const auto ymax = ((ye - yb - 1) / BLOCKSIZE + 1) * BLOCKSIZE + yb;
+	if (l < xsize) {
+		X[l] = x[xb + l];
+		Gstore[l].g = vect<float>(0.0);
+		Gstore[l].phi = 0.0;
 	}
-	for( int dim = 0; dim < NDIM; dim++) {
-		Gstore[l].g[dim] = 0.0;
-	}
-	Gstore[l].phi = 0.0;
-	__syncthreads();
-	for (int yi = yindex[ui] + si; yi < yindex[ui + 1]; yi += GRIDSIZE) {
-		int yb = yiters[yi].first;
-		int ye = yiters[yi].second;
-		for (int i = 0; i < xe - xb; i++) {
-			if (l < ye - yb) {
-				vect<pos_type> Y = y[yb + l];
-				vect<float> dX;
-				if (ewald) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						dX[dim] = float(double(X[i][dim] - Y[dim]) * double(POS_INV));
+	for (int yi = yb + l; yi < ymax; yi += BLOCKSIZE) {
+		for (int i = xb; i < xe; i++) {
+			G[l].phi = 0.0;
+			G[l].g = vect<float>(0.0);
+			if (yi < ye) {
+				const auto &iter = yiters[yi];
+				const int yb = iter.first;
+				const int ye = iter.second;
+				for (int j = yb; j < ye; j++) {
+					const vect<pos_type> Y = y[j];
+					vect<float> dX;
+					if (ewald) {
+						for (int dim = 0; dim < NDIM; dim++) {
+							dX[dim] = float(double(X[i - xindex[ui]][dim] - Y[dim]) * double(POS_INV));
+						}
+					} else {
+						for (int dim = 0; dim < NDIM; dim++) {
+							dX[dim] = float(double(X[i - xindex[ui]][dim]) * double(POS_INV) - double(Y[dim]) * double(POS_INV));
+						}
 					}
-				} else {
-					for (int dim = 0; dim < NDIM; dim++) {
-						dX[dim] = float(double(X[i][dim]) * double(POS_INV) - double(Y[dim]) * double(POS_INV));
+					const float r2 = dX.dot(dX);								   // 5
+					const float r = sqrt(r2);									   // 7
+					const float rinv = float(1) / max(r, 0.5 * h);             //36
+					const float rinv3 = rinv * rinv * rinv;                       // 2
+					float f, p;
+					if (r > h) {
+						f = rinv3;
+						p = rinv;
+					} else if (r > 0.5 * h) {
+						const float roh = min(r * Hinv, 1.0);                           // 2
+						const float roh2 = roh * roh;                                 // 1
+						const float roh3 = roh2 * roh;                                // 1
+						f = float(-32.0 / 3.0);
+						f = f * roh + float(+192.0 / 5.0);						// 1
+						f = f * roh + float(-48.0);								// 1
+						f = f * roh + float(+64.0 / 3.0);						// 1
+						f = f * roh3 + float(-1.0 / 15.0);						// 1
+						f *= rinv3;														// 1
+						p = float(+32.0 / 15.0);						// 1
+						p = p * roh, float(-48.0 / 5.0);					// 1
+						p = p * roh, float(+16.0);							// 1
+						p = p * roh, float(-32.0 / 3.0);					// 1
+						p = p * roh2, float(+16.0 / 5.0);					// 1
+						p = p * roh, float(-1.0 / 15.0);					// 1
+						p *= rinv;                                                    	// 1
+					} else {
+						const float roh = min(r * Hinv, 1.0);                           // 2
+						const float roh2 = roh * roh;                                 // 1
+						f = float(+32.0);
+						f = f * roh + float(-192.0 / 5.0);						// 1
+						f = f * roh2 + float(+32.0 / 3.0);						// 1
+						f *= H3inv;                                                       	// 1
+						p = float(-32.0 / 5.0);
+						p = p * roh, float(+48.0 / 5.0);					// 1
+						p = p * roh2, float(-16.0 / 3.0);					// 1
+						p = p * roh2, float(+14.0 / 5.0);					// 1
+						p *= Hinv;														// 1
 					}
+					const auto dXM = dX * m;
+					for (int dim = 0; dim < NDIM; dim++) {
+						G[l].g[dim] += double(-dXM[dim] * f);    						// 15
+					}
+					// 13S + 2D = 15
+					G[l].phi += double(-p * m);    						// 10
 				}
-				const float r2 = dX.dot(dX);								   // 5
-				const float r = sqrt(r2);									   // 7
-				const float rinv = float(1) / max(r, 0.5 * h);             //36
-				const float rinv3 = rinv * rinv * rinv;                       // 2
-				float f, p;
-				if (r > h) {
-					f = rinv3;
-					p = rinv;
-				} else if (r > 0.5 * h) {
-					const float roh = min(r * Hinv, 1.0);                           // 2
-					const float roh2 = roh * roh;                                 // 1
-					const float roh3 = roh2 * roh;                                // 1
-					f = float(-32.0 / 3.0);
-					f = f * roh + float(+192.0 / 5.0);						// 1
-					f = f * roh + float(-48.0);								// 1
-					f = f * roh + float(+64.0 / 3.0);						// 1
-					f = f * roh3 + float(-1.0 / 15.0);						// 1
-					f *= rinv3;														// 1
-					p = float(+32.0 / 15.0);						// 1
-					p = p * roh, float(-48.0 / 5.0);					// 1
-					p = p * roh, float(+16.0);							// 1
-					p = p * roh, float(-32.0 / 3.0);					// 1
-					p = p * roh2, float(+16.0 / 5.0);					// 1
-					p = p * roh, float(-1.0 / 15.0);					// 1
-					p *= rinv;                                                    	// 1
-				} else {
-					const float roh = min(r * Hinv, 1.0);                           // 2
-					const float roh2 = roh * roh;                                 // 1
-					f = float(+32.0);
-					f = f * roh + float(-192.0 / 5.0);						// 1
-					f = f * roh2 + float(+32.0 / 3.0);						// 1
-					f *= H3inv;                                                       	// 1
-					p = float(-32.0 / 5.0);
-					p = p * roh, float(+48.0 / 5.0);					// 1
-					p = p * roh2, float(-16.0 / 3.0);					// 1
-					p = p * roh2, float(+14.0 / 5.0);					// 1
-					p *= Hinv;														// 1
-				}
-				const auto dXM = dX * m;
-				for (int dim = 0; dim < NDIM; dim++) {
-					G[l].g[dim] = double(-dXM[dim] * f);    						// 15
-				}
-				// 13S + 2D = 15
-				G[l].phi = double(-p * m);    						// 10
 			}
 			__syncthreads();
 			for (int N = BLOCKSIZE / 2; N > 0; N >>= 1) {
 				if (l < N) {
-					if (l + N < ye - yb) {
-						G[l].g += G[l + N].g;
-						G[l].phi += G[l + N].phi;
-					}
+					G[l].g += G[l + N].g;
+					G[l].phi += G[l + N].phi;
 				}
 				__syncthreads();
 			}
 			if (l == 0) {
-				for( int dim = 0; dim < NDIM; dim++) {
-					Gstore[i].g[dim] += G[0].g[dim];
+				for (int dim = 0; dim < NDIM; dim++) {
+					Gstore[i - xb].g[dim] += G[0].g[dim];
 				}
-				Gstore[i].phi += G[0].phi;
+				Gstore[i - xb].phi += G[0].phi;
 			}
 		}
 	}
-	__syncthreads();
-	if (l < xe - xb) {
+	if (l < xsize) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			atomicAdd(&(F[xindex[ui] + l].g[dim]), Gstore[l].g[dim]);    						// 15
+			atomicAdd(&F[l + xb].g[dim],Gstore[l].g[dim]);
 		}
-		// 13S + 2D = 15
-		atomicAdd(&(F[xindex[ui] + l].phi), Gstore[l].phi);    						// 10
+		atomicAdd(&F[l + xb].phi, Gstore[l].phi);
 	}
-	__syncthreads();
 }
 
 struct cuda_context {
@@ -298,8 +295,8 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
-	PP_direct_kernel<<<dim3(units.size(),GRIDSIZE,1),BLOCKSIZE,0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
-	CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+PP_direct_kernel<<<dim3(units.size(),1,1),BLOCKSIZE,0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
+																					CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}

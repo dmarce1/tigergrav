@@ -121,6 +121,8 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				});
 
 				std::pair<part_iter, part_iter> iter;
+
+				int group_size = 8;
 				tmp.push_back(unit.yiters[0]);
 				for (int i = 1; i < unit.yiters.size(); i++) {
 					if (tmp.back().second == unit.yiters[i].first) {
@@ -129,12 +131,8 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 						tmp.push_back(unit.yiters[i]);
 					}
 				}
-//				for (int i = 0; i < tmp.size(); i++) {
-//							printf( "---%i\n", tmp[i].second - tmp[i].first);
-//				}
 				unit.yiters = std::move(tmp);
 
-				constexpr int group_size = 64;
 				for (auto &this_iter : unit.yiters) {
 					const int this_size = this_iter.second - this_iter.first;
 					const int ngroups = (this_size - 1) / group_size + 1;
@@ -145,6 +143,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 						tmp.push_back(iter);
 					}
 				}
+				//			printf( "%i\n", tmp.size());
 				unit.yiters = std::move(tmp);
 				//			printf("%i %i\n", unit.yiters.size(), tmp.size());
 				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
