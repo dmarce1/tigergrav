@@ -134,7 +134,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 //				}
 				unit.yiters = std::move(tmp);
 
-				constexpr int group_size = 8;
+				constexpr int group_size = 64;
 				for (auto &this_iter : unit.yiters) {
 					const int this_size = this_iter.second - this_iter.first;
 					const int ngroups = (this_size - 1) / group_size + 1;

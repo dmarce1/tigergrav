@@ -22,7 +22,7 @@ find_package(Silo REQUIRED)
 find_package(Boost REQUIRED)
 enable_language(CUDA)
 
-set(CMAKE_CXX_FLAGS "-march=native")
+set(CMAKE_CXX_FLAGS "-O3 -march=native")
 
 set(tigergrav_source_files
 	src/cosmo.cpp
@@ -133,6 +133,12 @@ target_compile_options(tigergrav PUBLIC "-DUSE_HPX")
 target_include_directories(tigergrav_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_compile_options(tigergrav_lite PUBLIC "-DHPX_LITE")
 #target_compile_options(tigergrav_lite PUBLIC "-march=native")
+target_compile_options(tigergrav_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                       --gpu-architecture=compute_75
+                        >)
+target_compile_options(tigergrav PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                       --gpu-architecture=compute_75
+                        >)
 
 target_include_directories(test PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(test PUBLIC -O3 -march=native)

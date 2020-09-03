@@ -38,31 +38,33 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 	const float Hinv = 1.0 / h;
 	const float H3inv = 1.0 / (h * h * h);
 
-	__shared__ vect<pos_type>
-	Y[64];
+	__shared__
+	char shmem[2 * sizeof(force) * BLOCKSIZE + sizeof(vect<pos_type> ) * BLOCKSIZE];
 
-	register vect<pos_type> X;
-	if (l < xindex[ui + 1] - xindex[ui]) {
-		X = x[xindex[ui] + l];
+	auto *X = reinterpret_cast<vect<pos_type>*>(shmem);
+	auto *G = reinterpret_cast<force*>(shmem + sizeof(vect<pos_type> ) * BLOCKSIZE);
+	auto *Gstore = reinterpret_cast<force*>(shmem + sizeof(force) * BLOCKSIZE + sizeof(vect<pos_type> ) * BLOCKSIZE);
+
+	int xb = xindex[ui];
+	int xe = xindex[ui + 1];
+	if (l < xe - xb) {
+		X[l] = x[xindex[ui] + l];
 	}
+	__syncthreads();
 	for (int yi = yindex[ui]; yi < yindex[ui + 1]; yi++) {
-		part_iter yb, ye;
-		yb = yiters[yi].first;
-		ye = yiters[yi].second;
-		if (l < ye - yb) {
-			Y[l] = y[yb + l];
-		}
-		__syncthreads();
-		if (l < xindex[ui + 1] - xindex[ui]) {
-			for (int j = 0; j < ye - yb; j++) {
+		int yb = yiters[yi].first;
+		int ye = yiters[yi].second;
+		for (int i = 0; i < xe - xb; i++) {
+			if (l < ye - yb) {
+				vect<pos_type> Y = y[yb + l];
 				vect<float> dX;
 				if (ewald) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						dX[dim] = float(double(X[dim] - Y[j][dim]) * double(POS_INV));
+						dX[dim] = float(double(X[i][dim] - Y[dim]) * double(POS_INV));
 					}
 				} else {
 					for (int dim = 0; dim < NDIM; dim++) {
-						dX[dim] = float(double(X[dim]) * double(POS_INV) - double(Y[j][dim]) * double(POS_INV));
+						dX[dim] = float(double(X[i][dim]) * double(POS_INV) - double(Y[dim]) * double(POS_INV));
 					}
 				}
 				const float r2 = dX.dot(dX);								   // 5
@@ -105,12 +107,34 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 				}
 				const auto dXM = dX * m;
 				for (int dim = 0; dim < NDIM; dim++) {
-					F[xindex[ui] + l].g[dim] -= double(dXM[dim] * f);    						// 15
+					G[l].g[dim] = double(-dXM[dim] * f);    						// 15
 				}
 				// 13S + 2D = 15
-				F[xindex[ui] + l ].phi -= p * m;    						// 10
+				G[l].phi = double(-p * m);    						// 10
+			}
+			__syncthreads();
+			for (int N = BLOCKSIZE / 2; N > 0; N >>= 1) {
+				if (l < N) {
+					if (l + N < ye - yb) {
+						G[l].g += G[l + N].g;
+						G[l].phi += G[l + N].phi;
+					}
+				}
+				__syncthreads();
+			}
+			if (l == 0) {
+				Gstore[i] = G[0];
 			}
 		}
+		__syncthreads();
+		if (l < xe - xb) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				atomicAdd(&(F[xindex[ui] + l].g[dim]), Gstore[l].g[dim]);    						// 15
+			}
+			// 13S + 2D = 15
+			atomicAdd(&(F[xindex[ui] + l].phi), Gstore[l].phi);    						// 10
+		}
+		__syncthreads();
 	}
 }
 
@@ -266,7 +290,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
 PP_direct_kernel<<<units.size(),BLOCKSIZE,0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
-																									CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+																																						CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
