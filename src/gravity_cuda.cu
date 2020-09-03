@@ -61,16 +61,16 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 		X[l] = x[xb + l];
 	}
 	if (l < NODESIZE) {
-		for( int i = 0; i < NWARP; i++) {
+		for (int i = 0; i < NWARP; i++) {
 			Gstore[i][l].g = vect<float>(0.0);
 			Gstore[i][l].phi = 0.0;
 		}
 	}
 	__syncthreads();
-	for (int yi = yb + l; yi < ymax; yi += WORKSIZE) {
-		for (int i = xb; i < xe; i++) {
-			G[iwarp][n].phi = 0.0;
-			G[iwarp][n].g = vect<float>(0.0);
+	for (int i = xb; i < xe; i++) {
+		G[iwarp][n].phi = 0.0;
+		G[iwarp][n].g = vect<float>(0.0);
+		for (int yi = yb + l; yi < ymax; yi += WORKSIZE) {
 			if (yi < ye) {
 				const auto &iter = yiters[yi];
 				const int yb = iter.first;
@@ -133,18 +133,18 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 					G[iwarp][n].phi += double(-p * m);    						// 10
 				}
 			}
-			for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
-				if (n < N) {
-					G[iwarp][n].g += G[iwarp][n + N].g;
-					G[iwarp][n].phi += G[iwarp][n + N].phi;
-				}
+		}
+		for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
+			if (n < N) {
+				G[iwarp][n].g += G[iwarp][n + N].g;
+				G[iwarp][n].phi += G[iwarp][n + N].phi;
 			}
-			if (n == 0) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					Gstore[iwarp][i - xb].g[dim] += G[iwarp][0].g[dim];
-				}
-				Gstore[iwarp][i - xb].phi += G[iwarp][0].phi;
+		}
+		if (n == 0) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Gstore[iwarp][i - xb].g[dim] += G[iwarp][0].g[dim];
 			}
+			Gstore[iwarp][i - xb].phi += G[iwarp][0].phi;
 		}
 	}
 	__syncthreads();
@@ -310,7 +310,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
 PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
-																												CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+																													CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
