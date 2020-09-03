@@ -81,11 +81,11 @@ inline T& multipole<T>::operator ()(int i, int j, int k) {
 	return (*this)[7 + map3[i][j][k]];
 }
 
+#include <cstring>
+
 template<class T>
 inline multipole<T>& multipole<T>::operator =(const multipole<T> &other) {
-	for (int i = 0; i < MP; i++) {
-		(*this)[i] = other[i];
-	}
+	memcpy(&(*this)[0], &other[0], MP * sizeof(float));
 	return *this;
 }
 

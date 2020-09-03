@@ -121,7 +121,7 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SI
 	}
 }
 
-template<class SINGLE, class DOUBLE> // 516 / 251466
+template<class DOUBLE, class SINGLE> // 516 / 251466
 inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
 	static const expansion_factors<SINGLE> expansion_factor;
 	expansion<SINGLE> D;
