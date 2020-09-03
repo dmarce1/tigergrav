@@ -169,7 +169,7 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 	}
 }
 
-std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<const multi_src*> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -187,19 +187,24 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = y[cnt1 - 1].x;
-	}
+	std::array<multi_src, simd_float::size()> ystage;
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
-		for (int n = 0; n < MP; n++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				M[n][k] = y[j + k].m[n];
+		for (int k = 0; k < simd_float::size(); k++) {
+			if (j + k < cnt1) {
+				ystage[k] = *y[j + k];
+			} else {
+				ystage[k].m = 0.0;
+				ystage[k].x = y[cnt1 - 1]->x;
 			}
 		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				Y[dim][k] = y[j + k].x[dim];
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int n = 0; n < MP; n++) {
+				M[n][k] = ystage[k].m[n];
+			}
+		}
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = ystage[k].x[dim];
 			}
 		}
 		for (int i = 0; i < x.size(); i++) {
@@ -235,7 +240,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 	return 581 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -255,23 +260,27 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, s
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = y[cnt1 - 1].x;
-	}
-
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = x[dim];
 	}
+	std::array<multi_src, simd_float::size()> ystage;
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
-		for (int n = 0; n < MP; n++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				M[n][k] = y[j + k].m[n];
+		for (int k = 0; k < simd_float::size(); k++) {
+			if (j + k < cnt1) {
+				ystage[k] = *y[j + k];
+			} else {
+				ystage[k].m = 0.0;
+				ystage[k].x = y[cnt1 - 1]->x;
 			}
 		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				Y[dim][k] = y[j + k].x[dim];
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int n = 0; n < MP; n++) {
+				M[n][k] = ystage[k].m[n];
+			}
+		}
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = ystage[k].x[dim];
 			}
 		}
 
@@ -483,7 +492,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 	return 56245 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<const multi_src*> &y) {
 	if (x.size() == 0) {
 		return 0;
 	}
@@ -504,19 +513,24 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = y[cnt1 - 1].x;
-	}
+	std::array<multi_src, simd_float::size()> ystage;
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
-		for (int n = 0; n < MP; n++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				M[n][k] = y[j + k].m[n];
+		for (int k = 0; k < simd_float::size(); k++) {
+			if (j + k < cnt1) {
+				ystage[k] = *y[j + k];
+			} else {
+				ystage[k].m = 0.0;
+				ystage[k].x = y[cnt1 - 1]->x;
 			}
 		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				Y[dim][k] = y[j + k].x[dim];
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int n = 0; n < MP; n++) {
+				M[n][k] = ystage[k].m[n];
+			}
+		}
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = ystage[k].x[dim];
 			}
 		}
 		for (int i = 0; i < x.size(); i++) {
@@ -547,7 +561,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	return 251531 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, std::vector<multi_src> &y) {
+std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -567,23 +581,28 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, st
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
-	for (int j = cnt1; j < cnt2; j++) {
-		y[j].m = 0.0;
-		y[j].x = y[cnt1 - 1].x;
-	}
 
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = x[dim];
 	}
+	std::array<multi_src, simd_float::size()> ystage;
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
-		for (int n = 0; n < MP; n++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				M[n][k] = y[j + k].m[n];
+		for (int k = 0; k < simd_float::size(); k++) {
+			if (j + k < cnt1) {
+				ystage[k] = *y[j + k];
+			} else {
+				ystage[k].m = 0.0;
+				ystage[k].x = y[cnt1 - 1]->x;
 			}
 		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			for (int k = 0; k < simd_float::size(); k++) {
-				Y[dim][k] = y[j + k].x[dim];
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int n = 0; n < MP; n++) {
+				M[n][k] = ystage[k].m[n];
+			}
+		}
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim][k] = ystage[k].x[dim];
 			}
 		}
 		vect<simd_float> dX;

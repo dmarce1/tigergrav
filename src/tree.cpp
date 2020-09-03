@@ -361,7 +361,7 @@ struct workspace {
 	std::vector<future_data<const multi_src*>> emulti_futs;
 	std::vector<std::pair<part_iter, part_iter>> dsource_iters;
 	std::vector<std::pair<part_iter, part_iter>> esource_iters;
-	std::vector<multi_src> multi_srcs;
+	std::vector<const multi_src*> multi_srcs;
 
 };
 
@@ -493,7 +493,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	}
 	multi_srcs.resize(0);
 	for (auto &v : dmulti_futs) {
-		multi_srcs.push_back(*v.get());
+		multi_srcs.push_back(v.get());
 	}
 	flop += gravity_CC_direct(L, multi.x, multi_srcs);
 	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters));
@@ -502,7 +502,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	if (opts.ewald) {
 		multi_srcs.resize(0);
 		for (auto &v : emulti_futs) {
-			multi_srcs.push_back(*v.get());
+			multi_srcs.push_back(v.get());
 		}
 		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
 		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters));
@@ -628,7 +628,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 		}
 		multi_srcs.resize(0);
 		for (auto &v : dmulti_futs) {
-			multi_srcs.push_back(*v.get());
+			multi_srcs.push_back(v.get());
 		}
 		flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
 //		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
@@ -637,7 +637,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 		if (opts.ewald) {
 			multi_srcs.resize(0);
 			for (auto &v : emulti_futs) {
-				multi_srcs.push_back(*v.get());
+				multi_srcs.push_back(v.get());
 			}
 			flop += gravity_PC_ewald(*fptr, *xptr, multi_srcs);
 //			printf( "%i\n", esource_iters.size());
