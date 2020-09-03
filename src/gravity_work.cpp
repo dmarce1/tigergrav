@@ -51,6 +51,11 @@ struct gwork_group {
 		workadded = 0;
 		first_call = true;
 	}
+	void free() {
+		decltype(units)().swap(units);
+		decltype(cunits)().swap(cunits);
+		decltype(complete)().swap(complete);
+	}
 };
 
 #define GROUP_TABLE_SIZE 999
@@ -71,7 +76,6 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	unit.fptr = g;
 	unit.xptr = x;
 	const int gi = id % GROUP_TABLE_SIZE;
-	std::unique_lock<mutex_type> lock(groups_mtx[gi]);
 	auto iter = groups[gi].find(id);
 	if (iter == groups[gi].end()) {
 		printf("Error - work group %i not found\n", id);
@@ -101,7 +105,6 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	entry.complete.push_back(std::move(complete));
 	entry.workadded++;
 	do_work = entry.workadded == entry.mcount;
-	lock.unlock();
 	if (entry.workadded > entry.mcount) {
 		printf("Error too much work added %i %i %i\n", id, entry.workadded, entry.mcount);
 		abort();
@@ -116,21 +119,34 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
 					return a.first < b.first;
 				});
-				constexpr int group_size = 128;
+
+				std::pair<part_iter, part_iter> iter;
+				tmp.push_back(unit.yiters[0]);
+				for (int i = 1; i < unit.yiters.size(); i++) {
+					if (tmp.back().second == unit.yiters[i].first) {
+						tmp.back().second = unit.yiters[i].second;
+					} else {
+						tmp.push_back(unit.yiters[i]);
+					}
+				}
+//				for (int i = 0; i < tmp.size(); i++) {
+//							printf( "---%i\n", tmp[i].second - tmp[i].first);
+//				}
+				unit.yiters = std::move(tmp);
+
+				constexpr int group_size = 8;
 				for (auto &this_iter : unit.yiters) {
 					const int this_size = this_iter.second - this_iter.first;
+					const int ngroups = (this_size - 1) / group_size + 1;
+					const int this_group_size = (this_size - 1) / ngroups + 1;
 					for (int j = this_iter.first; j < this_iter.second; j += group_size) {
-						std::pair<part_iter, part_iter> iter;
-						iter.first = j * group_size + this_iter.first;
-						iter.second = std::min(this_iter.second, (part_iter) ((j + 1) * group_size + this_iter.first));
+						iter.first = j;
+						iter.second = std::min(this_iter.second, (part_iter) (j + group_size));
 						tmp.push_back(iter);
 					}
 				}
 				unit.yiters = std::move(tmp);
 				//			printf("%i %i\n", unit.yiters.size(), tmp.size());
-				for (int i = 0; i < tmp.size(); i++) {
-					//			printf( "---%i\n", tmp[i].second - tmp[i].first);
-				}
 				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
 					const auto da = a.second - a.first;
 					const auto db = b.second - b.first;
@@ -325,8 +341,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 		}
 		hpx::wait_all(futs.begin(), futs.end());
 		const int gi = id % GROUP_TABLE_SIZE;
-		std::lock_guard < mutex_type > lock(groups_mtx[gi]);
-		groups[gi].erase(id);
+		entry.free();
 
 	}
 	return flop;
