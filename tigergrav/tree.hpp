@@ -141,7 +141,7 @@ public:
 	raw_tree_client() = default;
 	raw_tree_client(raw_id_type ptr_);
 	future_data<node_attr> get_node_attributes() const;
-	future_data<multi_src> get_multi_srcs() const;
+	future_data<const multi_src*> get_multi_srcs() const;
 	int get_locality() const {
 		return ptr.loc_id;
 	}
@@ -291,7 +291,7 @@ public:
 	bool is_leaf() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int workid, int stack_cnt);
 	node_attr get_node_attributes() const;
-	multi_src get_multi_srcs() const;
+	const multi_src* get_multi_srcs() const;
 	double drift(double,rung_type);
 	interaction_stats kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_ccnt);

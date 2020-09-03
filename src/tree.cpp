@@ -330,8 +330,8 @@ node_attr tree::get_node_attributes() const {
 	return attr;
 }
 
-multi_src tree::get_multi_srcs() const {
-	return multi;
+const multi_src* tree::get_multi_srcs() const {
+	return &multi;
 }
 
 check_item tree::get_check_item() const {
@@ -357,8 +357,8 @@ bool tree::is_leaf() const {
 struct workspace {
 	std::vector<future_data<node_attr>> dfuts;
 	std::vector<future_data<node_attr>> efuts;
-	std::vector<future_data<multi_src>> dmulti_futs;
-	std::vector<future_data<multi_src>> emulti_futs;
+	std::vector<future_data<const multi_src*>> dmulti_futs;
+	std::vector<future_data<const multi_src*>> emulti_futs;
 	std::vector<std::pair<part_iter, part_iter>> dsource_iters;
 	std::vector<std::pair<part_iter, part_iter>> esource_iters;
 	std::vector<multi_src> multi_srcs;
@@ -493,7 +493,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	}
 	multi_srcs.resize(0);
 	for (auto &v : dmulti_futs) {
-		multi_srcs.push_back(v.get());
+		multi_srcs.push_back(*v.get());
 	}
 	flop += gravity_CC_direct(L, multi.x, multi_srcs);
 	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters));
@@ -502,7 +502,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	if (opts.ewald) {
 		multi_srcs.resize(0);
 		for (auto &v : emulti_futs) {
-			multi_srcs.push_back(v.get());
+			multi_srcs.push_back(*v.get());
 		}
 		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
 		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters));
@@ -628,7 +628,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 		}
 		multi_srcs.resize(0);
 		for (auto &v : dmulti_futs) {
-			multi_srcs.push_back(v.get());
+			multi_srcs.push_back(*v.get());
 		}
 		flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
 //		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
@@ -637,7 +637,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 		if (opts.ewald) {
 			multi_srcs.resize(0);
 			for (auto &v : emulti_futs) {
-				multi_srcs.push_back(v.get());
+				multi_srcs.push_back(*v.get());
 			}
 			flop += gravity_PC_ewald(*fptr, *xptr, multi_srcs);
 //			printf( "%i\n", esource_iters.size());
@@ -883,13 +883,13 @@ HPX_PLAIN_ACTION(get_multi_srcs_, get_multi_srcs_action);
 
 hpx::future<multi_src> get_multi_srcs_(raw_id_type id) {
 	if (myid == id.loc_id) {
-		return hpx::make_ready_future(reinterpret_cast<tree*>(id.ptr)->get_multi_srcs());
+		return hpx::make_ready_future(*reinterpret_cast<tree*>(id.ptr)->get_multi_srcs());
 	} else {
 		return hpx::async < get_multi_srcs_action > (localities[id.loc_id], id);
 	}
 }
 
-hpx::future<multi_src> read_multipole_cache(raw_id_type id) {
+hpx::future<const multi_src*> read_multipole_cache(raw_id_type id) {
 	const int index = raw_id_type_hash()(id) % NODE_CACHE_SIZE;
 	std::unique_lock<mutex_type> lock(multipole_cache_mtx[index]);
 	auto iter = multipole_cache[index].find(id);
@@ -906,12 +906,12 @@ hpx::future<multi_src> read_multipole_cache(raw_id_type id) {
 		std::unique_lock<mutex_type> lock(multipole_cache_mtx[index]);
 		auto future = multipole_cache[index][id];
 		lock.unlock();
-		return future.get();
+		return (const multi_src*)&future.get();
 	});
 }
 
-future_data<multi_src> raw_tree_client::get_multi_srcs() const {
-	future_data<multi_src> data;
+future_data<const multi_src*> raw_tree_client::get_multi_srcs() const {
+	future_data<const multi_src*> data;
 	if (myid == ptr.loc_id) {
 		tree *tree_ptr = reinterpret_cast<tree*>(ptr.ptr);
 		data.data = tree_ptr->get_multi_srcs();
