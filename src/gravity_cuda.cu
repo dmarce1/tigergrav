@@ -29,11 +29,13 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 }
 
 #define BLOCKSIZE 64
+#define GRIDSIZE 64
 
 __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y, std::pair<part_iter, part_iter> *yiters, int *xindex, int *yindex, float m,
 		float h, bool ewald) {
 
 	const int ui = blockIdx.x;
+	const int si = blockIdx.y;
 	const int l = threadIdx.x;
 	const float Hinv = 1.0 / h;
 	const float H3inv = 1.0 / (h * h * h);
@@ -50,8 +52,12 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 	if (l < xe - xb) {
 		X[l] = x[xindex[ui] + l];
 	}
+	for( int dim = 0; dim < NDIM; dim++) {
+		Gstore[l].g[dim] = 0.0;
+	}
+	Gstore[l].phi = 0.0;
 	__syncthreads();
-	for (int yi = yindex[ui]; yi < yindex[ui + 1]; yi++) {
+	for (int yi = yindex[ui] + si; yi < yindex[ui + 1]; yi += GRIDSIZE) {
 		int yb = yiters[yi].first;
 		int ye = yiters[yi].second;
 		for (int i = 0; i < xe - xb; i++) {
@@ -123,19 +129,22 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 				__syncthreads();
 			}
 			if (l == 0) {
-				Gstore[i] = G[0];
+				for( int dim = 0; dim < NDIM; dim++) {
+					Gstore[i].g[dim] += G[0].g[dim];
+				}
+				Gstore[i].phi += G[0].phi;
 			}
 		}
-		__syncthreads();
-		if (l < xe - xb) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				atomicAdd(&(F[xindex[ui] + l].g[dim]), Gstore[l].g[dim]);    						// 15
-			}
-			// 13S + 2D = 15
-			atomicAdd(&(F[xindex[ui] + l].phi), Gstore[l].phi);    						// 10
-		}
-		__syncthreads();
 	}
+	__syncthreads();
+	if (l < xe - xb) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			atomicAdd(&(F[xindex[ui] + l].g[dim]), Gstore[l].g[dim]);    						// 15
+		}
+		// 13S + 2D = 15
+		atomicAdd(&(F[xindex[ui] + l].phi), Gstore[l].phi);    						// 10
+	}
+	__syncthreads();
 }
 
 struct cuda_context {
@@ -289,8 +298,8 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
-PP_direct_kernel<<<units.size(),BLOCKSIZE,0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
-																																						CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+	PP_direct_kernel<<<dim3(units.size(),GRIDSIZE,1),BLOCKSIZE,0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
+	CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
