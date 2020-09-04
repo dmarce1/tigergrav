@@ -114,6 +114,8 @@ struct interaction_stats {
 	}
 };
 
+class check_pair;
+
 class tree_client {
 	id_type ptr;
 public:
@@ -129,9 +131,9 @@ public:
 	check_item get_check_item() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int wid, int stack_cnt) const;
 	double drift(double t, rung_type r) const;
-	interaction_stats kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+	interaction_stats kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_cnt) const;
-	int find_groups(std::vector<check_item> dchecklist, int stack_cnt) const;
+	int find_groups(std::vector<check_pair> dchecklist, int stack_cnt) const;
 	refine_return refine(int) const;
 };
 
@@ -140,7 +142,7 @@ class raw_tree_client {
 public:
 	raw_tree_client() = default;
 	raw_tree_client(raw_id_type ptr_);
-	future_data<node_attr> get_node_attributes() const;
+	future_data<const node_attr*> get_node_attributes() const;
 	future_data<const multi_src*> get_multi_srcs() const;
 	int get_locality() const {
 		return ptr.loc_id;
@@ -151,40 +153,50 @@ public:
 	}
 };
 
-struct check_flags {
-	std::uint8_t opened :1;
-	std::uint8_t is_leaf :1;
-	check_flags& operator=(check_flags f) {
-		opened = f.opened;
-		is_leaf = f.is_leaf;
-		return *this;
-	}
-};
-
 struct check_item {
 	raw_tree_client node;
 	vect<pos_type> x;
-	box_id_type boxid;
 	part_iter pbegin;
 	part_iter pend;
 	float r;
-	check_flags flags;
+	bool is_leaf;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
-		bool tmp = flags.opened;
-		arc & tmp;
-		flags.opened = tmp;
-		tmp = flags.is_leaf;
-		arc & tmp;
-		flags.is_leaf = tmp;
+		arc & is_leaf;
 		arc & node;
 		arc & r;
 		arc & x;
 		arc & pbegin;
 		arc & pend;
-		arc & boxid;
 	}
 
+};
+
+void manage_checkptr(check_item* ptr);
+void trash_checkptrs();
+
+struct check_pair {
+	const check_item* chk;
+	bool opened;
+	check_pair( const check_item& i) {
+		chk = &i;
+		opened = false;
+	}
+	check_pair(){
+	}
+	HPX_SERIALIZATION_SPLIT_MEMBER();
+	template<class A>
+	void load( A&& arc, unsigned ) {
+		check_item* ptr = new check_item;
+		arc & opened;
+		arc & *ptr;
+		manage_checkptr(ptr);
+	}
+	template<class A>
+	void save( A&& arc, unsigned ) {
+		arc & opened;
+		arc & *chk;
+	}
 };
 
 struct node_attr {
@@ -211,17 +223,12 @@ struct multipole_return {
 
 class tree: public hpx::components::managed_component_base<tree> {
 	multi_src multi;
-	std::array<vect<pos_type>, NCHILD> cx;
 	std::array<tree_client, NCHILD> children;
-	std::array<raw_tree_client, NCHILD> cnode;
-	std::array<part_iter, NCHILD> cpbegin;
-	std::array<part_iter, NCHILD> cpend;
+	node_attr child_check;
 	box_id_type boxid;
 	std::vector<std::pair<part_iter,part_iter>> group_ranges;
 	part_iter part_begin;
 	part_iter part_end;
-	std::array<float, NCHILD> cr;
-	std::array<check_flags, NCHILD> cflags;
 	std::uint64_t num_active;
 	int gwork_id;
 	float r;
@@ -265,19 +272,7 @@ public:
 		arc & part_end;
 		arc & children;
 		arc & boxid;
-		arc & cnode;
-		arc & cx;
-		arc & cpbegin;
-		arc & cpend;
-		arc & cr;
-		for (int i = 0; i < NCHILD; i++) {
-			tmp = cflags[i].opened;
-			arc & tmp;
-			cflags[i].opened = tmp;
-			tmp = cflags[i].is_leaf;
-			arc & tmp;
-			cflags[i].is_leaf = tmp;
-		}
+		arc & child_check;
 	}
 	static std::uint64_t get_flop();
 	static double get_pct_active() {
@@ -290,13 +285,13 @@ public:
 	refine_return refine(int);
 	bool is_leaf() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int workid, int stack_cnt);
-	node_attr get_node_attributes() const;
+	const node_attr* get_node_attributes() const;
 	const multi_src* get_multi_srcs() const;
 	double drift(double,rung_type);
-	interaction_stats kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+	interaction_stats kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
 			bool do_output, int stack_ccnt);
 
-	void find_groups(std::vector<check_item> checklist, int stack_ccnt);
+	void find_groups(std::vector<check_pair> checklist, int stack_ccnt);
 
 	check_item get_check_item() const; //
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,refine);//
@@ -332,12 +327,12 @@ inline refine_return tree_client::refine(int stack_cnt) const {
 	return tree::refine_action()(ptr, stack_cnt);
 }
 
-inline interaction_stats tree_client::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
+inline interaction_stats tree_client::kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_output, int stack_cnt) const {
 	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output, stack_cnt);
 }
 
-inline int tree_client::find_groups(std::vector<check_item> dchecklist, int stack_cnt) const {
+inline int tree_client::find_groups(std::vector<check_pair> dchecklist, int stack_cnt) const {
 	tree::find_groups_action()(ptr, std::move(dchecklist), stack_cnt);
 	return 0;
 }

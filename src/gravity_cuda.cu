@@ -36,7 +36,6 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 
 __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y, std::pair<part_iter, part_iter> *yiters, int *xindex, int *yindex, float m,
 		float h, bool ewald) {
-
 	const int iwarp = threadIdx.y;
 	const int ui = blockIdx.x;
 	const int l = iwarp * blockDim.x + threadIdx.x;

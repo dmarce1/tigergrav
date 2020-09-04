@@ -8,18 +8,18 @@ static const auto one = simd_float(1.0);
 static const auto half = simd_float(0.5);
 static const simd_float eps = simd_float(std::numeric_limits<float>::min());
 
-double ewald_near_separation(const vect<double> x) {
+double ewald_near_separation2(const vect<double> x) {
 	double d = 0.0;
 	for (int dim = 0; dim < NDIM; dim++) {
 		const double absx = std::abs(x[dim]);
 		double this_d = std::min(absx, (double) 1.0 - absx);
 		d += this_d * this_d;
 	}
-	return std::sqrt(d);
+	return d;
 }
 
-double ewald_far_separation(const vect<double> x, double r) {
-	return std::max(0.25, ewald_near_separation(x));
+double ewald_far_separation2(const vect<double> x) {
+	return std::max(0.125, ewald_near_separation2(x));
 
 }
 

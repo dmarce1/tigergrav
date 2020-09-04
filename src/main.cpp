@@ -36,7 +36,9 @@ std::pair<kick_return, interaction_stats> solve_gravity(tree_client root_ptr, ru
 	static const auto opts = options::get();
 	auto mrc = root_ptr.compute_multipoles(mrung, do_out, null_gwork_id, 0);
 //	gwork_show();
-	auto root_list = std::vector<check_item>(1, root_ptr.get_check_item());
+	const auto root_check = root_ptr.get_check_item();
+	check_pair root_pair(root_check);
+	auto root_list = std::vector<check_pair>(1, root_pair);
 	if (do_out && !opts.solver_test && opts.groups) {
 		groups_reset();
 		auto tstart = timer();

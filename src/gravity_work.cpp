@@ -124,6 +124,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 
 				int group_size = 8;
 				tmp.push_back(unit.yiters[0]);
+				tmp.reserve(unit.yiters.size());
 				for (int i = 1; i < unit.yiters.size(); i++) {
 					if (tmp.back().second == unit.yiters[i].first) {
 						tmp.back().second = unit.yiters[i].second;
@@ -133,6 +134,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				}
 				unit.yiters = std::move(tmp);
 
+				tmp.reserve(3 * tmp.capacity() * opts.problem_size / group_size / 2);
 				for (auto &this_iter : unit.yiters) {
 					const int this_size = this_iter.second - this_iter.first;
 					const int ngroups = (this_size - 1) / group_size + 1;
@@ -143,20 +145,23 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 						tmp.push_back(iter);
 					}
 				}
-				//			printf( "%i\n", tmp.size());
+//				printf( "%i\n", tmp.size());
+//				for( int i = 0; i < tmp.size(); i++) {
+//					printf( "-- %i\n", tmp[i].second - tmp[i].first);
+//				}
 				unit.yiters = std::move(tmp);
 				//			printf("%i %i\n", unit.yiters.size(), tmp.size());
-				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
-					const auto da = a.second - a.first;
-					const auto db = b.second - b.first;
-					if (da > db) {
-						return true;
-					} else if (da < db) {
-						return false;
-					} else {
-						return a.first < b.first;
-					}
-				});
+//				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
+//					const auto da = a.second - a.first;
+//					const auto db = b.second - b.first;
+//					if (da > db) {
+//						return true;
+//					} else if (da < db) {
+//						return false;
+//					} else {
+//						return a.first < b.first;
+//					}
+//				});
 			}
 
 			flop += gravity_PP_direct_cuda(std::move(entry.cunits));

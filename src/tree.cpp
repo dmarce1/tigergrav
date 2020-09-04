@@ -38,6 +38,8 @@ double tree::theta_inv;
 double tree::pct_active;
 std::uint64_t workgroup_size;
 
+#include <unordered_set>
+
 void reset_node_cache();
 
 static std::atomic<int> num_threads(1);
@@ -48,12 +50,35 @@ static std::vector<hpx::id_type> localities;
 static int myid;
 static int hardware_concurrency = std::thread::hardware_concurrency();
 static int target_nthreads = hardware_concurrency;
+static std::unordered_set<check_item*> check_ptrs;
+static mutex_type check_ptr_mtx;
 
 struct raw_id_type_hash {
 	std::size_t operator()(raw_id_type id) const {
 		return id.ptr ^ id.loc_id;
 	}
 };
+
+void manage_checkptr(check_item* ptr){
+	std::lock_guard<mutex_type> lock(check_ptr_mtx);
+	check_ptrs.insert(ptr);
+}
+
+HPX_PLAIN_ACTION(trash_checkptrs);
+
+void trash_checkptrs() {
+	std::vector<hpx::future<void>> futs;
+	if( myid ==0 ) {
+		for( int i=1;i <futs.size(); i++) {
+			futs.push_back(hpx::async<trash_checkptrs_action>(localities[i]));
+		}
+	}
+	for( auto ptr : check_ptrs) {
+		delete ptr;
+	}
+	check_ptrs.clear();
+	hpx::wait_all(futs.begin(),futs.end());
+}
 
 template<class F>
 inline auto thread_if_avail(F &&f, bool left, int nparts, bool force, int stack_cnt) {
@@ -287,18 +312,8 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
 		r = std::min(r, (float) rmax);
-		cnode[0] = ml.c.node;
-		cnode[1] = mr.c.node;
-		cx[0] = ml.c.x;
-		cx[1] = mr.c.x;
-		cr[0] = ml.c.r;
-		cr[1] = mr.c.r;
-		cpbegin[0] = ml.c.pbegin;
-		cpbegin[1] = mr.c.pbegin;
-		cpend[0] = ml.c.pend;
-		cpend[1] = mr.c.pend;
-		cflags[0] = ml.c.flags;
-		cflags[1] = mr.c.flags;
+		child_check.children[0]= ml.c;
+		child_check.children[1]= mr.c;
 	}
 	if (num_active && is_leaf()) {
 		gwork_checkin(gwork_id);
@@ -315,19 +330,8 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	return rc;
 }
 
-node_attr tree::get_node_attributes() const {
-	node_attr attr;
-	for (int i = 0; i < NCHILD; i++) {
-		attr.children[i].node = cnode[i];
-		attr.children[i].x = cx[i];
-		attr.children[i].r = cr[i];
-		attr.children[i].pbegin = cpbegin[i];
-		attr.children[i].pend = cpend[i];
-		attr.children[i].flags = cflags[i];
-	}
-	attr.children[0].boxid = boxid << 1;
-	attr.children[1].boxid = (boxid << 1) + 1;
-	return attr;
+const node_attr* tree::get_node_attributes() const {
+	return &child_check;
 }
 
 const multi_src* tree::get_multi_srcs() const {
@@ -340,8 +344,7 @@ check_item tree::get_check_item() const {
 	id.loc_id = loc_id;
 	id.ptr = reinterpret_cast<std::uint64_t>(this);
 	check_item check;
-	check.flags.opened = false;
-	check.flags.is_leaf = flags.leaf;
+	check.is_leaf = flags.leaf;
 	check.pbegin = part_begin;
 	check.pend = part_end;
 	check.x = multi.x;
@@ -355,8 +358,8 @@ bool tree::is_leaf() const {
 }
 
 struct workspace {
-	std::vector<future_data<node_attr>> dfuts;
-	std::vector<future_data<node_attr>> efuts;
+	std::vector<future_data<const node_attr*>> dfuts;
+	std::vector<future_data<const node_attr*>> efuts;
 	std::vector<future_data<const multi_src*>> dmulti_futs;
 	std::vector<future_data<const multi_src*>> emulti_futs;
 	std::vector<std::pair<part_iter, part_iter>> dsource_iters;
@@ -392,7 +395,7 @@ void trash_workspace(workspace &&w) {
 	workspaces.push(std::move(w));
 }
 
-interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector<check_item> echecklist, const vect<double> &Lcom, expansion<double> L,
+interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;
@@ -408,6 +411,7 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	if (flags.level == 0) {
 		reset_node_cache();
 		part_vect_reset();
+		trash_checkptrs();
 	}
 
 	if ((part_end - part_begin == 0) || (!num_active && !do_out)) {
@@ -422,8 +426,8 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 
 	const float rmax = range_max_span(part_vect_range(part_begin, part_end));
 
-	std::vector<check_item> next_dchecklist;
-	std::vector<check_item> next_echecklist;
+	std::vector<check_pair> next_dchecklist;
+	std::vector<check_pair> next_echecklist;
 	auto space = get_workspace();
 	auto &multi_srcs = space.multi_srcs;
 	auto &dfuts = space.dfuts;
@@ -439,54 +443,57 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	std::uint64_t dsource_count = 0;
 	std::uint64_t esource_count = 0;
 	for (auto c : dchecklist) {
-		if (c.pend == c.pbegin) {
+		if (c.chk->pend == c.chk->pbegin) {
 			continue;
 		}
-		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-		const bool far = dx > (r + c.r) * theta_inv && dx > (r + c.r + h);
+		const auto dX = multixdouble - pos_to_double(c.chk->x);
+		const auto dx2 = opts.ewald ? ewald_near_separation2(dX) : dX.dot(dX);
+		const auto radius = (r + c.chk->r + h) * theta_inv;
+		const bool far = dx2 > radius * radius;
 		if (far) {
-			if (c.flags.opened) {
-				dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
-				dsource_count += c.pend - c.pbegin;
+			if (c.opened) {
+				dsource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
+				dsource_count += c.chk->pend - c.chk->pbegin;
 			} else {
-				dmulti_futs.push_back(c.node.get_multi_srcs());
+				dmulti_futs.push_back(c.chk->node.get_multi_srcs());
 			}
 		} else {
-			if (c.flags.is_leaf) {
-				c.flags.opened = true;
+			if (c.chk->is_leaf) {
+				c.opened = true;
 				next_dchecklist.push_back(c);
 			} else {
-				dfuts.push_back(c.node.get_node_attributes());
+				dfuts.push_back(c.chk->node.get_node_attributes());
 			}
 		}
 	}
 
 	if (opts.ewald) {
 		for (auto c : echecklist) {
-			if (c.pend == c.pbegin) {
+			if (c.chk->pend == c.chk->pbegin) {
 				continue;
 			}
-			const auto dX = multixdouble - pos_to_double(c.x);
-			const auto dx = ewald_far_separation(dX, r);
+			const auto dX = multixdouble - pos_to_double(c.chk->x);
+			const auto dx2 = ewald_far_separation2(dX);
+			const auto radius = (r + c.chk->r + h) * theta_inv;
 			bool far;
 			if (dX.dot(dX) > 0.0) {
-				far = dx > (r + c.r) * theta_inv && dx > (r + c.r + h);
+				far = dx2 > radius * radius;
 			} else {
 				far = rmax < r_ewald;
 			}
 			if (far) {
-				if (c.flags.opened) {
-					esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
-					esource_count += c.pend - c.pbegin;
+				if (c.opened) {
+					esource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
+					esource_count += c.chk->pend - c.chk->pbegin;
 				} else {
-					emulti_futs.push_back(c.node.get_multi_srcs());
+					emulti_futs.push_back(c.chk->node.get_multi_srcs());
 				}
 			} else {
-				if (c.flags.is_leaf) {
-					c.flags.opened = true;
+				if (c.chk->is_leaf) {
+					c.opened = true;
 					next_echecklist.push_back(c);
 				} else {
-					efuts.push_back(c.node.get_node_attributes());
+					efuts.push_back(c.chk->node.get_node_attributes());
 				}
 			}
 		}
@@ -511,13 +518,13 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	}
 	for (auto &f : dfuts) {
 		auto c = f.get();
-		next_dchecklist.push_back(c.children[0]);
-		next_dchecklist.push_back(c.children[1]);
+		next_dchecklist.push_back(c->children[0]);
+		next_dchecklist.push_back(c->children[1]);
 	}
 	for (auto &f : efuts) {
 		auto c = f.get();
-		next_echecklist.push_back(c.children[0]);
-		next_echecklist.push_back(c.children[1]);
+		next_echecklist.push_back(c->children[0]);
+		next_echecklist.push_back(c->children[1]);
 	}
 	std::swap(dchecklist, next_dchecklist);
 	std::swap(echecklist, next_echecklist);
@@ -547,32 +554,33 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 		while (!dchecklist.empty()) {
 			dfuts.resize(0);
 			for (auto c : dchecklist) {
-				if (c.pend == c.pbegin) {
+				if (c.chk->pend == c.chk->pbegin) {
 					continue;
 				}
-				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-				const bool far = dx > (r + c.r) * theta_inv && dx > (r + c.r + h);
-				;
-				if (c.flags.opened) {
-					dsource_iters.push_back(std::make_pair(c.pbegin, c.pend));
-					dsource_count += c.pend - c.pbegin;
+				const auto dX = multixdouble - pos_to_double(c.chk->x);
+				const auto dx2 = opts.ewald ? ewald_near_separation2(dX) : dX.dot(dX);
+				const auto radius = (r + c.chk->r + h) * theta_inv;
+				const bool far = dx2 > radius * radius;
+				if (c.opened) {
+					dsource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
+					dsource_count += c.chk->pend - c.chk->pbegin;
 				} else {
 					if (far) {
-						dmulti_futs.push_back(c.node.get_multi_srcs());
+						dmulti_futs.push_back(c.chk->node.get_multi_srcs());
 					} else {
-						if (c.flags.is_leaf) {
-							c.flags.opened = true;
+						if (c.chk->is_leaf) {
+							c.opened = true;
 							next_dchecklist.push_back(c);
 						} else {
-							dfuts.push_back(c.node.get_node_attributes());
+							dfuts.push_back(c.chk->node.get_node_attributes());
 						}
 					}
 				}
 			}
 			for (auto &f : dfuts) {
 				auto c = f.get();
-				next_dchecklist.push_back(c.children[0]);
-				next_dchecklist.push_back(c.children[1]);
+				next_dchecklist.push_back(c->children[0]);
+				next_dchecklist.push_back(c->children[1]);
 			}
 			std::swap(dchecklist, next_dchecklist);
 			next_dchecklist.resize(0);
@@ -581,37 +589,38 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 			while (!echecklist.empty()) {
 				efuts.resize(0);
 				for (auto c : echecklist) {
-					if (c.pend == c.pbegin) {
+					if (c.chk->pend == c.chk->pbegin) {
 						continue;
 					}
-					const auto dX = multixdouble - pos_to_double(c.x);
-					const auto dx = ewald_far_separation(dX, r);
+					const auto dX = multixdouble - pos_to_double(c.chk->x);
+					const auto dx2 = ewald_far_separation2(dX);
+					const auto radius = (r + c.chk->r + h) * theta_inv;
 					bool far;
 					if (dX.dot(dX) > 0.0) {
-						far = dx > (r + c.r) * theta_inv && dx > (r + c.r + h);
+						far = dx2 > radius * radius;
 					} else {
 						far = rmax < r_ewald;
 					}
-					if (c.flags.opened) {
-						esource_iters.push_back(std::make_pair(c.pbegin, c.pend));
-						esource_count += c.pend - c.pbegin;
+					if (c.opened) {
+						esource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
+						esource_count += c.chk->pend - c.chk->pbegin;
 					} else {
 						if (far) {
-							emulti_futs.push_back(c.node.get_multi_srcs());
+							emulti_futs.push_back(c.chk->node.get_multi_srcs());
 						} else {
-							if (c.flags.is_leaf) {
-								c.flags.opened = true;
+							if (c.chk->is_leaf) {
+								c.opened = true;
 								next_echecklist.push_back(c);
 							} else {
-								efuts.push_back(c.node.get_node_attributes());
+								efuts.push_back(c.chk->node.get_node_attributes());
 							}
 						}
 					}
 				}
 				for (auto &f : efuts) {
 					auto c = f.get();
-					next_echecklist.push_back(c.children[0]);
-					next_echecklist.push_back(c.children[1]);
+					next_echecklist.push_back(c->children[0]);
+					next_echecklist.push_back(c->children[1]);
 				}
 				std::swap(echecklist, next_echecklist);
 				next_echecklist.resize(0);
@@ -662,12 +671,13 @@ interaction_stats tree::kick_fmm(std::vector<check_item> dchecklist, std::vector
 	return istats;
 }
 
-void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
+void tree::find_groups(std::vector<check_pair> checklist, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto L = 1.001 * std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
 	if (flags.level == 0) {
 		reset_node_cache();
 		part_vect_reset();
+		trash_checkptrs();
 	}
 	bool force_left, force_right;
 	if (!is_leaf()) {
@@ -680,8 +690,8 @@ void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		return;
 	}
 
-	std::vector<check_item> next_checklist;
-	std::vector<future_data<node_attr>> futs;
+	std::vector<check_pair> next_checklist;
+	std::vector<future_data<const node_attr*>> futs;
 
 	next_checklist.reserve(NCHILD * checklist.size());
 
@@ -689,25 +699,26 @@ void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 
 	const auto multixdouble = pos_to_double(multi.x);
 	for (auto c : checklist) {
-		if (c.pend == c.pbegin) {
+		if (c.chk->pend == c.chk->pbegin) {
 			continue;
 		}
-		const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-		bool far = dx > r + c.r + L;
-		far = far || !ranges_intersect(myrange, box_id_to_range(c.boxid));
+		const auto dX = multixdouble - pos_to_double(c.chk->x);
+		const auto dx2 = opts.ewald ? ewald_near_separation2(dX) : dX.dot(dX);
+		const auto radius = (r + c.chk->r + L);
+		const bool far = dx2 > radius * radius;
 		if (!far) {
-			if (c.flags.is_leaf) {
-				c.flags.opened = true;
+			if (c.chk->is_leaf) {
+				c.opened = true;
 				next_checklist.push_back(c);
 			} else {
-				futs.push_back(c.node.get_node_attributes());
+				futs.push_back(c.chk->node.get_node_attributes());
 			}
 		}
 	}
 	for (auto &f : futs) {
 		auto c = f.get();
-		next_checklist.push_back(c.children[0]);
-		next_checklist.push_back(c.children[1]);
+		next_checklist.push_back(c->children[0]);
+		next_checklist.push_back(c->children[1]);
 	}
 	std::swap(checklist, next_checklist);
 	next_checklist.resize(0);
@@ -724,31 +735,32 @@ void tree::find_groups(std::vector<check_item> checklist, int stack_cnt) {
 		while (!checklist.empty()) {
 			futs.resize(0);
 			for (auto c : checklist) {
-				if (c.pend == c.pbegin) {
+				if (c.chk->pend == c.chk->pbegin) {
 					continue;
 				}
-				const auto dx = opts.ewald ? ewald_near_separation(multixdouble - pos_to_double(c.x)) : abs(multixdouble - pos_to_double(c.x));
-				bool far = dx > r + c.r + L;
-				far = far || !ranges_intersect(myrange, box_id_to_range(c.boxid));
-				if (c.flags.opened) {
-					const auto other_range = part_vect_range(c.pbegin, c.pend);
+				const auto dX = multixdouble - pos_to_double(c.chk->x);
+				const auto dx2 = opts.ewald ? ewald_near_separation2(dX) : dX.dot(dX);
+				const auto radius = (r + c.chk->r + L);
+				const bool far = dx2 > radius * radius;
+				if (c.opened) {
+					const auto other_range = part_vect_range(c.chk->pbegin, c.chk->pend);
 					if (ranges_intersect(myrange, other_range)) {
-						group_ranges.push_back(std::make_pair(c.pbegin, c.pend));
+						group_ranges.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
 					}
 				} else if (!far) {
-					if (c.flags.is_leaf) {
-						c.flags.opened = true;
+					if (c.chk->is_leaf) {
+						c.opened = true;
 						next_checklist.push_back(c);
 					} else {
-						futs.push_back(c.node.get_node_attributes());
+						futs.push_back(c.chk->node.get_node_attributes());
 					}
 				}
 
 			}
 			for (auto &f : futs) {
 				auto c = f.get();
-				next_checklist.push_back(c.children[0]);
-				next_checklist.push_back(c.children[1]);
+				next_checklist.push_back(c->children[0]);
+				next_checklist.push_back(c->children[1]);
 			}
 			std::swap(checklist, next_checklist);
 			next_checklist.resize(0);
@@ -839,13 +851,13 @@ HPX_PLAIN_ACTION(get_node_attributes_, get_node_attributes_action);
 
 hpx::future<node_attr> get_node_attributes_(raw_id_type id) {
 	if (myid == id.loc_id) {
-		return hpx::make_ready_future(reinterpret_cast<tree*>(id.ptr)->get_node_attributes());
+		return hpx::make_ready_future(*reinterpret_cast<tree*>(id.ptr)->get_node_attributes());
 	} else {
 		return hpx::async < get_node_attributes_action > (localities[id.loc_id], id);
 	}
 }
 
-hpx::future<node_attr> read_node_cache(raw_id_type id) {
+hpx::future<const node_attr*> read_node_cache(raw_id_type id) {
 	const int index = raw_id_type_hash()(id) % NODE_CACHE_SIZE;
 	std::unique_lock<mutex_type> lock(node_cache_mtx[index]);
 	auto iter = node_cache[index].find(id);
@@ -862,12 +874,12 @@ hpx::future<node_attr> read_node_cache(raw_id_type id) {
 		std::unique_lock<mutex_type> lock(node_cache_mtx[index]);
 		auto future = node_cache[index][id];
 		lock.unlock();
-		return future.get();
+		return (const node_attr*)&future.get();
 	});
 }
 
-future_data<node_attr> raw_tree_client::get_node_attributes() const {
-	future_data<node_attr> data;
+future_data<const node_attr*> raw_tree_client::get_node_attributes() const {
+	future_data<const node_attr*> data;
 	if (myid == ptr.loc_id) {
 		tree *tree_ptr = reinterpret_cast<tree*>(ptr.ptr);
 		data.data = tree_ptr->get_node_attributes();
