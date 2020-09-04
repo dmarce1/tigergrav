@@ -113,7 +113,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	std::uint64_t flop = 0;
 	if (do_work) {
 
-		if (opts.cuda && cuda_thread_count() / std::max((int) thread_cnt, 1) < 16) {
+		if (opts.cuda /*&& cuda_thread_count() / std::max((int) thread_cnt, 1) < 16*/) {
 			for (auto &unit : entry.cunits) {
 				std::vector<std::pair<part_iter, part_iter>> tmp;
 				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
@@ -122,7 +122,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 
 				std::pair<part_iter, part_iter> iter;
 
-				int group_size = 8;
+				int group_size = SYNCRATE;
 				tmp.push_back(unit.yiters[0]);
 				tmp.reserve(unit.yiters.size());
 				for (int i = 1; i < unit.yiters.size(); i++) {
@@ -145,23 +145,23 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 						tmp.push_back(iter);
 					}
 				}
-//				printf( "%i\n", tmp.size());
-//				for( int i = 0; i < tmp.size(); i++) {
-//					printf( "-- %i\n", tmp[i].second - tmp[i].first);
-//				}
 				unit.yiters = std::move(tmp);
 				//			printf("%i %i\n", unit.yiters.size(), tmp.size());
-//				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
-//					const auto da = a.second - a.first;
-//					const auto db = b.second - b.first;
-//					if (da > db) {
-//						return true;
-//					} else if (da < db) {
-//						return false;
-//					} else {
-//						return a.first < b.first;
-//					}
-//				});
+				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
+					const auto da = a.second - a.first;
+					const auto db = b.second - b.first;
+					if (da > db) {
+						return true;
+					} else if (da < db) {
+						return false;
+					} else {
+						return a.first < b.first;
+					}
+				});
+//				printf("%i\n", unit.yiters.size());
+//				for (int i = 0; i < unit.yiters.size(); i++) {
+//					printf("-- %i\n", unit.yiters[i].second - unit.yiters[i].first);
+//				}
 			}
 
 			flop += gravity_PP_direct_cuda(std::move(entry.cunits));

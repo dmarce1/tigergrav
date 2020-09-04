@@ -73,6 +73,7 @@ struct refine_return {
 	std::uint64_t nodes;
 	template<class A>
 	void serialize(A&& arc, unsigned) {
+		arc & rc;
 		arc & max_depth;
 		arc & min_depth;
 		arc & leaves;
@@ -131,7 +132,7 @@ public:
 	check_item get_check_item() const;
 	multipole_return compute_multipoles(rung_type min_rung, bool do_out, int wid, int stack_cnt) const;
 	double drift(double t, rung_type r) const;
-	interaction_stats kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+	interaction_stats kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<float> L, rung_type min_rung,
 			bool do_output, int stack_cnt) const;
 	int find_groups(std::vector<check_pair> dchecklist, int stack_cnt) const;
 	refine_return refine(int) const;
@@ -288,7 +289,7 @@ public:
 	const node_attr* get_node_attributes() const;
 	const multi_src* get_multi_srcs() const;
 	double drift(double,rung_type);
-	interaction_stats kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L, rung_type min_rung,
+	interaction_stats kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<float> L, rung_type min_rung,
 			bool do_output, int stack_ccnt);
 
 	void find_groups(std::vector<check_pair> checklist, int stack_ccnt);
@@ -327,7 +328,7 @@ inline refine_return tree_client::refine(int stack_cnt) const {
 	return tree::refine_action()(ptr, stack_cnt);
 }
 
-inline interaction_stats tree_client::kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L,
+inline interaction_stats tree_client::kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_output, int stack_cnt) const {
 	return tree::kick_fmm_action()(ptr, std::move(dchecklist), std::move(echecklist), Lcom, L, min_rung, do_output, stack_cnt);
 }

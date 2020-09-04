@@ -55,7 +55,7 @@ std::pair<kick_return, interaction_stats> solve_gravity(tree_client root_ptr, ru
 	}
 //	printf("Multipoles took %e seconds\n", timer() - start);
 	start = timer();
-	expansion<double> L;
+	expansion<float> L;
 	L = 0.0;
 	kick_return rc;
 	interaction_stats istats;

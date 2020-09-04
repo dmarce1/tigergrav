@@ -395,7 +395,7 @@ void trash_workspace(workspace &&w) {
 	workspaces.push(std::move(w));
 }
 
-interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L,
+interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<float> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	static const auto opts = options::get();
 	static const auto h = opts.soft_len;

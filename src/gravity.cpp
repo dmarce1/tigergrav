@@ -24,10 +24,10 @@ double ewald_far_separation2(const vect<double> x) {
 }
 
 // 43009,703
-template<class DOUBLE, class SINGLE> // 986 // 251936
-inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald = false) { // 670/700 + 418 * NREAL + 50 * NFOUR
-	static const expansion_factors<SINGLE> expansion_factor;
-	expansion<SINGLE> D;
+template<class TYPE> // 986 // 251936
+inline void multipole_interaction(expansion<TYPE> &L, const multipole<TYPE> &M2, vect<TYPE> dX, bool ewald = false) { // 670/700 + 418 * NREAL + 50 * NFOUR
+	static const expansion_factors<TYPE> expansion_factor;
+	expansion<TYPE> D;
 	if (ewald) {
 		D = green_ewald(dX);		// 251176
 	} else {
@@ -36,23 +36,23 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> 
 
 	// 760
 	auto &L0 = L();
-	L0 += M2() * D();																// 5
+	L0 = fmadd(M2(), D(), L0);																// 5
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			L0 += M2(a, b) * D(a, b) * expansion_factor(a, b);						// 36
+			L0 = fmadd(M2(a, b) * D(a, b), expansion_factor(a, b), L0);						// 36
 			for (int c = b; c < 3; c++) {
-				L0 -= M2(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 60
+				L0 = fmadd(-M2(a, b, c) * D(a, b, c), expansion_factor(a, b, c), L0);			// 60
 			}
 		}
 	}
 	for (int a = 0; a < 3; a++) {
 		auto &La = L(a);
-		La += M2() * D(a);
+		La = fmadd(M2(), D(a), La);
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				La += M2(c, b) * D(a, b, c) * expansion_factor(c, b);				// 108
+				La = fmadd(M2(c, b) * D(a, b, c), expansion_factor(c, b), La);				// 108
 				for (int d = c; d < 3; d++) {
-					La -= M2(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	//180
+					La = fmadd(-M2(b, c, d) * D(a, b, c, d), expansion_factor(b, c, d), La);	//180
 				}
 			}
 		}
@@ -61,10 +61,10 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> 
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
 			auto &Lab = L(a, b);
-			Lab += M2() * D(a, b);												// 30
+			Lab = fmadd(M2(), D(a, b), Lab);												// 30
 			for (int c = 0; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					Lab += M2(c, d) * D(a, b, c, d) * expansion_factor(c, d);	 // 216
+					Lab = fmadd(M2(c, d) * D(a, b, c, d), expansion_factor(c, d), Lab);	 // 216
 				}
 			}
 		}
@@ -74,7 +74,7 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> 
 		for (int b = a; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				auto &Labc = L(a, b, c);
-				Labc += M2() * D(a, b, c);										// 50
+				Labc = fmadd(M2(), D(a, b, c), Labc);										// 50
 			}
 		}
 	}
@@ -83,17 +83,17 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> 
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
 					auto &Labcd = L(a, b, c, d);
-					Labcd += M2() * D(a, b, c, d);								// 75
+					Labcd = fmadd(M2(), D(a, b, c, d), Labcd);								// 75
 				}
 			}
 		}
 	}
 }
 
-template<class DOUBLE, class SINGLE> // 401 / 251351
-inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SINGLE> dX, bool ewald = false) { // 390 / 47301
-	static const expansion_factors<SINGLE> expansion_factor;
-	expansion<SINGLE> D;
+template<class TYPE> // 401 / 251351
+inline void multipole_interaction(expansion<TYPE> &L, const TYPE &M, vect<TYPE> dX, bool ewald = false) { // 390 / 47301
+	static const expansion_factors<TYPE> expansion_factor;
+	expansion<TYPE> D;
 	if (ewald) {
 		D = green_ewald(dX);		// 251175
 	} else {
@@ -102,29 +102,29 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SI
 
 	// 175
 	auto &L0 = L();
-	L0 += M * D();													// 5
+	L0 = fmadd(M, D(), L0);													// 5
 	for (int a = 0; a < 3; a++) {
 		auto &La = L(a);
-		La += M * D(a);												// 15
+		La = fmadd(M, D(a), La);												// 15
 		for (int b = a; b < 3; b++) {
 			auto &Lab = L(a, b);
-			Lab += M * D(a, b);										// 30
+			Lab = fmadd(M, D(a, b), Lab);										// 30
 			for (int c = b; c < 3; c++) {
 				auto &Labc = L(a, b, c);
-				Labc += M * D(a, b, c);								// 50
+				Labc = fmadd(M, D(a, b, c), Labc);								// 50
 				for (int d = c; d < 3; d++) {
 					auto &Labcd = L(a, b, c, d);
-					Labcd += M * D(a, b, c, d);						// 75
+					Labcd = fmadd(M, D(a, b, c, d), Labcd);						// 75
 				}
 			}
 		}
 	}
 }
 
-template<class DOUBLE, class SINGLE> // 516 / 251466
-inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
-	static const expansion_factors<SINGLE> expansion_factor;
-	expansion<SINGLE> D;
+template<class TYPE> // 516 / 251466
+inline void multipole_interaction(std::pair<TYPE, vect<TYPE>> &f, const multipole<TYPE> &M, vect<TYPE> dX, bool ewald = false) { // 517 / 47428
+	static const expansion_factors<TYPE> expansion_factor;
+	expansion<TYPE> D;
 	if (ewald) {
 		D = green_ewald(dX);				// 251176
 	} else {
@@ -136,24 +136,24 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 	ffirst = M() * D();																// 5
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
-			ffirst += M(a, b) * D(a, b) * expansion_factor(a, b);					// 36
+			ffirst = fmadd(M(a, b) * D(a, b), expansion_factor(a, b), ffirst);					// 36
 		}
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				ffirst -= M(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);		// 60
+				ffirst = fmadd(-M(a, b, c) * D(a, b, c), expansion_factor(a, b, c), ffirst);		// 60
 			}
 		}
 	}
-	f.second = DOUBLE(0);
 	for (int a = 0; a < 3; a++) {
-		f.second[a] -= M() * D(a);													// 15
+		f.second[a] = -M() * D(a);													// 15
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				f.second[a] -= M(c, b) * D(a, b, c) * expansion_factor(c, b);		// 108
+				auto &fseconda = f.second[a];
+				fseconda = fmadd(-M(c, b) * D(a, b, c), expansion_factor(c, b), fseconda);		// 108
 			}
 		}
 	}
@@ -162,7 +162,7 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
 					auto &fseconda = f.second[a];
-					fseconda += M(c, b, d) * D(a, b, c, d) * expansion_factor(b, c, d); // 180
+					fseconda = fmadd(M(c, b, d) * D(a, b, c, d), expansion_factor(b, c, d), fseconda); // 180
 				}
 			}
 		}
@@ -182,8 +182,8 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 	static const simd_float H2(h2);
 	vect<simd_int> X, Y;
 	multipole<simd_float> M;
-	std::vector<vect<simd_double>> G(x.size(), vect<simd_double>(simd_float(0)));
-	std::vector<simd_double> Phi(x.size(), simd_double(0.0));
+	std::vector<vect<simd_float>> G(x.size(), vect<simd_float>(simd_float(0)));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -214,14 +214,14 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 			vect<simd_float> dX;
 			if (opts.ewald) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+					dX[dim] = simd_float(simd_float(X[dim] - Y[dim]) * simd_float(POS_INV)); // 18
 				}
 			} else {
 				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = simd_float(simd_double(X[dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
+					dX[dim] = simd_float(simd_float(X[dim]) * simd_float(POS_INV) - simd_float(Y[dim]) * simd_float(POS_INV));
 				}
 			}
-			std::pair<simd_double, vect<simd_double>> this_f;
+			std::pair<simd_float, vect<simd_float>> this_f;
 			multipole_interaction(this_f, M, dX); // 516
 
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -240,7 +240,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 	return 581 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
+std::uint64_t gravity_CC_direct(expansion<float> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -255,8 +255,8 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, s
 	static const simd_float H2(h2);
 	vect<simd_int> X, Y;
 	multipole<simd_float> M;
-	expansion<simd_double> Lacc;
-	Lacc = simd_double(0);
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -287,11 +287,11 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, s
 		vect<simd_float> dX;
 		if (opts.ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+				dX[dim] = simd_float(simd_float(X[dim] - Y[dim]) * simd_float(POS_INV)); // 18
 			}
 		} else {
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = simd_float(simd_double(X[dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
+				dX[dim] = simd_float(simd_float(X[dim]) * simd_float(POS_INV) - simd_float(Y[dim]) * simd_float(POS_INV));
 			}
 		}
 		multipole_interaction(Lacc, M, dX);												// 986
@@ -304,7 +304,7 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, s
 	return 1025 * cnt1;
 }
 
-std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<pos_type> &x, std::vector<vect<pos_type>> y) {
+std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<pos_type> &x, std::vector<vect<pos_type>> y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -320,8 +320,8 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<pos_type> &x, s
 	static const simd_float H2(h2);
 	vect<simd_int> Y, X;
 	simd_float M;
-	expansion<simd_double> Lacc;
-	Lacc = simd_double(0);
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -347,11 +347,11 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<pos_type> &x, s
 		vect<simd_float> dX;
 		if (opts.ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+				dX[dim] = simd_float(simd_float(X[dim] - Y[dim]) * simd_float(POS_INV)); // 18
 			}
 		} else {
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = simd_float(simd_double(X[dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
+				dX[dim] = simd_float(simd_float(X[dim]) * simd_float(POS_INV) - simd_float(Y[dim]) * simd_float(POS_INV));
 			}
 		}
 		multipole_interaction(Lacc, M, dX);												// 	401
@@ -377,8 +377,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 	static const auto half = simd_float(0.5);
 
 	static const auto opts = options::get();
-	static const simd_double M(opts.m_tot / opts.problem_size);
-	simd_double mask;
+	static const simd_float M(opts.m_tot / opts.problem_size);
+	simd_float mask;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
@@ -386,8 +386,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 
 	static const periodic_parts periodic;
 	vect<simd_int> X, Y;
-	std::vector<vect<simd_double>> G(x.size(), vect<simd_double>(simd_double(0)));
-	std::vector<simd_double> Phi(x.size(), simd_double(0.0));
+	std::vector<vect<simd_float>> G(x.size(), vect<simd_float>(simd_float(0)));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -412,7 +412,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			// 6S + 9D = 24
 			vect<simd_float> dX0;
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX0[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV));
+				dX0[dim] = simd_float(simd_float(X[dim] - Y[dim]) * simd_float(POS_INV));
 			}																	// 18
 			constexpr int nmax = 2;
 			constexpr int hmax = 2;
@@ -421,12 +421,12 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			static const simd_float twopi(2 * M_PI);
 			static const simd_float pioverfour(M_PI / 4.0);
 			static const simd_float fouroversqrtpi(4.0 / sqrt(M_PI));
-			static const simd_double phi0(2.8372975);
+			static const simd_float phi0(2.8372975);
 			vect<float> h;
 			vect<simd_float> n;
-			simd_double phi = 0.0;
-			vect<simd_double> g;
-			g = simd_double(0);
+			simd_float phi = 0.0;
+			vect<simd_float> g;
+			g = simd_float(0);
 			const simd_float r = abs(dX0);										// 5
 			simd_float cut_mask = r > rcut;										// 2
 
@@ -472,7 +472,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			// 63
 			simd_float rinv = 1.0 / max(r, rcut);								// 2
 			phi += pioverfour + rinv;											// 6
-			const simd_double sw = cut_mask;									// 2
+			const simd_float sw = cut_mask;									// 2
 			phi = phi0 * (simd_float(1.0) - sw) + phi * sw;						// 8
 			const auto rinv3 = cut_mask * rinv * rinv * rinv;					// 3
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -508,8 +508,8 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	static const simd_float H2(h2);
 	vect<simd_int> X, Y;
 	multipole<simd_float> M;
-	std::vector<vect<simd_double>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_double> Phi(x.size(), simd_double(0.0));
+	std::vector<vect<simd_float>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -540,9 +540,9 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 
 			vect<simd_float> dX;
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+				dX[dim] = simd_float(simd_float(X[dim] - Y[dim]) * simd_float(POS_INV)); // 18
 			}
-			std::pair<simd_double, vect<simd_double>> this_f;
+			std::pair<simd_float, vect<simd_float>> this_f;
 			multipole_interaction(this_f, M, dX, true);	// 251466
 
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -561,7 +561,7 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	return 251531 * cnt1 * x.size();
 }
 
-std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
+std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -576,8 +576,8 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, st
 	static const simd_float H2(h2);
 	vect<simd_int> X, Y;
 	multipole<simd_float> M;
-	expansion<simd_double> Lacc;
-	Lacc = simd_double(0);
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -607,7 +607,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, st
 		}
 		vect<simd_float> dX;
 		for (int dim = 0; dim < NDIM; dim++) {
-			dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+			dX[dim] = simd_float(simd_float(X[dim] - Y[dim]) * simd_float(POS_INV)); // 18
 		}
 		multipole_interaction(Lacc, M, dX, true);											// 251936
 	}
@@ -619,7 +619,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, st
 	return 251975 * cnt1;
 }
 
-std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<pos_type> &x, std::vector<vect<pos_type>> y) {
+std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<pos_type> &x, std::vector<vect<pos_type>> y) {
 	if (y.size() == 0) {
 		return 0;
 	}
@@ -635,8 +635,8 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<pos_type> &x, st
 	static const simd_float H2(h2);
 	vect<simd_int> Y, X;
 	simd_float M;
-	expansion<simd_double> Lacc;
-	Lacc = simd_double(0);
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -661,7 +661,7 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<pos_type> &x, st
 		}
 		vect<simd_float> dX;
 		for (int dim = 0; dim < NDIM; dim++) {
-			dX[dim] = simd_float(simd_double(X[dim] - Y[dim]) * simd_double(POS_INV)); // 18
+			dX[dim] = simd_float(simd_float(X[dim] - Y[dim]) * simd_float(POS_INV)); // 18
 		}
 		multipole_interaction(Lacc, M, dX, true);										// 251176
 	}

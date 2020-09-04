@@ -58,11 +58,9 @@ struct periodic_parts: public std::vector<expansion<float>> {
 	}
 };
 
-
-template<class SINGLE>  // 167
-void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
-		const vect<SINGLE> &dx) {
-	static const SINGLE two(2.0);
+template<class TYPE>  // 167
+void green_deriv_direct(expansion<TYPE> &D, const TYPE &d0, const TYPE &d1, const TYPE &d2, const TYPE &d3, const TYPE &d4, const vect<TYPE> &dx) {
+	static const TYPE two(2.0);
 
 	D() = d0;													// 1
 	for (int a = 0; a < NDIM; a++) {
@@ -116,9 +114,9 @@ void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, const SINGLE &d1
 
 }
 
-template<class DOUBLE, class SINGLE>  // 576
-void green_deriv_ewald(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4, const vect<SINGLE> &dx) {
-	static const SINGLE two(2.0);
+template<class TYPE>  // 576
+void green_deriv_ewald(expansion<TYPE> &D, const TYPE &d0, const TYPE &d1, const TYPE &d2, const TYPE &d3, const TYPE &d4, const vect<TYPE> &dx) {
+	static const TYPE two(2.0);
 	D() += d0;													//  4
 	for (int a = 0; a < NDIM; a++) {
 		auto &Da = D(a);
@@ -127,9 +125,9 @@ void green_deriv_ewald(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1,
 		auto &Daaa = D(a, a, a);
 		auto &Daaaa = D(a, a, a, a);
 		Daa += d1;												// 12
-		Daaa += dx[a] * d2;										// 15
-		Daaaa += dx[a] * dx[a] * d3;							// 18
-		Daaaa += two * d2;										// 12
+		Daaa = fmadd(dx[a], d2, Daaa);							// 15
+		Daaaa = fmadd(dx[a] * dx[a], d3, Daaaa);							// 18
+		Daaaa = fmadd(two, d2, Daaaa);										// 12
 		for (int b = 0; b <= a; b++) {
 			auto &Dab = D(a, b);
 			auto &Daab = D(a, a, b);
@@ -138,25 +136,25 @@ void green_deriv_ewald(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1,
 			auto &Daabb = D(a, a, b, b);
 			auto &Dabbb = D(a, b, b, b);
 			const auto dxadxb = dx[a] * dx[b];					// 6
-			Dab += dxadxb * d2;									// 30
-			Daab += dx[b] * d2;									// 30
-			Dabb += dx[a] * d2;									// 30
-			Daaab += dxadxb * d3;								// 30
-			Dabbb += dxadxb * d3;								// 30
+			Dab = fmadd(dxadxb, d2, Dab);									// 30
+			Daab = fmadd(dx[b], d2, Daab);									// 30
+			Dabb = fmadd(dx[a], d2, Dabb);									// 30
+			Daaab = fmadd(dxadxb, d3, Daaab);								// 30
+			Dabbb = fmadd(dxadxb, d3, Dabbb);								// 30
 			Daabb += d2;										// 24
 			for (int c = 0; c <= b; c++) {
 				auto &Dabc = D(a, b, c);
 				const auto dxadxbdxc = dxadxb * dx[c];			// 10
-				Dabc += dxadxbdxc * d3;							// 50
+				Dabc = fmadd(dxadxbdxc, d3, Dabc);							// 50
 				auto &Daabc = D(a, a, b, c);
 				auto &Dabcc = D(a, b, c, c);
 				auto &Dabbc = D(a, b, b, c);
-				Daabc += dx[b] * dx[c] * d3;					// 60
-				Dabcc += dxadxb * d3;							// 50
-				Dabbc += dx[a] * dx[c] * d3;					// 60
+				Daabc = fmadd(dx[b] * dx[c], d3, Daabc);					// 60
+				Dabcc = fmadd(dxadxb, d3, Dabcc);							// 50
+				Dabbc = fmadd(dx[a], dx[c] * d3, Dabbc);					// 60
 				for (int d = 0; d <= c; d++) {
 					auto &Dabcd = D(a, b, c, d);
-					Dabcd += dxadxbdxc * dx[d] * d4;			// 90
+					Dabcd = fmadd(dxadxbdxc * dx[d], d4, Dabcd);			// 90
 				}
 			}
 		}
@@ -185,11 +183,10 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 59  + 167 = 226
 	return D;
 }
 
-
 template<class T>
 inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 	static const periodic_parts periodic;
-	expansion<simd_double> D;
+	expansion<T> D;
 	D = 0.0;
 	vect<T> n;
 	vect<float> h;
@@ -249,13 +246,17 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 		co *= zmask;											// 1
 		D() += H() * co;										// 5
 		for (int a = 0; a < NDIM; a++) {
-			D(a) += H(a) * si;									// 15
+			auto &Da = D(a);
+			Da = fmadd(H(a), si, Da);									// 15
 			for (int b = 0; b <= a; b++) {
-				D(a, b) += H(a, b) * co;						// 30
+				auto &Dab = D(a, b);
+				Dab = fmadd(H(a, b), co, Dab);						// 30
 				for (int c = 0; c <= b; c++) {
-					D(a, b, c) += H(a, b, c) * si;				// 50
+					auto &Dabc = D(a, b, c);
+					Dabc = fmadd(H(a, b, c), si, Dabc);				// 50
 					for (int d = 0; d <= c; d++) {
-						D(a, b, c, d) += H(a, b, c, d) * co; 	// 75
+						auto &Dabcd = D(a, b, c, d);
+						Dabcd = fmadd(H(a, b, c, d), co, Dabcd); 	// 75
 					}
 				}
 
