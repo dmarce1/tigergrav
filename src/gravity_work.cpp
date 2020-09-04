@@ -113,7 +113,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	std::uint64_t flop = 0;
 	if (do_work) {
 
-		if (opts.cuda && cuda_thread_count() / std::max((int) thread_cnt, 1) < 16) {
+		if (opts.cuda ) {
 			for (auto &unit : entry.cunits) {
 				std::vector<std::pair<part_iter, part_iter>> tmp;
 				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {

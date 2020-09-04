@@ -75,17 +75,17 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 					vect<float> dX;
 					if (ewald) {
 						for (int dim = 0; dim < NDIM; dim++) {
-							dX[dim] = float(float(X[i - xindex[ui]][dim] - Y[dim]) * float(POS_INV));
+							dX[dim] = float(X[i -xb][dim] - Y[dim]) * float(POS_INV);
 						}
 					} else {
 						for (int dim = 0; dim < NDIM; dim++) {
-							dX[dim] = float(float(X[i - xindex[ui]][dim]) * float(POS_INV) - float(Y[dim]) * float(POS_INV));
+							dX[dim] = (float(X[i - xb][dim])  - float(Y[dim])) * float(POS_INV);  // 15
 						}
 					}
 					const float r2 = dX.dot(dX);								   // 5
-					const float r = sqrt(r2);									   // 7
-					const float rinv = float(1) / max(r, 0.5 * h);             //36
-					const float rinv3 = rinv * rinv * rinv;                       // 2
+					const float r = sqrt(r2);									   // 1
+					const float rinv = float(1) / max(r, 0.5 * h);             	   // 2
+					const float rinv3 = rinv * rinv * rinv;                        // 2
 					float f, p;
 					if (r > h) {
 						f = rinv3;
@@ -120,12 +120,12 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 						p = p * roh2, float(+14.0 / 5.0);					// 1
 						p *= Hinv;														// 1
 					}
-					const auto dXM = dX * m;
+					const auto dXM = dX * m;								// 3
 					for (int dim = 0; dim < NDIM; dim++) {
-						G[iwarp][n].g[dim] +=-dXM[dim] * f;    						// 15
+						G[iwarp][n].g[dim] -= dXM[dim] * f;    				// 6
 					}
 					// 13S + 2D = 15
-					G[iwarp][n].phi += -p * m;    						// 10
+					G[iwarp][n].phi -= p * m;    						// 2
 				}
 			}
 			for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
@@ -266,18 +266,19 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 
 	int xi = 0;
 	int yi = 0;
+	std::uint64_t interactions = 0;
 	for (const auto &unit : units) {
 		xindex.push_back(xi);
 		yindex.push_back(yi);
 		xi += unit.xptr->size();
 		yi += unit.yiters.size();
-
 		f.insert(f.end(), unit.fptr->begin(), unit.fptr->end());
 		x.insert(x.end(), unit.xptr->begin(), unit.xptr->end());
 		for (int j = 0; j < unit.yiters.size(); j++) {
 			std::pair<part_iter, part_iter> iter = unit.yiters[j];
 			iter.first -= y_begin;
 			iter.second -= y_begin;
+			interactions += unit.xptr->size() * (iter.second - iter.first);
 			y.push_back(iter);
 		}
 	}
@@ -314,7 +315,7 @@ PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>
 	}
 	push_context(ctx);
 	thread_cnt--;
-	return 0;
+	return interactions * 36;
 }
 
 //#define MAXWORKSIZE 512
