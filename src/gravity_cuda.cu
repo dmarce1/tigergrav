@@ -32,7 +32,6 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 #define NODESIZE 64
 #define NWARP (WORKSIZE/WARPSIZE)
 #define WARPSIZE 32
-#define SYNCRATE 8
 
 __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y, std::pair<part_iter, part_iter> *yiters, int *xindex, int *yindex, float m,
 		float h, bool ewald) {
@@ -45,8 +44,8 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 
 	__shared__ vect<pos_type>
 	X[NODESIZE];
-	__shared__ vect<pos_type>
-	Ymem[WORKSIZE][SYNCRATE];
+//	__shared__ vect<pos_type>
+//	Ymem[WORKSIZE][SYNCRATE];
 	__shared__ force
 	G[NWARP][WARPSIZE];
 
@@ -65,22 +64,22 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 		if (yi < ye) {
 			jb = yiters[yi].first;
 			je = yiters[yi].second;
-			memcpy(Ymem[l], y + jb, (je - jb) * sizeof(vect<pos_type> ));
+//			memcpy(Ymem[l], y + jb, (je - jb) * sizeof(vect<pos_type> ));
 		}
 		for (int i = xb; i < xe; i++) {
 			G[iwarp][n].phi = 0.0;
 			G[iwarp][n].g = vect<float>(0.0);
 			if (yi < ye) {
 				for (int j = jb; j < je; j++) {
-					const vect<pos_type> Y = Ymem[l][j - jb];
+					const vect<pos_type> Y = y[j];
 					vect<float> dX;
 					if (ewald) {
 						for (int dim = 0; dim < NDIM; dim++) {
-							dX[dim] = float(double(X[i - xindex[ui]][dim] - Y[dim]) * double(POS_INV));
+							dX[dim] = float(float(X[i - xindex[ui]][dim] - Y[dim]) * float(POS_INV));
 						}
 					} else {
 						for (int dim = 0; dim < NDIM; dim++) {
-							dX[dim] = float(double(X[i - xindex[ui]][dim]) * double(POS_INV) - double(Y[dim]) * double(POS_INV));
+							dX[dim] = float(float(X[i - xindex[ui]][dim]) * float(POS_INV) - float(Y[dim]) * float(POS_INV));
 						}
 					}
 					const float r2 = dX.dot(dX);								   // 5
@@ -123,10 +122,10 @@ __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y,
 					}
 					const auto dXM = dX * m;
 					for (int dim = 0; dim < NDIM; dim++) {
-						G[iwarp][n].g[dim] += double(-dXM[dim] * f);    						// 15
+						G[iwarp][n].g[dim] +=-dXM[dim] * f;    						// 15
 					}
 					// 13S + 2D = 15
-					G[iwarp][n].phi += double(-p * m);    						// 10
+					G[iwarp][n].phi += -p * m;    						// 10
 				}
 			}
 			for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
@@ -258,7 +257,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	thread_cnt++;
 
 	static const auto opts = options::get();
-	static const double m = opts.m_tot / opts.problem_size;
+	static const float m = opts.m_tot / opts.problem_size;
 	std::vector<int> xindex;
 	std::vector<int> yindex;
 	std::vector<force> f;

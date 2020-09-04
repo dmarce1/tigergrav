@@ -135,11 +135,10 @@ target_compile_options(tigergrav_lite PUBLIC "-DHPX_LITE")
 #target_compile_options(tigergrav_lite PUBLIC "-march=native")
 target_compile_options(tigergrav_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --gpu-architecture=compute_75;
-                       --use_fast_math 
+			-v
                         >)
 target_compile_options(tigergrav PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --gpu-architecture=compute_75;
-                       --use_fast_math 
                         >)
 
 target_include_directories(test PUBLIC ${PROJECT_SOURCE_DIR})
