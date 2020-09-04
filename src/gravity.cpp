@@ -19,7 +19,8 @@ double ewald_near_separation2(const vect<double> x) {
 }
 
 double ewald_far_separation2(const vect<double> x) {
-	return std::max(0.125, ewald_near_separation2(x));
+	static const auto r2 = std::pow(options::get().theta * 0.5, 2);
+	return std::max(r2, ewald_near_separation2(x));
 
 }
 

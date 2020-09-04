@@ -58,7 +58,6 @@ struct periodic_parts: public std::vector<expansion<float>> {
 	}
 };
 
-
 template<class SINGLE>  // 167
 void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
 		const vect<SINGLE> &dx) {
@@ -185,7 +184,6 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 59  + 167 = 226
 	return D;
 }
 
-
 template<class T>
 inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 	static const periodic_parts periodic;
@@ -217,7 +215,8 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 		const T r4 = r2 * r2;					// 1
 		const T r6 = r2 * r4;					// 1
 		const T r = sqrt(r2);					// 7
-		const T mask = (r < 3.6) * zmask;		// 3
+		const T cmask = T(1) - (n.dot(n) > 0.0);
+		const T mask = (T(1) - (T(1) - zmask) * cmask) * (r < 3.6);
 		const T rinv = mask / max(r, rcut);		// 36
 		const T r2inv = rinv * rinv;			// 1
 		const T r3inv = r2inv * rinv;			// 1
@@ -245,8 +244,6 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 		const T omega = twopi * hdotdx;							// 1
 		T co, si;
 		sincos(omega, &si, &co);								// 25
-		si *= zmask;											// 1
-		co *= zmask;											// 1
 		D() += H() * co;										// 5
 		for (int a = 0; a < NDIM; a++) {
 			D(a) += H(a) * si;									// 15
@@ -267,17 +264,16 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 		rcD[i] = D[i];																	// 70
 	}
 	const auto D1 = green_direct(X);													// 167
-	const T rinv = -zmask * D1();														// 2
-	rcD() = T(M_PI / 4.0) + rcD() + rinv;												// 2
-	rcD() = fmadd(T(2.8372975), (T(1) - zmask), +rcD() * zmask);						// 4
+	const T rinv = -D1();														// 2
+	rcD() = T(M_PI / 4.0) + rcD() + zmask * rinv;												// 2
 	for (int a = 0; a < NDIM; a++) {
-		rcD(a) = zmask * (rcD(a) - D1(a));												// 6
+		rcD(a) = (rcD(a) - zmask * D1(a));												// 6
 		for (int b = 0; b <= a; b++) {
-			rcD(a, b) = zmask * (rcD(a, b) - D1(a, b));									// 12
+			rcD(a, b) = (rcD(a, b) - zmask * D1(a, b));									// 12
 			for (int c = 0; c <= b; c++) {
-				rcD(a, b, c) = zmask * (rcD(a, b, c) - D1(a, b, c));					// 20
+				rcD(a, b, c) = (rcD(a, b, c) - zmask * D1(a, b, c));					// 20
 				for (int d = 0; d <= c; d++) {
-					rcD(a, b, c, d) = zmask * (rcD(a, b, c, d) - D1(a, b, c, d));		// 30
+					rcD(a, b, c, d) = (rcD(a, b, c, d) - zmask * D1(a, b, c, d));		// 30
 				}
 			}
 		}

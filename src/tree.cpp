@@ -59,25 +59,25 @@ struct raw_id_type_hash {
 	}
 };
 
-void manage_checkptr(check_item* ptr){
+void manage_checkptr(check_item *ptr) {
 	std::lock_guard<mutex_type> lock(check_ptr_mtx);
 	check_ptrs.insert(ptr);
 }
 
-HPX_PLAIN_ACTION(trash_checkptrs);
+HPX_PLAIN_ACTION (trash_checkptrs);
 
 void trash_checkptrs() {
 	std::vector<hpx::future<void>> futs;
-	if( myid ==0 ) {
-		for( int i=1;i <futs.size(); i++) {
-			futs.push_back(hpx::async<trash_checkptrs_action>(localities[i]));
+	if (myid == 0) {
+		for (int i = 1; i < futs.size(); i++) {
+			futs.push_back(hpx::async < trash_checkptrs_action > (localities[i]));
 		}
 	}
-	for( auto ptr : check_ptrs) {
+	for (auto ptr : check_ptrs) {
 		delete ptr;
 	}
 	check_ptrs.clear();
-	hpx::wait_all(futs.begin(),futs.end());
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
 template<class F>
@@ -312,8 +312,8 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
 		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
 		r = std::min(r, (float) rmax);
-		child_check.children[0]= ml.c;
-		child_check.children[1]= mr.c;
+		child_check.children[0] = ml.c;
+		child_check.children[1] = mr.c;
 	}
 	if (num_active && is_leaf()) {
 		gwork_checkin(gwork_id);
@@ -321,7 +321,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	rc.m.m = multi.m;
 	rc.m.x = multi.x;
 	rc.m.r = r;
-	rc.m.num_active =num_active;
+	rc.m.num_active = num_active;
 	rc.r = prange;
 	rc.c = get_check_item();
 	if (flags.level == 0) {
@@ -475,12 +475,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			const auto dX = multixdouble - pos_to_double(c.chk->x);
 			const auto dx2 = ewald_far_separation2(dX);
 			const auto radius = (r + c.chk->r + h) * theta_inv;
-			bool far;
-			if (dX.dot(dX) > 0.0) {
-				far = dx2 > radius * radius;
-			} else {
-				far = rmax < r_ewald;
-			}
+			const bool far = dx2 > radius * radius;
 			if (far) {
 				if (c.opened) {
 					esource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
@@ -595,12 +590,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 					const auto dX = multixdouble - pos_to_double(c.chk->x);
 					const auto dx2 = ewald_far_separation2(dX);
 					const auto radius = (r + c.chk->r + h) * theta_inv;
-					bool far;
-					if (dX.dot(dX) > 0.0) {
-						far = dx2 > radius * radius;
-					} else {
-						far = rmax < r_ewald;
-					}
+					const bool far = dx2 > radius * radius;
 					if (c.opened) {
 						esource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
 						esource_count += c.chk->pend - c.chk->pbegin;
