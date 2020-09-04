@@ -191,6 +191,7 @@ struct check_pair {
 		check_item* ptr = new check_item;
 		arc & opened;
 		arc & *ptr;
+		chk = ptr;
 		manage_checkptr(ptr);
 	}
 	template<class A>
