@@ -44,17 +44,21 @@ __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X,
 		Lacc[l][i] = 0.0;
 	}
 	for (int yi = l; yi < ysize; yi += WARPSIZE) {
-		vect<pos_type> Y = y[l].x;
-		multipole<float> M = y[l].m;
-		vect<float> dX;
-		for (int dim = 0; dim < NDIM; dim++) {
-			dX[dim] = float(X[dim] - Y[dim]) * float(POS_INV); // 18
+		if (yi < ysize) {
+			vect<pos_type> Y = y[yi].x;
+			multipole<float> M = y[yi].m;
+			vect<float> dX;
+			for (int dim = 0; dim < NDIM; dim++) {
+				dX[dim] = float(X[dim] - Y[dim]) * float(POS_INV); // 18
+			}
+			multipole_interaction(Lacc[l], M, dX, true);											// 251936
 		}
-		multipole_interaction(Lacc[l], M, dX, true);											// 251936
 	}
 	for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
-		for (int i = 0; i < LP; i++) {
-			Lacc[l][i] += Lacc[l + N][i];
+		if (l < N) {
+			for (int i = 0; i < LP; i++) {
+				Lacc[l][i] += Lacc[l + N][i];
+			}
 		}
 	}
 	if (l == 0) {
@@ -64,7 +68,7 @@ __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X,
 	}
 }
 
-std::uint64_t gravity_CC_ewald_cuda(expansion<double>& L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
+std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
 	expansion<double> *Ldev;
 	multi_src *Ypinned;
 	multi_src *Ydev;
@@ -75,25 +79,27 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double>& L, const vect<pos_type> &
 		Ypinned[k++] = *y[i];
 	}
 	CUDA_CHECK(cudaStreamCreate(&stream));
-	CUDA_CHECK(cudaMalloc((void**) &Ldev, sizeof(expansion<double> )));
-	CUDA_CHECK(cudaMalloc((void**) &Ydev, sizeof(multi_src) * y.size()));
-	CUDA_CHECK(cudaMemcpy(Ydev, Ypinned, sizeof(multi_src), cudaMemcpyHostToDevice));
-	CUDA_CHECK(cudaMemcpy(Ldev, &L, sizeof(expansion<double>), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMalloc((void** ) &Ldev, sizeof(expansion<double> )));
+	CUDA_CHECK(cudaMalloc((void** ) &Ydev, sizeof(multi_src) * y.size()));
+	CUDA_CHECK(cudaMemcpy(Ydev, Ypinned, sizeof(multi_src) * y.size(), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(Ldev, &L, sizeof(expansion<double> ), cudaMemcpyHostToDevice));
 
 	CC_ewald_kernel<<<dim3(1,1,1),dim3(WARPSIZE,1,1),0,stream>>>(Ldev, x, Ydev, y.size());
 	while (cudaStreamQuery(stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
-	CUDA_CHECK(cudaMemcpy(&L, Ldev, sizeof(expansion<double>), cudaMemcpyDeviceToHost));
+	CUDA_CHECK(cudaMemcpy(&L, Ldev, sizeof(expansion<double> ), cudaMemcpyDeviceToHost));
 
 	CUDA_CHECK(cudaStreamDestroy(stream));
 	CUDA_CHECK(cudaFreeHost(Ypinned));
 	CUDA_CHECK(cudaFree(Ldev));
-	CUDA_CHECK(cudaFree (Ydev));
+	CUDA_CHECK(cudaFree(Ydev));
 }
 
 __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y, std::pair<part_iter, part_iter> *yiters, int *xindex, int *yindex, float m,
 		float h, bool ewald) {
+//	printf("sizeof(force) = %li\n", sizeof(force));
+
 	const int iwarp = threadIdx.y;
 	const int ui = blockIdx.x;
 	const int l = iwarp * blockDim.x + threadIdx.x;
@@ -363,7 +369,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 
 PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
 
-																						CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+																								CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}

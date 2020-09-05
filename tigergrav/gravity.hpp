@@ -10,8 +10,8 @@
 #include <map>
 
 struct multi_src {
-	multipole<float> m;
 	vect<pos_type> x;
+	multipole<float> m;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & m;

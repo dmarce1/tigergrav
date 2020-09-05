@@ -115,7 +115,8 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 }
 
 template<class DOUBLE, class SINGLE>  // 576
-CUDA_EXPORT void green_deriv_ewald(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4, const vect<SINGLE> &dx) {
+CUDA_EXPORT void green_deriv_ewald(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
+		const vect<SINGLE> &dx) {
 	static const SINGLE two(2.0);
 	D() += d0;													//  4
 	for (int a = 0; a < NDIM; a++) {
@@ -235,7 +236,7 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	static const float twopi = 2.0 * M_PI;
 	for (n[0] = -3; n[0] <= 3; n[0]++) {
 		for (n[1] = -3; n[1] <= 3; n[1]++) {
-			for (n[2] = -3; n[1] <= 3; n[2]++) {
+			for (n[2] = -3; n[2] <= 3; n[2]++) {
 				if (n.dot(n) < 10) {
 					vect<float> h = n;
 					const float h2 = h.dot( h);
@@ -256,7 +257,7 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 									D(a, b, c) += c3 * so;
 									for (int d = 0; d <= c; d++) {
 										const float c4 = +twopi * c3 * h[d];
-										D(a, b, c) += c4 * co;
+										D(a, b, c, d) += c4 * co;
 									}
 								}
 							}
@@ -270,7 +271,7 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	expansion<float> rcD;
 
 	for (int i = 0; i < LP; i++) {
-		rcD[i] = D[i];																	// 70
+		rcD[i] =D[i];																	// 70
 	}
 	const auto D1 = green_direct(X);													// 167
 	const float rinv = -D1();														// 2
@@ -339,7 +340,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 		const T d1 = (expfactor + erfc) * r3inv;			// 2
 		const T d2 = -fma(expfactor, fma(eight, T(r2), three), three * erfc) * r5inv;		// 5
 		const T d3 = fma(expfactor, (fifteen + fma(fourty, T(r2), sixtyfour * T(r4))), fifteen * erfc) * r7inv;		// 6
-		const T d4 = -fma(expfactor, fma(eight * T(r2), (thirtyfive + fma(fiftysix, r2, sixtyfour * r4)), onehundredfive), onehundredfive * erfc) * r9inv;// 9
+		const T d4 = -fma(expfactor, fma(eight * T(r2), (thirtyfive + fma(fiftysix, r2, sixtyfour * r4)), onehundredfive), onehundredfive * erfc) * r9inv;	// 9
 		green_deriv_ewald(D, d0, d1, d2, d3, d4, dx);			// 576
 	}
 	for (int i = 0; i < indices_four.size(); i++) {		// 207 * 123 = 			// 25461

@@ -104,6 +104,7 @@ std::string to_kform(double num) {
 }
 
 int hpx_main(int argc, char *argv[]) {
+	printf("sizeof(force) = %li\n", sizeof(force));
 	printf("sizeof(particle) = %li\n", sizeof(particle));
 	printf("sizeof(tree)     = %li\n", sizeof(tree));
 //	printf("Hardware concurrency = %li\n", hpx::threads::hardware_concurrency());
