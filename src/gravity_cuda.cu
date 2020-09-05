@@ -15,6 +15,37 @@ static part_iter y_end;
 static bool first_call = true;
 static std::atomic<int> thread_cnt(0);
 
+__device__ __constant__ cuda_ewald_const cuda_ewald;
+
+__device__ const cuda_ewald_const& cuda_get_const() {
+	return cuda_ewald;
+}
+
+void cuda_init() {
+	static std::atomic<int> lock(0);
+	static bool init = false;
+	while (lock++ != 0) {
+		lock--;
+	}
+	if (!init) {
+		cuda_ewald_const c;
+		const ewald_indices indices_real(EWALD_REAL_N2, false);
+		const ewald_indices indices_four(EWALD_FOUR_N2, true);
+		const periodic_parts periodic;
+		for (int i = 0; i < indices_real.size(); i++) {
+			c.real_indices[i] = indices_real[i];
+		}
+		for (int i = 0; i < indices_four.size(); i++) {
+			c.four_indices[i] = indices_four[i];
+			c.periodic_parts[i] = periodic[i];
+		}
+
+		CUDA_CHECK(cudaMemcpyToSymbol(cuda_ewald, &c, sizeof(cuda_ewald_const)));
+		init = true;
+	}
+	lock--;
+}
+
 bool cuda_thread_count() {
 	return thread_cnt;
 }
@@ -31,6 +62,7 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 }
 
 #define WARPSIZE 32
+#define CCSIZE 32
 
 #define WORKSIZE 128
 #define NODESIZE 64
@@ -38,13 +70,14 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 #define WARPSIZE 32
 
 __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X, const multi_src *y, int ysize) {
+
 	int l = threadIdx.x + blockDim.x * blockIdx.x;
 	int n = threadIdx.x;
 	int tb_size = blockDim.x;
 	auto &L = *lptr;
 
 	__shared__ expansion<double>
-	Lacc[WARPSIZE];
+	Lacc[CCSIZE];
 	for (int i = 0; i < LP; i++) {
 		Lacc[n][i] = 0.0;
 	}
@@ -57,12 +90,14 @@ __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X,
 			multipole_interaction(Lacc[n], y[yi].m, dX, true);											// 251936
 		}
 	}
+//	__syncthreads();
 	for (int N = tb_size / 2; N > 0; N >>= 1) {
 		if (n < N) {
 			for (int i = 0; i < LP; i++) {
 				Lacc[n][i] += Lacc[n + N][i];
 			}
 		}
+//		__syncthreads();
 	}
 	if (n == 0) {
 		for (int i = 0; i < LP; i++) {
@@ -130,6 +165,9 @@ void push_context_ewald(cuda_context_ewald ctx) {
 }
 
 std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
+
+	cuda_init();
+
 	auto ctx = pop_context_ewald(y.size());
 	int k = 0;
 	for (int i = 0; i < y.size(); i++) {
@@ -139,20 +177,11 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 	CUDA_CHECK(cudaMemcpyAsync(ctx.y, ctx.yp, sizeof(multi_src) * y.size(), cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.L, ctx.Lp, sizeof(expansion<double> ), cudaMemcpyHostToDevice, ctx.stream));
 
-	const int tb_max = 512;
-	int tb_size;
-	if (y.size() <= tb_max) {
-		tb_size = (((y.size() - 1) / WARPSIZE) + 1) * WARPSIZE;
-	} else {
-		int nperthread = (y.size() - 1) / tb_max + 1;
-		tb_size = (y.size() - 1) / nperthread + 1;
-		tb_size = (((tb_size - 1) / WARPSIZE) + 1) * WARPSIZE;
-	}
+	int tb_size = (((y.size() - 1) / CCSIZE) + 1) * CCSIZE;
 
-CC_ewald_kernel<<<dim3(tb_size/32,1,1),dim3(32,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
+	CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-												CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
-
+			CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
@@ -181,136 +210,139 @@ __global__ void PPPC_direct_kernel(force *F, const vect<pos_type> *x, const vect
 	const auto xb = xindex[ui];
 	const auto xe = xindex[ui + 1];
 	const auto xsize = xe - xb;
-	const auto ymax = ((ye - yb - 1) / WORKSIZE + 1) * WORKSIZE + yb;
 	if (l < xsize) {
 		X[l] = x[xb + l];
 	}
 	__syncthreads();
-	for (int yi = yb + l; yi < ymax; yi += WORKSIZE) {
-		int jb, je;
-		if (yi < ye) {
-			jb = yiters[yi].first;
-			je = yiters[yi].second;
-//			memcpy(Ymem[l], y + jb, (je - jb) * sizeof(vect<pos_type> ));
-		}
-		for (int i = xb; i < xe; i++) {
-			G[iwarp][n].phi = 0.0;
-			G[iwarp][n].g = vect<float>(0.0);
+	{
+		const auto ymax = ((ye - yb - 1) / WORKSIZE + 1) * WORKSIZE + yb;
+		for (int yi = yb + l; yi < ymax; yi += WORKSIZE) {
+			int jb, je;
 			if (yi < ye) {
-				for (int j = jb; j < je; j++) {
-					const vect<pos_type> Y = y[j];
-					vect<float> dX;
-					if (ewald) {
-						for (int dim = 0; dim < NDIM; dim++) {
-							dX[dim] = float(X[i - xb][dim] - Y[dim]) * float(POS_INV);
+				jb = yiters[yi].first;
+				je = yiters[yi].second;
+//			memcpy(Ymem[l], y + jb, (je - jb) * sizeof(vect<pos_type> ));
+			}
+			for (int i = xb; i < xe; i++) {
+				G[iwarp][n].phi = 0.0;
+				G[iwarp][n].g = vect<float>(0.0);
+				if (yi < ye) {
+					for (int j = jb; j < je; j++) {
+						const vect<pos_type> Y = y[j];
+						vect<float> dX;
+						if (ewald) {
+							for (int dim = 0; dim < NDIM; dim++) {
+								dX[dim] = float(X[i - xb][dim] - Y[dim]) * float(POS_INV);
+							}
+						} else {
+							for (int dim = 0; dim < NDIM; dim++) {
+								dX[dim] = (float(X[i - xb][dim]) - float(Y[dim])) * float(POS_INV);  // 15
+							}
 						}
-					} else {
-						for (int dim = 0; dim < NDIM; dim++) {
-							dX[dim] = (float(X[i - xb][dim]) - float(Y[dim])) * float(POS_INV);  // 15
+						const float r2 = dX.dot(dX);								   // 5
+						const float r = sqrt(r2);									   // 1
+						const float rinv = float(1) / max(r, 0.5 * h);             	   // 2
+						const float rinv3 = rinv * rinv * rinv;                        // 2
+						float f, p;
+						if (r > h) {
+							f = rinv3;
+							p = rinv;
+						} else if (r > 0.5 * h) {
+							const float roh = min(r * Hinv, 1.0);                           // 2
+							const float roh2 = roh * roh;                                 // 1
+							const float roh3 = roh2 * roh;                                // 1
+							f = float(-32.0 / 3.0);
+							f = f * roh + float(+192.0 / 5.0);						// 1
+							f = f * roh + float(-48.0);								// 1
+							f = f * roh + float(+64.0 / 3.0);						// 1
+							f = f * roh3 + float(-1.0 / 15.0);						// 1
+							f *= rinv3;														// 1
+							p = float(+32.0 / 15.0);						// 1
+							p = p * roh + float(-48.0 / 5.0);					// 1
+							p = p * roh + float(+16.0);							// 1
+							p = p * roh + float(-32.0 / 3.0);					// 1
+							p = p * roh2 + float(+16.0 / 5.0);					// 1
+							p = p * roh + float(-1.0 / 15.0);					// 1
+							p *= rinv;                                                    	// 1
+						} else {
+							const float roh = min(r * Hinv, 1.0);                           // 2
+							const float roh2 = roh * roh;                                 // 1
+							f = float(+32.0);
+							f = f * roh + float(-192.0 / 5.0);						// 1
+							f = f * roh2 + float(+32.0 / 3.0);						// 1
+							f *= H3inv;                                                       	// 1
+							p = float(-32.0 / 5.0);
+							p = p * roh + float(+48.0 / 5.0);					// 1
+							p = p * roh2 + float(-16.0 / 3.0);					// 1
+							p = p * roh2 + float(+14.0 / 5.0);					// 1
+							p *= Hinv;														// 1
 						}
+						const auto dXM = dX * m;								// 3
+						for (int dim = 0; dim < NDIM; dim++) {
+							G[iwarp][n].g[dim] -= dXM[dim] * f;    				// 6
+						}
+						// 13S + 2D = 15
+						G[iwarp][n].phi -= p * m;    						// 2
 					}
-					const float r2 = dX.dot(dX);								   // 5
-					const float r = sqrt(r2);									   // 1
-					const float rinv = float(1) / max(r, 0.5 * h);             	   // 2
-					const float rinv3 = rinv * rinv * rinv;                        // 2
-					float f, p;
-					if (r > h) {
-						f = rinv3;
-						p = rinv;
-					} else if (r > 0.5 * h) {
-						const float roh = min(r * Hinv, 1.0);                           // 2
-						const float roh2 = roh * roh;                                 // 1
-						const float roh3 = roh2 * roh;                                // 1
-						f = float(-32.0 / 3.0);
-						f = f * roh + float(+192.0 / 5.0);						// 1
-						f = f * roh + float(-48.0);								// 1
-						f = f * roh + float(+64.0 / 3.0);						// 1
-						f = f * roh3 + float(-1.0 / 15.0);						// 1
-						f *= rinv3;														// 1
-						p = float(+32.0 / 15.0);						// 1
-						p = p * roh + float(-48.0 / 5.0);					// 1
-						p = p * roh + float(+16.0);							// 1
-						p = p * roh + float(-32.0 / 3.0);					// 1
-						p = p * roh2 + float(+16.0 / 5.0);					// 1
-						p = p * roh + float(-1.0 / 15.0);					// 1
-						p *= rinv;                                                    	// 1
-					} else {
-						const float roh = min(r * Hinv, 1.0);                           // 2
-						const float roh2 = roh * roh;                                 // 1
-						f = float(+32.0);
-						f = f * roh + float(-192.0 / 5.0);						// 1
-						f = f * roh2 + float(+32.0 / 3.0);						// 1
-						f *= H3inv;                                                       	// 1
-						p = float(-32.0 / 5.0);
-						p = p * roh + float(+48.0 / 5.0);					// 1
-						p = p * roh2 + float(-16.0 / 3.0);					// 1
-						p = p * roh2 + float(+14.0 / 5.0);					// 1
-						p *= Hinv;														// 1
+				}
+				for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
+					if (n < N) {
+						G[iwarp][n].g += G[iwarp][n + N].g;
+						G[iwarp][n].phi += G[iwarp][n + N].phi;
 					}
-					const auto dXM = dX * m;								// 3
+				}
+				if (n == 0) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						G[iwarp][n].g[dim] -= dXM[dim] * f;    				// 6
+						atomicAdd(&F[i].g[dim], G[iwarp][0].g[dim]);
 					}
-					// 13S + 2D = 15
-					G[iwarp][n].phi -= p * m;    						// 2
+					atomicAdd(&F[i].phi, G[iwarp][0].phi);
 				}
 			}
-			for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
-				if (n < N) {
-					G[iwarp][n].g += G[iwarp][n + N].g;
-					G[iwarp][n].phi += G[iwarp][n + N].phi;
-				}
-			}
-			__syncthreads();
-			if (l == 0) {
-				for (int iw = 0; iw < NWARP; iw++) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						F[i].g[dim] += G[iw][0].g[dim];
-					}
-					F[i].phi += G[iw][0].phi;
-				}
-			}
-			__syncthreads();
 		}
 	}
-	for (int i = xb; i < xe; i++) {
-		bool found_cp = false;
-		G[iwarp][n].phi = 0.0;
-		G[iwarp][n].g = vect<float>(0.0);
-		for (int zi = zindex[ui] + l; zi < zindex[ui + 1]; zi += WORKSIZE) {
-			const multipole<float> &M = z[zi].m;
-			const vect<pos_type> &Y = z[zi].x;
-			found_cp = true;
+	{
+		int zmax = ((zindex[ui + 1] - zindex[ui] - 1) / WORKSIZE + 1) * WORKSIZE;
+		int zmax2 = ((zindex[ui + 1] - zindex[ui] - 1) / WARPSIZE + 1) * WARPSIZE;
+		for (int zi = zindex[ui] + l; zi < zmax; zi += WORKSIZE) {
+			if (zi < zmax2) {
+				for (int i = xb; i < xe; i++) {
+					G[iwarp][n].phi = 0.0;
+					G[iwarp][n].g = vect<float>(0.0);
+					if (zi < zindex[ui + 1]) {
+						const multipole<float> &M = z[zi].m;
+						const vect<pos_type> &Y = z[zi].x;
+						vect<float> dX;
+						if (ewald) {
+							for (int dim = 0; dim < NDIM; dim++) {
+								dX[dim] = float(X[i - xb][dim] - Y[dim]) * float(POS_INV); // 18
+							}
+						} else {
+							for (int dim = 0; dim < NDIM; dim++) {
+								dX[dim] = float(X[i - xb][dim]) * float(POS_INV) - float(Y[dim]) * float(POS_INV);
+							}
+						}
 
-			vect<float> dX;
-			if (ewald) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = float(X[i - xb][dim] - Y[dim]) * float(POS_INV); // 18
+						vect<double> g;
+						double phi;
+						multipole_interaction(g, phi, M, dX); // 516
+
+						G[iwarp][n].g += g;  // 0 / 3
+						G[iwarp][n].phi += phi;		          // 0 / 1
+					}
+					for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
+						if (n < N) {
+							G[iwarp][n].g += G[iwarp][n + N].g;
+							G[iwarp][n].phi += G[iwarp][n + N].phi;
+						}
+					}
+					if (n == 0) {
+						for (int dim = 0; dim < NDIM; dim++) {
+							atomicAdd(&F[i].g[dim], G[iwarp][0].g[dim]);
+						}
+						atomicAdd(&F[i].phi, G[iwarp][0].phi);
+					}
 				}
-			} else {
-				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = float(X[i - xb][dim]) * float(POS_INV) - float(Y[dim]) * float(POS_INV);
-				}
 			}
-
-			vect<double> g;
-			double phi;
-			multipole_interaction(g, phi, M, dX); // 516
-
-			G[iwarp][n].g += g;  // 0 / 3
-			G[iwarp][n].phi += phi;		          // 0 / 1
-		}
-		for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
-			if (n < N) {
-				G[iwarp][n].g += G[iwarp][n + N].g;
-				G[iwarp][n].phi += G[iwarp][n + N].phi;
-			}
-		}
-		if (found_cp && n == 0) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				atomicAdd(&F[i].g[dim], G[iwarp][0].g[dim]);
-			}
-			atomicAdd(&F[i].phi, G[iwarp][0].phi);
 		}
 	}
 }
@@ -445,6 +477,7 @@ void push_context(cuda_context ctx) {
 }
 
 std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
+	cuda_init();
 	thread_cnt++;
 
 	static const auto opts = options::get();
@@ -504,7 +537,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	CUDA_CHECK(cudaMemcpyAsync(ctx.y, ctx.yp, ybytes, cudaMemcpyHostToDevice, ctx.stream));
 	if (zbytes != 0) {
 //		printf( "%li %lli %lli\n", zbytes, ctx.z, ctx.zp);
-		CUDA_CHECK(cudaMemcpy(ctx.z, ctx.zp, zbytes, cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpyAsync(ctx.z, ctx.zp, zbytes, cudaMemcpyHostToDevice, ctx.stream));
 	}
 	CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
@@ -513,7 +546,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 
 PPPC_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
 
-		CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+										CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}

@@ -1,12 +1,12 @@
 #pragma once
 
-constexpr float EWALD_REAL_N2 = 17;
+constexpr float EWALD_REAL_N2 = 18;
 constexpr float EWALD_FOUR_N2 = 9;
 
 #include <tigergrav/expansion.hpp>
 
 struct ewald_indices: public std::vector<vect<float>> {
-	ewald_indices(int n2max) {
+	ewald_indices(int n2max, bool nozero) {
 		const int nmax = sqrt(n2max) + 1;
 		vect<float> h;
 		for (int i = -nmax; i <= nmax; i++) {
@@ -16,7 +16,9 @@ struct ewald_indices: public std::vector<vect<float>> {
 						h[0] = i;
 						h[1] = j;
 						h[2] = k;
-						this->push_back(h);
+						if (!nozero || h.dot(h) > 0) {
+							this->push_back(h);
+						}
 					}
 				}
 			}
@@ -29,7 +31,7 @@ struct ewald_indices: public std::vector<vect<float>> {
 
 struct periodic_parts: public std::vector<expansion<float>> {
 	periodic_parts() {
-		static const ewald_indices indices(EWALD_FOUR_N2);
+		static const ewald_indices indices(EWALD_FOUR_N2, true);
 		for (auto i : indices) {
 			vect<float> h = i;
 			const float h2 = h.dot(h);                     // 5 OP
@@ -186,7 +188,13 @@ CUDA_EXPORT inline expansion<T> green_direct(const vect<T> &dX) {		// 59  + 167 
 
 #ifdef __CUDA_ARCH__
 
+__device__ const cuda_ewald_const& cuda_get_const();
+
 CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
+	const auto& cuda_const = cuda_get_const();
+	const auto& four_indices = cuda_const.four_indices;
+	const auto& real_indices = cuda_const.real_indices;
+	const auto& hparts = cuda_const.periodic_parts;
 	static const float three(3.0);
 	const float fouroversqrtpi(4.0 / sqrt(M_PI));
 	static const float two(2.0);
@@ -200,17 +208,15 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	static const float rcut(1.0e-6);
 	const float r = abs(X);
 	const float zmask = r > rcut;											// 2
-	vect<int> n;
 	expansion<double> D;
 	D = 0.0;
-	for (n[0] = -4; n[0] <= +4; n[0]++) {
-		for (n[1] = -4; n[1] <= +4; n[1]++) {
-			for (n[2] = -4; n[2] <= +4; n[2]++) {
-				const vect<float> dx = X - vect<float>(n);				// 3
+	for( auto n : real_indices) {
+	//	printf( "n = %e %e %e\n", n[0], n[1], n[2]);
+					const vect<float> dx = X - vect<float>(n);				// 3
 				const float r2 = dx.dot(dx);				// 5
-				const float r4 = r2 * r2;					// 1
-				const float r = sqrt(r2);					// 7
-				if (r < 3.6) {
+				if (r2 < 12.96) {
+					const float r = sqrt(r2);					// 7
+					const float r4 = r2 * r2;					// 1
 					const float cmask = 1.0 - (n.dot(n) > 0.0);
 					const float mask = (1.0 - (1.0 - zmask) * cmask);
 					const float rinv = mask / max(r, rcut);		// 36
@@ -229,43 +235,31 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 					const float d4 = -fma(expfactor, fma(eight * r2, (thirtyfive + fma(fiftysix, r2, sixtyfour * r4)), onehundredfive), onehundredfive * erfc0)
 							* r9inv;		// 9
 					green_deriv_ewald(D, d0, d1, d2, d3, d4, dx);			// 576
-				}
-			}
 		}
 	}
 	static const float twopi = 2.0 * M_PI;
-	for (n[0] = -3; n[0] <= 3; n[0]++) {
-		for (n[1] = -3; n[1] <= 3; n[1]++) {
-			for (n[2] = -3; n[2] <= 3; n[2]++) {
-				if (n.dot(n) < 10) {
-					vect<float> h = n;
+
+	for( int i = 0; i < EWALD_NFOUR; i++ ) {
+		const auto & h = four_indices[i];
+		const auto & hpart = hparts[i];
+//		printf( "H = %e %e %e\n", h[0], h[1], h[2]);
 					const float h2 = h.dot( h);
 					const float hdotx = h.dot(X);
-					if (h2 > 0.0) {
 						const float co = cosf(twopi * hdotx);
 						const float so = sinf(twopi * hdotx);
-						float c0 = (-1.0 / M_PI) * expf(-M_PI * M_PI / 4.0 * h2) / h2;
-						D() += c0 * co;
+						D() += hpart() * co;
 						for (int a = 0; a < NDIM; a++) {
-							const float c1 = -twopi * c0 * h[a];
-							D(a) += c1 * so;
+							D(a) += hpart(a) * so;
 							for (int b = 0; b <= a; b++) {
-								const float c2 = +twopi * c1 * h[b];
-								D(a, b) += c2 * co;
+								D(a, b) += hpart(a,b) * co;
 								for (int c = 0; c <= b; c++) {
-									const float c3 = -twopi * c2 * h[c];
-									D(a, b, c) += c3 * so;
+									D(a, b, c) += hpart(a,b,c) * so;
 									for (int d = 0; d <= c; d++) {
-										const float c4 = +twopi * c3 * h[d];
-										D(a, b, c, d) += c4 * co;
+										D(a, b, c, d) += hpart(a,b,c,d)* co;
 									}
 								}
 							}
-						}
 					}
-				}
-			}
-		}
 	}
 
 	expansion<float> rcD;
@@ -301,8 +295,9 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 	D = 0.0;
 	vect<T> n;
 	vect<float> h;
-	static const ewald_indices indices_real(EWALD_REAL_N2);
-	static const ewald_indices indices_four(EWALD_FOUR_N2);
+	static const ewald_indices indices_real(EWALD_REAL_N2, false);
+	static const ewald_indices indices_four(EWALD_FOUR_N2, true);
+//	printf( "%i %i\n", indices_real.size(), indices_four.size());
 	static const T three(3.0);
 	static const T fouroversqrtpi(4.0 / sqrt(M_PI));
 	static const T two(2.0);

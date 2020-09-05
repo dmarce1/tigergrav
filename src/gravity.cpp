@@ -221,8 +221,8 @@ std::uint64_t gravity_CP_direct(expansion<double> &L, const vect<pos_type> &x, s
 	return 455 * cnt1;
 }
 
-static const ewald_indices indices_real(EWALD_REAL_N2);
-static const ewald_indices indices_four(EWALD_FOUR_N2);
+static const ewald_indices indices_real(EWALD_REAL_N2, false);
+static const ewald_indices indices_four(EWALD_FOUR_N2, true);
 
 std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> y) {
 	if (y.size() == 0) {
@@ -433,7 +433,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, st
 	}
 	static const auto opts = options::get();
 	if (opts.cuda) {
-//		return gravity_CC_ewald_cuda(L, x, y);
+		return gravity_CC_ewald_cuda(L, x, y);
 	}
 	static const auto one = simd_float(1.0);
 	static const auto half = simd_float(0.5);
