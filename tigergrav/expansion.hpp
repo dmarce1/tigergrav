@@ -20,6 +20,7 @@
 
 #include <tigergrav/multipole.hpp>
 #include <tigergrav/options.hpp>
+#include <tigergrav/cuda_export.hpp>
 #include <tigergrav/simd.hpp>
 
 #include <algorithm>
@@ -39,122 +40,132 @@ struct force {
 };
 
 template<class T>
-class expansion: public std::array<T, LP> {
+class expansion {
 
+	T data[LP];
 public:
 	expansion<T>& operator*=(T r) {
 		for (int i = 0; i != LP; ++i) {
-			(*this)[i] *= r;
+			data[i] *= r;
 		}
 		return *this;
 	}
-	expansion();
-	T operator ()() const;
-	T& operator ()();
-	T operator ()(int i) const;
-	T& operator ()(int i);
-	T operator ()(int i, int j) const;
-	T& operator ()(int i, int j);
-	T operator ()(int i, int j, int k) const;
-	T& operator ()(int i, int j, int k);
-	T operator ()(int i, int j, int k, int l) const;
-	T& operator ()(int i, int j, int k, int l);
-	expansion<T>& operator =(const expansion<T> &expansion);
-	expansion<T>& operator =(T expansion);
-	force translate_L2(const vect<T> &dX) const;
-	expansion<T> operator<<(const vect<T> &dX) const;
-	expansion<T>& operator<<=(const vect<T> &dX);
-	std::array<T, LP>& operator +=(const std::array<T, LP> &vec);
-	std::array<T, LP>& operator -=(const std::array<T, LP> &vec);
-	void compute_D(const vect<T> &Y);
-	void invert();
-	std::array<expansion<T>, NDIM> get_derivatives() const;
+	CUDA_EXPORT expansion();
+	CUDA_EXPORT T operator ()() const;
+	CUDA_EXPORT T& operator ()();
+	CUDA_EXPORT T operator ()(int i) const;
+	CUDA_EXPORT T& operator ()(int i);
+	CUDA_EXPORT T operator ()(int i, int j) const;
+	CUDA_EXPORT T& operator ()(int i, int j);
+	CUDA_EXPORT T operator ()(int i, int j, int k) const;
+	CUDA_EXPORT T& operator ()(int i, int j, int k);
+	CUDA_EXPORT T operator ()(int i, int j, int k, int l) const;
+	CUDA_EXPORT T& operator ()(int i, int j, int k, int l);
+	CUDA_EXPORT expansion<T>& operator =(const expansion<T> &expansion);
+	CUDA_EXPORT expansion<T>& operator =(T expansion);
+	CUDA_EXPORT force translate_L2(const vect<T> &dX) const;
+	CUDA_EXPORT expansion<T> operator<<(const vect<T> &dX) const;
+	CUDA_EXPORT expansion<T>& operator<<=(const vect<T> &dX);
+	CUDA_EXPORT void compute_D(const vect<T> &Y);
+	CUDA_EXPORT std::array<expansion<T>, NDIM> get_derivatives() const;
+	CUDA_EXPORT inline T& operator[]( int i ) {
+		return data[i];
+	}
+	CUDA_EXPORT inline T operator[]( int i ) const {
+		return data[i];
+	}
+	template<class A>
+	void serialize( A&& arc, unsigned ) {
+		for( int i = 0; i < LP; i++) {
+			arc & data[i];
+		}
+	}
 };
 
 template<class T>
-inline expansion<T>::expansion() {
+CUDA_EXPORT inline expansion<T>::expansion() {
 }
 
 template<class T>
-inline T expansion<T>::operator ()() const {
-	return (*this)[0];
+CUDA_EXPORT inline T expansion<T>::operator ()() const {
+	return data[0];
 }
 template<class T>
-inline T& expansion<T>::operator ()() {
-	return (*this)[0];
-}
-
-template<class T>
-inline T expansion<T>::operator ()(int i) const {
-	return (*this)[1 + i];
-}
-template<class T>
-inline T& expansion<T>::operator ()(int i) {
-	return (*this)[1 + i];
+CUDA_EXPORT inline T& expansion<T>::operator ()() {
+	return data[0];
 }
 
 template<class T>
-inline T expansion<T>::operator ()(int i, int j) const {
+CUDA_EXPORT inline T expansion<T>::operator ()(int i) const {
+	return data[1 + i];
+}
+template<class T>
+CUDA_EXPORT inline T& expansion<T>::operator ()(int i) {
+	return data[1 + i];
+}
+
+template<class T>
+CUDA_EXPORT inline T expansion<T>::operator ()(int i, int j) const {
 	static constexpr size_t map2[3][3] = { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } };
-	return (*this)[4 + map2[i][j]];
+	return data[4 + map2[i][j]];
 }
 template<class T>
-inline T& expansion<T>::operator ()(int i, int j) {
+CUDA_EXPORT inline T& expansion<T>::operator ()(int i, int j) {
 	static constexpr size_t map2[3][3] = { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } };
-	return (*this)[4 + map2[i][j]];
+	return data[4 + map2[i][j]];
 }
 
 template<class T>
-inline T expansion<T>::operator ()(int i, int j, int k) const {
+CUDA_EXPORT inline T expansion<T>::operator ()(int i, int j, int k) const {
 	static constexpr size_t map3[3][3][3] = { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7, 8 },
 			{ 5, 8, 9 } } };
 
-	return (*this)[10 + map3[i][j][k]];
+	return data[10 + map3[i][j][k]];
 }
 template<class T>
-inline T& expansion<T>::operator ()(int i, int j, int k) {
+CUDA_EXPORT inline T& expansion<T>::operator ()(int i, int j, int k) {
 	static constexpr size_t map3[3][3][3] = { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7, 8 },
 			{ 5, 8, 9 } } };
 
-	return (*this)[10 + map3[i][j][k]];
+	return data[10 + map3[i][j][k]];
 }
 
 template<class T>
-inline T& expansion<T>::operator ()(int i, int j, int k, int l) {
+CUDA_EXPORT inline T& expansion<T>::operator ()(int i, int j, int k, int l) {
 	static constexpr size_t map4[3][3][3][3] = { { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7,
 			8 }, { 5, 8, 9 } } }, { { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 3, 6, 7 }, { 6, 10, 11 }, { 7, 11, 12 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8,
 			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
 			{ 9, 13, 14 } } } };
-	return (*this)[20 + map4[i][j][k][l]];
+	return data[20 + map4[i][j][k][l]];
 }
 
 template<class T>
-inline T expansion<T>::operator ()(int i, int j, int k, int l) const {
+CUDA_EXPORT inline T expansion<T>::operator ()(int i, int j, int k, int l) const {
 	static constexpr size_t map4[3][3][3][3] = { { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7,
 			8 }, { 5, 8, 9 } } }, { { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 3, 6, 7 }, { 6, 10, 11 }, { 7, 11, 12 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8,
 			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
 			{ 9, 13, 14 } } } };
-	return (*this)[20 + map4[i][j][k][l]];
+	return data[20 + map4[i][j][k][l]];
 }
 
 template<class T>
-inline expansion<T>& expansion<T>::operator =(const expansion<T> &expansion) {
+CUDA_EXPORT inline expansion<T>& expansion<T>::operator =(const expansion<T> &expansion) {
 	for (int i = 0; i < LP; i++) {
-		(*this)[i] = expansion[i];
+		data[i] = expansion[i];
 	}
 	return *this;
 }
 
 template<class T>
-inline expansion<T>& expansion<T>::operator =(T expansion) {
+CUDA_EXPORT inline expansion<T>& expansion<T>::operator =(T expansion) {
 	for (int i = 0; i < LP; i++) {
-		(*this)[i] = expansion;
+		data[i] = expansion;
 	}
 	return *this;
 }
 
 template<class T>
-inline expansion<T> expansion<T>::operator<<(const vect<T> &dX) const {
+CUDA_EXPORT inline expansion<T> expansion<T>::operator<<(const vect<T> &dX) const {
 	expansion you = *this;
 	you <<= dX;
 	return you;
@@ -183,7 +194,7 @@ struct expansion_factors: public expansion<T> {
 };
 
 template<class T>
-inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
+CUDA_EXPORT inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
 	const static expansion_factors<T> factor;
 	expansion<T> &me = *this;
 	for (int a = 0; a < 3; a++) {
@@ -234,7 +245,7 @@ inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
 }
 
 template<class T>
-inline force expansion<T>::translate_L2(const vect<T> &dX) const {
+CUDA_EXPORT inline force expansion<T>::translate_L2(const vect<T> &dX) const {
 	const static expansion_factors<T> factor;
 
 	const auto &me = *this;
@@ -253,8 +264,6 @@ inline force expansion<T>::translate_L2(const vect<T> &dX) const {
 		}
 	}
 	for (int a = 0; a < 3; a++) {
-	}
-	for (int a = 0; a < 3; a++) {
 		f.g[a] = -(*this)(a);
 		for (int b = 0; b < 3; b++) {
 			f.g[a] -= me(a, b) * dX[b];
@@ -267,32 +276,6 @@ inline force expansion<T>::translate_L2(const vect<T> &dX) const {
 		}
 	}
 	return f;
-}
-
-template<class T>
-inline std::array<T, LP>& expansion<T>::operator -=(const std::array<T, LP> &vec) {
-	for (int i = 0; i < LP; i++) {
-		(*this)[i] -= vec[i];
-	}
-	return *this;
-}
-
-//void expansion::compute_D(const vect<T>& Y) {
-//}
-
-template<class T>
-inline void expansion<T>::invert() {
-	expansion<T> &me = *this;
-	for (int a = 0; a < 3; a++) {
-		me(a) = -me(a);
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
-				me(a, b, c) = -me(a, b, c);
-			}
-		}
-	}
 }
 
 /* namespace fmmx */

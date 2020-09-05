@@ -276,15 +276,15 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 						const simd_float f1 = rinv3;
 
 						simd_float f2 = simd_float(-32.0 / 3.0);
-						f2 = fmadd(f2, roh, simd_float(+192.0 / 5.0));								   // 1
-						f2 = fmadd(f2, roh, simd_float(-48.0));								   // 1
-						f2 = fmadd(f2, roh, simd_float(+64.0 / 3.0));								   // 1
-						f2 = fmadd(f2, roh3, simd_float(-1.0 / 15.0));								   // 1
+						f2 = fma(f2, roh, simd_float(+192.0 / 5.0));								   // 1
+						f2 = fma(f2, roh, simd_float(-48.0));								   // 1
+						f2 = fma(f2, roh, simd_float(+64.0 / 3.0));								   // 1
+						f2 = fma(f2, roh3, simd_float(-1.0 / 15.0));								   // 1
 						f2 *= rinv3;								   // 1
 
 						simd_float f3 = simd_float(+32.0);
-						f3 = fmadd(f3, roh, simd_float(-192.0 / 5.0));								   // 1
-						f3 = fmadd(f3, roh2, simd_float(+32.0 / 3.0));								   // 1
+						f3 = fma(f3, roh, simd_float(-192.0 / 5.0));								   // 1
+						f3 = fma(f3, roh2, simd_float(+32.0 / 3.0));								   // 1
 						f3 *= H3inv;								   // 1
 
 						simd_float f = sw1 * f1 + sw2 * f2 + sw3 * f3;								   // 5
@@ -304,17 +304,17 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 							const simd_float p1 = rinv;
 
 							simd_float p2 = simd_float(+32.0 / 15.0);    						// 1
-							p2 = fmadd(p2, roh, simd_float(-48.0 / 5.0));    						// 1
-							p2 = fmadd(p2, roh, simd_float(+16.0));    						// 1
-							p2 = fmadd(p2, roh, simd_float(-32.0 / 3.0));    						// 1
-							p2 = fmadd(p2, roh2, simd_float(+16.0 / 5.0));    						// 1
-							p2 = fmadd(p2, roh, simd_float(-1.0 / 15.0));    						// 1
+							p2 = fma(p2, roh, simd_float(-48.0 / 5.0));    						// 1
+							p2 = fma(p2, roh, simd_float(+16.0));    						// 1
+							p2 = fma(p2, roh, simd_float(-32.0 / 3.0));    						// 1
+							p2 = fma(p2, roh2, simd_float(+16.0 / 5.0));    						// 1
+							p2 = fma(p2, roh, simd_float(-1.0 / 15.0));    						// 1
 							p2 *= rinv;    						// 1
 
 							simd_float p3 = simd_float(-32.0 / 5.0);
-							p3 = fmadd(p3, roh, simd_float(+48.0 / 5.0));    						// 1
-							p3 = fmadd(p3, roh2, simd_float(-16.0 / 3.0));    						// 1
-							p3 = fmadd(p3, roh2, simd_float(+14.0 / 5.0));    						// 1
+							p3 = fma(p3, roh, simd_float(+48.0 / 5.0));    						// 1
+							p3 = fma(p3, roh2, simd_float(-16.0 / 3.0));    						// 1
+							p3 = fma(p3, roh2, simd_float(+14.0 / 5.0));    						// 1
 							p3 *= Hinv;    						// 1
 
 							Phi[i] -= simd_double((sw1 * p1 + sw2 * p2 + sw3 * p3) * m);    						// 10
