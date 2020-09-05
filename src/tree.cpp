@@ -629,10 +629,10 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		for (auto &v : dmulti_futs) {
 			multi_srcs.push_back(v.get());
 		}
-//		if (!opts.cuda || multi_srcs.size() < 16 ) {
+		if (!opts.cuda || multi_srcs.size() < 16 ) {
 			flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
 			multi_srcs.resize(0);
-//		}
+		}
 //		printf( "%i\n", multi_srcs.size());
 //		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
 		istats.CP_direct += xptr->size() * multi_srcs.size();

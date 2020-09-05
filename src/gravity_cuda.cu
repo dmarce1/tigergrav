@@ -280,7 +280,7 @@ __global__ void PPPC_direct_kernel(force *F, const vect<pos_type> *x, const vect
 		bool found_cp = false;
 		G[iwarp][n].phi = 0.0;
 		G[iwarp][n].g = vect<float>(0.0);
-		for (int zi = zindex[ui]; zi < zindex[ui + 1]; zi += WORKSIZE) {
+		for (int zi = zindex[ui] + l; zi < zindex[ui + 1]; zi += WORKSIZE) {
 			const multipole<float> &M = z[zi].m;
 			const vect<pos_type> &Y = z[zi].x;
 			found_cp = true;
@@ -309,11 +309,11 @@ __global__ void PPPC_direct_kernel(force *F, const vect<pos_type> *x, const vect
 				G[iwarp][n].phi += G[iwarp][n + N].phi;
 			}
 		}
-		if (found_cp) {
+		if (found_cp && n == 0) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				atomicAdd(&F[i].g[dim], G[iwarp][n].g[dim]);
+				atomicAdd(&F[i].g[dim], G[iwarp][0].g[dim]);
 			}
-			atomicAdd(&F[i].phi, G[iwarp][n].phi);
+			atomicAdd(&F[i].phi, G[iwarp][0].phi);
 		}
 	}
 }

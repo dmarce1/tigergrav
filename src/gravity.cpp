@@ -79,7 +79,7 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 			}
 			vect<simd_double> g;
 			simd_double phi;
-			multipole_interaction(g, phi, M, dX, true); // 516
+			multipole_interaction(g, phi, M, dX, false); // 516
 
 			for (int dim = 0; dim < NDIM; dim++) {
 				G[i][dim] += g[dim];  // 0 / 3
