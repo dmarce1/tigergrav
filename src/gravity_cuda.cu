@@ -30,7 +30,7 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 	CUDA_CHECK(cudaMemcpy(y_vect, parts.data(), size * sizeof(vect<pos_type> ), cudaMemcpyHostToDevice));
 }
 
-#define EWALD_MAX_TBSIZE 320
+#define EWALD_MAX_TBSIZE 64
 
 #define WORKSIZE 128
 #define NODESIZE 64
@@ -65,6 +65,7 @@ __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X,
 				Lacc[l][i] += Lacc[l + N][i];
 			}
 		}
+		__syncthreads();
 	}
 	__syncthreads();
 	if (l == 0) {

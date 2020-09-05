@@ -364,7 +364,8 @@ struct workspace {
 	std::vector<future_data<const multi_src*>> emulti_futs;
 	std::vector<std::pair<part_iter, part_iter>> dsource_iters;
 	std::vector<std::pair<part_iter, part_iter>> esource_iters;
-	std::vector<const multi_src*> multi_srcs;
+	std::vector<const multi_src*> emulti_srcs;
+	std::vector<const multi_src*> dmulti_srcs;
 
 };
 
@@ -382,7 +383,8 @@ workspace get_workspace() {
 	}
 	this_space.emulti_futs.resize(0);
 	this_space.dmulti_futs.resize(0);
-	this_space.multi_srcs.resize(0);
+	this_space.emulti_srcs.resize(0);
+	this_space.dmulti_srcs.resize(0);
 	this_space.dfuts.resize(0);
 	this_space.efuts.resize(0);
 	this_space.dsource_iters.resize(0);
@@ -429,7 +431,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 	std::vector<check_pair> next_dchecklist;
 	std::vector<check_pair> next_echecklist;
 	auto space = get_workspace();
-	auto &multi_srcs = space.multi_srcs;
+	auto &emulti_srcs = space.emulti_srcs;
+	auto &dmulti_srcs = space.dmulti_srcs;
 	auto &dfuts = space.dfuts;
 	auto &efuts = space.efuts;
 	auto &dsource_iters = space.dsource_iters;
@@ -493,22 +496,22 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			}
 		}
 	}
-	multi_srcs.resize(0);
+	dmulti_srcs.resize(0);
 	for (auto &v : dmulti_futs) {
-		multi_srcs.push_back(v.get());
+		dmulti_srcs.push_back(v.get());
 	}
-	flop += gravity_CC_direct(L, multi.x, multi_srcs);
+	flop += gravity_CC_direct(L, multi.x, dmulti_srcs);
 	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters));
-	istats.CC_direct += multi_srcs.size();
+	istats.CC_direct += dmulti_srcs.size();
 	istats.CP_direct += dsource_count;
 	if (opts.ewald) {
-		multi_srcs.resize(0);
+		emulti_srcs.resize(0);
 		for (auto &v : emulti_futs) {
-			multi_srcs.push_back(v.get());
+			emulti_srcs.push_back(v.get());
 		}
-		flop += gravity_CC_ewald(L, multi.x, multi_srcs);
+		flop += gravity_CC_ewald(L, multi.x, emulti_srcs);
 		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters));
-		istats.CC_ewald += multi_srcs.size();
+		istats.CC_ewald += emulti_srcs.size();
 		istats.CP_ewald += esource_count;
 	}
 	for (auto &f : dfuts) {
@@ -625,30 +628,30 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			(*fptr)[j].g = this_f.g;
 			j++;
 		}
-		multi_srcs.resize(0);
+		dmulti_srcs.resize(0);
 		for (auto &v : dmulti_futs) {
-			multi_srcs.push_back(v.get());
+			dmulti_srcs.push_back(v.get());
 		}
-		if (!opts.cuda || multi_srcs.size() < 16 ) {
-			flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
-			multi_srcs.resize(0);
+		if (!opts.cuda ||dmulti_srcs.size() < 16 ) {
+			flop += gravity_PC_direct(*fptr, *xptr, dmulti_srcs);
+			dmulti_srcs.resize(0);
 		}
 //		printf( "%i\n", multi_srcs.size());
 //		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
-		istats.CP_direct += xptr->size() * multi_srcs.size();
+		istats.CP_direct += xptr->size() * dmulti_srcs.size();
 		istats.PP_direct += xptr->size() * dsource_count;
 		if (opts.ewald) {
-			multi_srcs.resize(0);
+			emulti_srcs.resize(0);
 			for (auto &v : emulti_futs) {
-				multi_srcs.push_back(v.get());
+				emulti_srcs.push_back(v.get());
 			}
-			flop += gravity_PC_ewald(*fptr, *xptr, multi_srcs);
+			flop += gravity_PC_ewald(*fptr, *xptr, emulti_srcs);
 //			printf( "%i\n", esource_iters.size());
 			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters));
-			istats.CP_ewald += xptr->size() * multi_srcs.size();
+			istats.CP_ewald += xptr->size() *emulti_srcs.size();
 			istats.PP_ewald += xptr->size() * esource_count;
 		}
-		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, multi_srcs, [this, min_rung, do_out, fptr, xptr]() {
+		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, dmulti_srcs, [this, min_rung, do_out, fptr, xptr]() {
 			static const auto opts = options::get();
 			static const auto m = opts.m_tot / opts.problem_size;
 			static const auto h = opts.soft_len;
