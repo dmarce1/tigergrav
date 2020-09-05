@@ -45,7 +45,7 @@ void cuda_init() {
 			c.four_indices[i] = indices_four[i];
 			c.periodic_parts[i] = periodic[i];
 		}
-		for( int i = 0; i < LP; i++) {
+		for (int i = 0; i < LP; i++) {
 			c.exp_factors[i] = efs[i];
 		}
 
@@ -188,9 +188,9 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 
 	int tb_size = (((y.size() - 1) / CCSIZE) + 1) * CCSIZE;
 
-	CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
+CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-			CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
+						CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
@@ -198,8 +198,8 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 	push_context_ewald(std::move(ctx));
 }
 
-__global__ void PPPC_direct_kernel(force *F, const vect<pos_type> *x, const vect<pos_type> *y, const std::pair<part_iter, part_iter> *yiters,
-		const multi_src *z, int *xindex, int *yindex, int *zindex, float m, float h, bool ewald) {
+__global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<pos_type> *y, const std::pair<part_iter, part_iter> *yiters, const multi_src *z,
+		int *xindex, int *yindex, int *zindex, float m, float h, bool ewald) {
 //	printf("sizeof(force) = %li\n", sizeof(force));
 
 	const int iwarp = threadIdx.y;
@@ -309,48 +309,69 @@ __global__ void PPPC_direct_kernel(force *F, const vect<pos_type> *x, const vect
 			}
 		}
 	}
-	{
-		int zmax = ((zindex[ui + 1] - zindex[ui] - 1) / WORKSIZE + 1) * WORKSIZE;
-		int zmax2 = ((zindex[ui + 1] - zindex[ui] - 1) / WARPSIZE + 1) * WARPSIZE;
-		for (int zi = zindex[ui] + l; zi < zmax; zi += WORKSIZE) {
-			if (zi < zmax2) {
-				for (int i = xb; i < xe; i++) {
-					G[iwarp][n].phi = 0.0;
-					G[iwarp][n].g = vect<float>(0.0);
-					if (zi < zindex[ui + 1]) {
-						const multipole<float> &M = z[zi].m;
-						const vect<pos_type> &Y = z[zi].x;
-						vect<float> dX;
-						if (ewald) {
-							for (int dim = 0; dim < NDIM; dim++) {
-								dX[dim] = float(X[i - xb][dim] - Y[dim]) * float(POS_INV); // 18
-							}
-						} else {
-							for (int dim = 0; dim < NDIM; dim++) {
-								dX[dim] = float(X[i - xb][dim]) * float(POS_INV) - float(Y[dim]) * float(POS_INV);
-							}
-						}
+}
 
-						vect<double> g;
-						double phi;
-						multipole_interaction(g, phi, M, dX); // 516
+__global__ void PC_direct_kernel(force *F, const vect<pos_type> *x, const vect<pos_type> *y, const std::pair<part_iter, part_iter> *yiters, const multi_src *z,
+		int *xindex, int *yindex, int *zindex, float m, float h, bool ewald) {
+//	printf("sizeof(force) = %li\n", sizeof(force));
 
-						G[iwarp][n].g += g;  // 0 / 3
-						G[iwarp][n].phi += phi;		          // 0 / 1
+	const int iwarp = threadIdx.y;
+	const int ui = blockIdx.x;
+	const int l = iwarp * blockDim.x + threadIdx.x;
+	const int n = threadIdx.x;
+	const float Hinv = 1.0 / h;
+	const float H3inv = Hinv * Hinv * Hinv;
+
+	__shared__ vect<pos_type>
+	X[NODESIZE];
+	__shared__ force
+	G[NWARP][WARPSIZE];
+
+	const auto yb = yindex[ui];
+	const auto ye = yindex[ui + 1];
+	const auto xb = xindex[ui];
+	const auto xe = xindex[ui + 1];
+	const auto xsize = xe - xb;
+	if (l < xsize) {
+		X[l] = x[xb + l];
+	}
+	__syncthreads();
+	int zmax = ((zindex[ui + 1] - zindex[ui] - 1) / WORKSIZE + 1) * WORKSIZE + zindex[ui];
+	for (int zi = zindex[ui] + l; zi < zmax; zi += WORKSIZE) {
+		for (int i = xb; i < xe; i++) {
+			G[iwarp][n].phi = 0.0;
+			G[iwarp][n].g = vect<float>(0.0);
+			if (zi < zindex[ui + 1]) {
+				const multipole<float> &M = z[zi].m;
+				const vect<pos_type> &Y = z[zi].x;
+				vect<float> dX;
+				if (ewald) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						dX[dim] = float(X[i - xb][dim] - Y[dim]) * float(POS_INV); // 18
 					}
-					for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
-						if (n < N) {
-							G[iwarp][n].g += G[iwarp][n + N].g;
-							G[iwarp][n].phi += G[iwarp][n + N].phi;
-						}
-					}
-					if (n == 0) {
-						for (int dim = 0; dim < NDIM; dim++) {
-							atomicAdd(&F[i].g[dim], G[iwarp][0].g[dim]);
-						}
-						atomicAdd(&F[i].phi, G[iwarp][0].phi);
+				} else {
+					for (int dim = 0; dim < NDIM; dim++) {
+						dX[dim] = float(X[i - xb][dim]) * float(POS_INV) - float(Y[dim]) * float(POS_INV);
 					}
 				}
+
+				vect<double> g;
+				double phi;
+				multipole_interaction(g, phi, M, dX); // 516
+				G[iwarp][n].g += g;  // 0 / 3
+				G[iwarp][n].phi += phi;		          // 0 / 1
+			}
+			for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
+				if (n < N) {
+					G[iwarp][n].g += G[iwarp][n + N].g;
+					G[iwarp][n].phi += G[iwarp][n + N].phi;
+				}
+			}
+			if (n == 0) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					atomicAdd(&F[i].g[dim], G[iwarp][0].g[dim]);
+				}
+				atomicAdd(&F[i].phi, G[iwarp][0].phi);
 			}
 		}
 	}
@@ -553,9 +574,10 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.zi, ctx.zip, zibytes, cudaMemcpyHostToDevice, ctx.stream));
 
-PPPC_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
+	PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
+	PC_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
 
-										CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+				CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
