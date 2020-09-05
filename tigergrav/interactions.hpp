@@ -11,7 +11,7 @@ CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &L, const multip
 			1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 1.66666667e-01, 2.50000000e-01, 5.00000000e-01,
 			2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
 			4.16666667e-02, 0.0 };
-	const expansion<SINGLE>& expansion_factor = *reinterpret_cast<const expansion<SINGLE>*>(efs);
+	const expansion<float>& expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
 	expansion<SINGLE> D;
 	if (ewald) {
 		D = green_ewald(dX);		// 251176
