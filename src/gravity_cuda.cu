@@ -43,7 +43,8 @@ __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X,
 	int tb_size = blockDim.x;
 	auto &L = *lptr;
 
-	__shared__ expansion<double> Lacc[WARPSIZE];
+	__shared__ expansion<double>
+	Lacc[WARPSIZE];
 	for (int i = 0; i < LP; i++) {
 		Lacc[n][i] = 0.0;
 	}
@@ -65,7 +66,7 @@ __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X,
 	}
 	if (n == 0) {
 		for (int i = 0; i < LP; i++) {
-			atomicAdd(&L[i],Lacc[0][i]);
+			atomicAdd(&L[i], Lacc[0][i]);
 		}
 	}
 }
@@ -150,7 +151,7 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 
 CC_ewald_kernel<<<dim3(tb_size/32,1,1),dim3(32,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-											CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
+												CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
@@ -227,11 +228,11 @@ __global__ void PPPC_direct_kernel(force *F, const vect<pos_type> *x, const vect
 						f = f * roh3 + float(-1.0 / 15.0);						// 1
 						f *= rinv3;														// 1
 						p = float(+32.0 / 15.0);						// 1
-						p = p * roh, float(-48.0 / 5.0);					// 1
-						p = p * roh, float(+16.0);							// 1
-						p = p * roh, float(-32.0 / 3.0);					// 1
-						p = p * roh2, float(+16.0 / 5.0);					// 1
-						p = p * roh, float(-1.0 / 15.0);					// 1
+						p = p * roh + float(-48.0 / 5.0);					// 1
+						p = p * roh + float(+16.0);							// 1
+						p = p * roh + float(-32.0 / 3.0);					// 1
+						p = p * roh2 + float(+16.0 / 5.0);					// 1
+						p = p * roh + float(-1.0 / 15.0);					// 1
 						p *= rinv;                                                    	// 1
 					} else {
 						const float roh = min(r * Hinv, 1.0);                           // 2
@@ -241,9 +242,9 @@ __global__ void PPPC_direct_kernel(force *F, const vect<pos_type> *x, const vect
 						f = f * roh2 + float(+32.0 / 3.0);						// 1
 						f *= H3inv;                                                       	// 1
 						p = float(-32.0 / 5.0);
-						p = p * roh, float(+48.0 / 5.0);					// 1
-						p = p * roh2, float(-16.0 / 3.0);					// 1
-						p = p * roh2, float(+14.0 / 5.0);					// 1
+						p = p * roh + float(+48.0 / 5.0);					// 1
+						p = p * roh2 + float(-16.0 / 3.0);					// 1
+						p = p * roh2 + float(+14.0 / 5.0);					// 1
 						p *= Hinv;														// 1
 					}
 					const auto dXM = dX * m;								// 3
@@ -512,7 +513,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 
 PPPC_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
 
-	CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+		CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
