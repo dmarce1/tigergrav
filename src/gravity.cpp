@@ -19,7 +19,7 @@ double ewald_near_separation2(const vect<double> x) {
 }
 
 double ewald_far_separation2(const vect<double> x) {
-	static const auto r2 = std::pow(options::get().theta * 0.5, 2);
+	static const auto r2 = 0.25 * 0.25;
 	return std::max(r2, ewald_near_separation2(x));
 
 }
@@ -369,10 +369,16 @@ static const ewald_indices indices_real(EWALD_REAL_N2);
 static const ewald_indices indices_four(EWALD_FOUR_N2);
 
 std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<vect<pos_type>> y) {
-	if (x.size() == 0) {
+	if (y.size() == 0) {
 		return 0;
 	}
 	std::uint64_t flop = 0;
+	static std::atomic<int> warning(0);
+	if( warning++ == 0 ) {
+		printf( "gravity_PP_ewald detected - code is not optimized for this, consider a deeper tree\n");
+	}
+
+
 
 	static const auto one = simd_float(1.0);
 	static const auto half = simd_float(0.5);
@@ -494,10 +500,14 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 }
 
 std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<const multi_src*> &y) {
-	if (x.size() == 0) {
+	if (x.size() == 0 || y.size() == 0) {
 		return 0;
 	}
 	std::uint64_t flop = 0;
+	static std::atomic<int> warning(0);
+	if( warning++ == 0 ) {
+		printf( "gravity_PC_ewald detected - code is not optimized for this, consider a deeper tree\n");
+	}
 
 	static const auto one = simd_float(1.0);
 	static const auto half = simd_float(0.5);
@@ -624,6 +634,11 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<pos_type> &x, st
 	if (y.size() == 0) {
 		return 0;
 	}
+	static std::atomic<int> warning(0);
+	if( warning++ == 0 ) {
+		printf( "gravity_CP_ewald detected - code is not optimized for this, consider a deeper tree\n");
+	}
+
 	static const auto one = simd_float(1.0);
 	static const auto half = simd_float(0.5);
 	std::uint64_t flop = 0;
