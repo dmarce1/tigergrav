@@ -5,7 +5,6 @@
 #include <tigergrav/green.hpp>
 #include <tigergrav/interactions.hpp>
 
-
 #include <stack>
 #include <atomic>
 void yield_to_hpx();
@@ -35,6 +34,35 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 #define NODESIZE 64
 #define NWARP (WORKSIZE/WARPSIZE)
 #define WARPSIZE 32
+
+__global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X, const multi_src *y, int ysize) {
+	int l = threadIdx.x;
+	auto &L = *lptr;
+	__shared__ expansion<double>
+	Lacc[WARPSIZE];
+	for (int i = 0; i < LP; i++) {
+		Lacc[l][i] = 0.0;
+	}
+	for (int yi = l; yi < ysize; yi += WARPSIZE) {
+		vect<pos_type> Y = y[l].x;
+		multipole<float> M = y[l].m;
+		vect<float> dX;
+		for (int dim = 0; dim < NDIM; dim++) {
+			dX[dim] = float(X[dim] - Y[dim]) * float(POS_INV); // 18
+		}
+		multipole_interaction(Lacc[l], M, dX, true);											// 251936
+	}
+	for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
+		for (int i = 0; i < LP; i++) {
+			Lacc[l][i] += Lacc[l + N][i];
+		}
+	}
+	if (l == 0) {
+		for (int i = 0; i < LP; i++) {
+			L[i] += Lacc[0][i];
+		}
+	}
+}
 
 __global__ void PP_direct_kernel(force *F, vect<pos_type> *x, vect<pos_type> *y, std::pair<part_iter, part_iter> *yiters, int *xindex, int *yindex, float m,
 		float h, bool ewald) {
@@ -307,7 +335,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 
 PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
 
-										CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+																					CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}

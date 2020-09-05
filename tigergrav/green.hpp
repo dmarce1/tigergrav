@@ -36,7 +36,6 @@ struct periodic_parts: public std::vector<expansion<float>> {
 			expansion<float> D;
 			D = 0.0;
 			if (h2 > 0) {
-				const float hinv = 1.0 / h2;                  // 1 OP
 				const float c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
 				D() = -(1.0 / M_PI) * c0;
 				for (int a = 0; a < NDIM; a++) {
@@ -59,7 +58,7 @@ struct periodic_parts: public std::vector<expansion<float>> {
 };
 
 template<class SINGLE>  // 167
-void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
+CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
 		const vect<SINGLE> &dx) {
 	static const SINGLE two(2.0);
 
@@ -164,7 +163,7 @@ CUDA_EXPORT void green_deriv_ewald(expansion<DOUBLE> &D, const SINGLE &d0, const
 }
 
 template<class T>
-inline expansion<T> green_direct(const vect<T> &dX) {		// 59  + 167 = 226
+CUDA_EXPORT inline expansion<T> green_direct(const vect<T> &dX) {		// 59  + 167 = 226
 	static const T r0 = 1.0e-9;
 //	static const T H = options::get().soft_len;
 	static const T nthree(-3.0);
@@ -186,7 +185,7 @@ inline expansion<T> green_direct(const vect<T> &dX) {		// 59  + 167 = 226
 
 #ifdef __CUDA_ARCH__
 
-CUDA_EXPORT expansion<float> green_ewald_cuda(const vect<float> &X) {
+CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	static const float three(3.0);
 	const float fouroversqrtpi(4.0 / sqrt(M_PI));
 	static const float two(2.0);

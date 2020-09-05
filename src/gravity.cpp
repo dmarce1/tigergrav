@@ -150,7 +150,7 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, s
 				dX[dim] = simd_float(X[dim]) * simd_float(POS_INV) - simd_float(Y[dim]) * simd_float(POS_INV);
 			}
 		}
-		multipole_interaction(Lacc, M, dX);												// 986
+		multipole_interaction(Lacc, M, dX, true);												// 986
 	}
 
 	for (int i = 0; i < LP; i++) {

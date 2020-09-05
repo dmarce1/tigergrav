@@ -5,8 +5,13 @@
 
 // 43009,703
 template<class DOUBLE, class SINGLE> // 986 // 251936
-CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald = false) { // 670/700 + 418 * NREAL + 50 * NFOUR
-	static const expansion_factors<SINGLE> expansion_factor;
+CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald) { // 670/700 + 418 * NREAL + 50 * NFOUR
+	static const float efs[LP+1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
+			5.00000000e-01, 1.00000000e+00, 5.00000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 5.00000000e-01, 1.00000000e+00, 5.00000000e-01,
+			1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 1.66666667e-01, 2.50000000e-01, 5.00000000e-01,
+			2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
+			4.16666667e-02, 0.0 };
+	const expansion<SINGLE>& expansion_factor = *reinterpret_cast<const expansion<SINGLE>*>(efs);
 	expansion<SINGLE> D;
 	if (ewald) {
 		D = green_ewald(dX);		// 251176

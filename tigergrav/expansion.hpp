@@ -42,7 +42,7 @@ struct force {
 template<class T>
 class expansion {
 
-	T data[LP];
+	T data[LP+1];
 public:
 	expansion<T>& operator*=(T r) {
 		for (int i = 0; i != LP; ++i) {
