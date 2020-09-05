@@ -26,7 +26,7 @@ constexpr int MP = 17;
 template<class T>
 class multipole {
 private:
-	T data[MP+1];
+	T data[MP];
 public:
 	CUDA_EXPORT multipole();
 	CUDA_EXPORT T operator ()() const;

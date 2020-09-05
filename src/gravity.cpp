@@ -433,7 +433,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, st
 	}
 	static const auto opts = options::get();
 	if (opts.cuda) {
-		return gravity_CC_ewald_cuda(L, x, y);
+	//	return gravity_CC_ewald_cuda(L, x, y);
 	}
 	static const auto one = simd_float(1.0);
 	static const auto half = simd_float(0.5);
@@ -478,6 +478,7 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, st
 		for (int dim = 0; dim < NDIM; dim++) {
 			dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(POS_INV); // 18
 		}
+		const auto dx2 = dX.dot(dX);
 		multipole_interaction(Lacc, M, dX, true);											// 251936
 	}
 

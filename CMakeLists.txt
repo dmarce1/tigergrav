@@ -135,8 +135,8 @@ target_compile_options(tigergrav_lite PUBLIC "-DHPX_LITE")
 #target_compile_options(tigergrav_lite PUBLIC "-march=native")
 target_compile_options(tigergrav_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --gpu-architecture=compute_75;
-			-Xptxas -O3;
-			-v
+						-Xptxas -O3;
+						-v
                         >)
 target_compile_options(tigergrav PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --gpu-architecture=compute_75;
