@@ -107,8 +107,13 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SI
 }
 
 template<class DOUBLE, class SINGLE> // 516 / 251466
-inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
-	static const expansion_factors<SINGLE> expansion_factor;
+CUDA_EXPORT inline void multipole_interaction(vect<DOUBLE>& g, DOUBLE& phi, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
+	static const float efs[LP+1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
+			5.00000000e-01, 1.00000000e+00, 5.00000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 5.00000000e-01, 1.00000000e+00, 5.00000000e-01,
+			1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 1.66666667e-01, 2.50000000e-01, 5.00000000e-01,
+			2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
+			4.16666667e-02, 0.0 };
+	const expansion<float>& expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
 	expansion<SINGLE> D;
 	if (ewald) {
 		D = green_ewald(dX);				// 251176
@@ -117,7 +122,7 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 	}
 
 	//290
-	auto &ffirst = f.first;
+	auto &ffirst = phi;
 	ffirst = M() * D();																// 5
 	for (int a = 0; a < 3; a++) {
 		for (int b = a; b < 3; b++) {
@@ -131,14 +136,14 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 			}
 		}
 	}
-	f.second = DOUBLE(0);
+	g = DOUBLE(0);
 	for (int a = 0; a < 3; a++) {
-		f.second[a] -= M() * D(a);													// 15
+		g[a] -= M() * D(a);													// 15
 	}
 	for (int a = 0; a < 3; a++) {
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
-				f.second[a] -= M(c, b) * D(a, b, c) * expansion_factor(c, b);		// 108
+				g[a] -= M(c, b) * D(a, b, c) * expansion_factor(c, b);		// 108
 			}
 		}
 	}
@@ -146,7 +151,7 @@ inline void multipole_interaction(std::pair<DOUBLE, vect<DOUBLE>> &f, const mult
 		for (int b = 0; b < 3; b++) {
 			for (int c = b; c < 3; c++) {
 				for (int d = c; d < 3; d++) {
-					auto &fseconda = f.second[a];
+					auto &fseconda = g[a];
 					fseconda += M(c, b, d) * D(a, b, c, d) * expansion_factor(b, c, d); // 180
 				}
 			}

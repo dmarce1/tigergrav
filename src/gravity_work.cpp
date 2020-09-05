@@ -45,11 +45,9 @@ struct gwork_group {
 	mutex_type mtx;
 	int workadded;
 	int mcount;
-	bool first_call;
 	gwork_group() {
 		mcount = 0;
 		workadded = 0;
-		first_call = true;
 	}
 	void free() {
 		decltype(units)().swap(units);
@@ -63,7 +61,7 @@ mutex_type groups_mtx[GROUP_TABLE_SIZE];
 std::unordered_map<int, gwork_group> groups[GROUP_TABLE_SIZE];
 
 std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<pos_type>> *x, const std::vector<std::pair<part_iter, part_iter>> &y,
-		std::function<hpx::future<void>(void)> &&complete, bool do_phi) {
+		const std::vector<const multi_src*> &z, std::function<hpx::future<void>(void)> &&complete, bool do_phi) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
 	static const auto h = opts.soft_len;
@@ -82,25 +80,19 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 		abort();
 	}
 	auto &entry = iter->second;
-	if (entry.first_call) {
-		entry.first_call = false;
-		if (opts.cuda) {
-			entry.cunits.reserve(entry.mcount);
-		}
-		entry.units.reserve(entry.mcount);
-		entry.complete.reserve(entry.mcount);
-	}
 	if (opts.cuda) {
 		cuda_work_unit cu;
 		cu.yiters = y;
+		cu.z = z;
 		cu.xptr = x;
 		cu.fptr = g;
 		entry.cunits.push_back(cu);
-	}
-	for (auto &j : y) {
-		unit.yb = j.first;
-		unit.ye = j.second;
-		entry.units.push_back(unit);
+	} else {
+		for (auto &j : y) {
+			unit.yb = j.first;
+			unit.ye = j.second;
+			entry.units.push_back(unit);
+		}
 	}
 	entry.complete.push_back(std::move(complete));
 	entry.workadded++;
@@ -113,7 +105,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	std::uint64_t flop = 0;
 	if (do_work) {
 
-		if (opts.cuda ) {
+		if (opts.cuda) {
 			for (auto &unit : entry.cunits) {
 				std::vector<std::pair<part_iter, part_iter>> tmp;
 				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {

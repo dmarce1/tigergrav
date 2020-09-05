@@ -77,13 +77,14 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 					dX[dim] = simd_float(X[dim]) * simd_float(POS_INV) - simd_float(Y[dim]) * simd_float(POS_INV);
 				}
 			}
-			std::pair<simd_double, vect<simd_double>> this_f;
-			multipole_interaction(this_f, M, dX); // 516
+			vect<simd_double> g;
+			simd_double phi;
+			multipole_interaction(g, phi, M, dX, true); // 516
 
 			for (int dim = 0; dim < NDIM; dim++) {
-				G[i][dim] += this_f.second[dim];  // 0 / 3
+				G[i][dim] += g[dim];  // 0 / 3
 			}
-			Phi[i] += this_f.first;		          // 0 / 1
+			Phi[i] += phi;		          // 0 / 1
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {
@@ -406,13 +407,14 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(POS_INV); // 18
 			}
-			std::pair<simd_double, vect<simd_double>> this_f;
-			multipole_interaction(this_f, M, dX, true);	// 251466
+			vect<simd_double> g;
+			simd_double phi;
+			multipole_interaction(g, phi, M, dX, true); // 516
 
 			for (int dim = 0; dim < NDIM; dim++) {
-				G[i][dim] += this_f.second[dim];  // 0 / 3
+				G[i][dim] += g[dim];  // 0 / 3
 			}
-			Phi[i] += this_f.first;		        // 0 / 1
+			Phi[i] += phi;		          // 0 / 1
 		}
 	}
 	for (int i = 0; i < x.size(); i++) {

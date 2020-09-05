@@ -238,7 +238,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	const auto &opts = options::get();
 	range prange;
 	gwork_id = workid;
-	if ((gwork_id == null_gwork_id) && ((part_end - part_begin <= workgroup_size)||is_leaf())) {
+	if ((gwork_id == null_gwork_id) && ((part_end - part_begin <= workgroup_size) || is_leaf())) {
 		gwork_id = gwork_assign_id();
 	}
 
@@ -629,7 +629,11 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		for (auto &v : dmulti_futs) {
 			multi_srcs.push_back(v.get());
 		}
-		flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
+//		if (!opts.cuda || multi_srcs.size() < 16 ) {
+			flop += gravity_PC_direct(*fptr, *xptr, multi_srcs);
+			multi_srcs.resize(0);
+//		}
+//		printf( "%i\n", multi_srcs.size());
 //		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
 		istats.CP_direct += xptr->size() * multi_srcs.size();
 		istats.PP_direct += xptr->size() * dsource_count;
@@ -644,7 +648,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			istats.CP_ewald += xptr->size() * multi_srcs.size();
 			istats.PP_ewald += xptr->size() * esource_count;
 		}
-		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, [this, min_rung, do_out, fptr, xptr]() {
+		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, multi_srcs, [this, min_rung, do_out, fptr, xptr]() {
 			static const auto opts = options::get();
 			static const auto m = opts.m_tot / opts.problem_size;
 			static const auto h = opts.soft_len;
