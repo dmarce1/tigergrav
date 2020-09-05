@@ -2,15 +2,22 @@
 
 #include <tigergrav/green.hpp>
 
+#ifdef __CUDA_ARCH__
+__device__ const cuda_ewald_const& cuda_get_const();
+#endif
 // 43009,703
 template<class DOUBLE, class SINGLE> // 986 // 251936
 CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald) { // 670/700 + 418 * NREAL + 50 * NFOUR
+#ifdef __CUDA_ARCH__
+	const expansion<float>& expansion_factor = cuda_get_const().exp_factors;
+#else
 	static const float efs[LP + 1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
 			5.00000000e-01, 1.00000000e+00, 5.00000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 5.00000000e-01, 1.00000000e+00, 5.00000000e-01,
 			1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 1.66666667e-01, 2.50000000e-01, 5.00000000e-01,
 			2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
 			4.16666667e-02, 0.0 };
 	const expansion<float> &expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
+#endif
 
 	expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
 
