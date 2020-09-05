@@ -229,11 +229,9 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 	}
 	std::uint64_t flop = 0;
 	static std::atomic<int> warning(0);
-	if( warning++ == 0 ) {
-		printf( "gravity_PP_ewald detected - code is not optimized for this, consider a deeper tree\n");
+	if (warning++ == 0) {
+		printf("gravity_PP_ewald detected - code is not optimized for this, consider a deeper tree\n");
 	}
-
-
 
 	static const auto one = simd_float(1.0);
 	static const auto half = simd_float(0.5);
@@ -360,8 +358,8 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	}
 	std::uint64_t flop = 0;
 	static std::atomic<int> warning(0);
-	if( warning++ == 0 ) {
-		printf( "gravity_PC_ewald detected - code is not optimized for this, consider a deeper tree\n");
+	if (warning++ == 0) {
+		printf("gravity_PC_ewald detected - code is not optimized for this, consider a deeper tree\n");
 	}
 
 	static const auto one = simd_float(1.0);
@@ -431,10 +429,13 @@ std::uint64_t gravity_CC_ewald(expansion<double> &L, const vect<pos_type> &x, st
 	if (y.size() == 0) {
 		return 0;
 	}
+	static const auto opts = options::get();
+	if (opts.cuda) {
+		return gravity_CC_ewald_cuda(L, x, y);
+	}
 	static const auto one = simd_float(1.0);
 	static const auto half = simd_float(0.5);
 	std::uint64_t flop = 0;
-	static const auto opts = options::get();
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
@@ -490,8 +491,8 @@ std::uint64_t gravity_CP_ewald(expansion<double> &L, const vect<pos_type> &x, st
 		return 0;
 	}
 	static std::atomic<int> warning(0);
-	if( warning++ == 0 ) {
-		printf( "gravity_CP_ewald detected - code is not optimized for this, consider a deeper tree\n");
+	if (warning++ == 0) {
+		printf("gravity_CP_ewald detected - code is not optimized for this, consider a deeper tree\n");
 	}
 
 	static const auto one = simd_float(1.0);
