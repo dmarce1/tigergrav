@@ -30,7 +30,7 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 	CUDA_CHECK(cudaMemcpy(y_vect, parts.data(), size * sizeof(vect<pos_type> ), cudaMemcpyHostToDevice));
 }
 
-#define EWALD_MAX_TBSIZE 64
+#define WARPSIZE 32
 
 #define WORKSIZE 128
 #define NODESIZE 64
@@ -38,39 +38,34 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 #define WARPSIZE 32
 
 __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X, const multi_src *y, int ysize) {
-	int l = threadIdx.x;
+	int l = threadIdx.x + blockDim.x * blockIdx.x;
+	int n = threadIdx.x;
 	int tb_size = blockDim.x;
 	auto &L = *lptr;
 
-	extern __shared__ int shmem[];
-	expansion<double> *Lacc = reinterpret_cast<expansion<double>*>(shmem);
+	__shared__ expansion<double> Lacc[WARPSIZE];
 	for (int i = 0; i < LP; i++) {
-		Lacc[l][i] = 0.0;
+		Lacc[n][i] = 0.0;
 	}
-	for (int yi = l; yi < ysize; yi += tb_size) {
+	for (int yi = l; yi < ysize; yi += tb_size * gridDim.x) {
 		if (yi < ysize) {
-			vect<pos_type> Y = y[yi].x;
-			multipole<float> M = y[yi].m;
 			vect<float> dX;
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = float(X[dim] - Y[dim]) * float(POS_INV); // 18
+				dX[dim] = float(X[dim] - y[yi].x[dim]) * float(POS_INV); // 18
 			}
-			multipole_interaction(Lacc[l], M, dX, true);											// 251936
+			multipole_interaction(Lacc[n], y[yi].m, dX, true);											// 251936
 		}
 	}
-	__syncthreads();
 	for (int N = tb_size / 2; N > 0; N >>= 1) {
-		if (l < N) {
+		if (n < N) {
 			for (int i = 0; i < LP; i++) {
-				Lacc[l][i] += Lacc[l + N][i];
+				Lacc[n][i] += Lacc[n + N][i];
 			}
 		}
-		__syncthreads();
 	}
-	__syncthreads();
-	if (l == 0) {
+	if (n == 0) {
 		for (int i = 0; i < LP; i++) {
-			L[i] += Lacc[0][i];
+			atomicAdd(&L[i],Lacc[0][i]);
 		}
 	}
 }
@@ -143,7 +138,7 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 	CUDA_CHECK(cudaMemcpyAsync(ctx.y, ctx.yp, sizeof(multi_src) * y.size(), cudaMemcpyHostToDevice, ctx.stream));
 	CUDA_CHECK(cudaMemcpyAsync(ctx.L, ctx.Lp, sizeof(expansion<double> ), cudaMemcpyHostToDevice, ctx.stream));
 
-	const int tb_max = EWALD_MAX_TBSIZE;
+	const int tb_max = 512;
 	int tb_size;
 	if (y.size() <= tb_max) {
 		tb_size = (((y.size() - 1) / WARPSIZE) + 1) * WARPSIZE;
@@ -153,7 +148,7 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 		tb_size = (((tb_size - 1) / WARPSIZE) + 1) * WARPSIZE;
 	}
 
-CC_ewald_kernel<<<dim3(1,1,1),dim3(tb_size,1,1),tb_size*sizeof(expansion<double>),ctx.stream>>>(ctx.L, x, ctx.y, y.size());
+CC_ewald_kernel<<<dim3(tb_size/32,1,1),dim3(32,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
 											CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 

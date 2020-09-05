@@ -2,22 +2,17 @@
 
 #include <tigergrav/green.hpp>
 
-
 // 43009,703
 template<class DOUBLE, class SINGLE> // 986 // 251936
 CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald) { // 670/700 + 418 * NREAL + 50 * NFOUR
-	static const float efs[LP+1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
+	static const float efs[LP + 1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
 			5.00000000e-01, 1.00000000e+00, 5.00000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 5.00000000e-01, 1.00000000e+00, 5.00000000e-01,
 			1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 1.66666667e-01, 2.50000000e-01, 5.00000000e-01,
 			2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
 			4.16666667e-02, 0.0 };
-	const expansion<float>& expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
-	expansion<SINGLE> D;
-	if (ewald) {
-		D = green_ewald(dX);		// 251176
-	} else {
-		D = green_direct(dX);        // 226
-	}
+	const expansion<float> &expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
+
+	expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
 
 	// 760
 	auto &L0 = L();
@@ -107,13 +102,13 @@ inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SI
 }
 
 template<class DOUBLE, class SINGLE> // 516 / 251466
-CUDA_EXPORT inline void multipole_interaction(vect<DOUBLE>& g, DOUBLE& phi, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
-	static const float efs[LP+1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
+CUDA_EXPORT inline void multipole_interaction(vect<DOUBLE> &g, DOUBLE &phi, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
+	static const float efs[LP + 1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
 			5.00000000e-01, 1.00000000e+00, 5.00000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 5.00000000e-01, 1.00000000e+00, 5.00000000e-01,
 			1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 1.66666667e-01, 2.50000000e-01, 5.00000000e-01,
 			2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
 			4.16666667e-02, 0.0 };
-	const expansion<float>& expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
+	const expansion<float> &expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
 	expansion<SINGLE> D;
 	if (ewald) {
 		D = green_ewald(dX);				// 251176
