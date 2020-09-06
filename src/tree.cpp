@@ -632,7 +632,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		for (auto &v : dmulti_futs) {
 			dmulti_srcs.push_back(v.get());
 		}
-		if (!opts.cuda ||dmulti_srcs.size() < 16 ) {
+		if (!opts.cuda ||dmulti_srcs.size() < 32 ) {
 			flop += gravity_PC_direct(*fptr, *xptr, dmulti_srcs);
 			dmulti_srcs.resize(0);
 		}

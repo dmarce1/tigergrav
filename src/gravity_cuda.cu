@@ -73,9 +73,11 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 #define WARPSIZE 32
 #define CCSIZE 32
 
-#define WORKSIZE 128
+#define WORKSIZE 96
+#define PCWORKSIZE 96
 #define NODESIZE 64
 #define NWARP (WORKSIZE/WARPSIZE)
+#define PCNWARP (PCWORKSIZE/WARPSIZE)
 #define WARPSIZE 32
 
 __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X, const multi_src *y, int ysize) {
@@ -190,7 +192,7 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 
 CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-												CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
+													CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
@@ -198,8 +200,8 @@ CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.
 	push_context_ewald(std::move(ctx));
 }
 
-__global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<pos_type> *y, const std::pair<part_iter, part_iter> *yiters, const multi_src *z,
-		int *xindex, int *yindex, int *zindex, float m, float h, bool ewald) {
+__global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<pos_type> *y, const std::pair<part_iter, part_iter> *yiters, int *xindex,
+		int *yindex, float m, float h, bool ewald) {
 //	printf("sizeof(force) = %li\n", sizeof(force));
 
 	const int iwarp = threadIdx.y;
@@ -311,21 +313,18 @@ __global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<p
 	}
 }
 
-__global__ void PC_direct_kernel(force *F, const vect<pos_type> *x, const vect<pos_type> *y, const std::pair<part_iter, part_iter> *yiters, const multi_src *z,
-		int *xindex, int *yindex, int *zindex, float m, float h, bool ewald) {
+__global__ void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_src *z, int *xindex, int *zindex, bool ewald) {
 //	printf("sizeof(force) = %li\n", sizeof(force));
 
 	const int iwarp = threadIdx.y;
 	const int ui = blockIdx.x;
 	const int l = iwarp * blockDim.x + threadIdx.x;
 	const int n = threadIdx.x;
-	const float Hinv = 1.0 / h;
-	const float H3inv = Hinv * Hinv * Hinv;
 
 	__shared__ vect<pos_type>
 	X[NODESIZE];
 	__shared__ force
-	G[NWARP][WARPSIZE];
+	G[PCNWARP][WARPSIZE];
 
 	const auto xb = xindex[ui];
 	const auto xe = xindex[ui + 1];
@@ -334,8 +333,8 @@ __global__ void PC_direct_kernel(force *F, const vect<pos_type> *x, const vect<p
 		X[l] = x[xb + l];
 	}
 	__syncthreads();
-	int zmax = ((zindex[ui + 1] - zindex[ui] - 1) / WORKSIZE + 1) * WORKSIZE + zindex[ui];
-	for (int zi = zindex[ui] + l; zi < zmax; zi += WORKSIZE) {
+	int zmax = ((zindex[ui + 1] - zindex[ui] - 1) / PCWORKSIZE + 1) * PCWORKSIZE + zindex[ui];
+	for (int zi = zindex[ui] + l; zi < zmax; zi += PCWORKSIZE) {
 		for (int i = xb; i < xe; i++) {
 			G[iwarp][n].phi = 0.0;
 			G[iwarp][n].g = vect<float>(0.0);
@@ -552,9 +551,9 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 		CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
 		CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
 
-PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
+PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
 
-																CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+																		CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 		while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 			yield_to_hpx();
 		}
@@ -614,9 +613,9 @@ PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>
 			CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
 			CUDA_CHECK(cudaMemcpyAsync(ctx.zi, ctx.zip, zibytes, cudaMemcpyHostToDevice, ctx.stream));
 
-			PC_direct_kernel<<<dim3(size,1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
+			PC_direct_kernel<<<dim3(size,1,1),dim3(WARPSIZE,PCNWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,ctx.z,ctx.xi,ctx.zi,opts.ewald);
 
-			CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+						CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 			while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 				yield_to_hpx();
 			}
