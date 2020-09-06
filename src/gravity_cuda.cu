@@ -192,7 +192,7 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 
 CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-																	CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
+																				CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
@@ -248,65 +248,70 @@ __global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<p
 				}
 			}
 			for (int i = xb; i < xe; i++) {
+				const auto this_x = X[i - xb];
 				G[iwarp][n].phi = 0.0;
 				G[iwarp][n].g = vect<float>(0.0);
 				if (yi < ye) {
-					for (int j = jb; j < je; j++) {
-						const vect<pos_type> Y = Ymem[iwarp][n][j - jb];
-						vect<float> dX;
-						if (ewald) {
-							for (int dim = 0; dim < NDIM; dim++) {
-								dX[dim] = float(X[i - xb][dim] - Y[dim]) * float(POS_INV);
+#pragma loop unroll SYNCRATE
+					for (int j0 = 0; j0 < SYNCRATE; j0++) {
+						const int j = j0 + jb;
+						if (j < je) {
+							const vect<pos_type> Y = Ymem[iwarp][n][j0];
+							vect<float> dX;
+							if (ewald) {
+								for (int dim = 0; dim < NDIM; dim++) {
+									dX[dim] = float(this_x[dim] - Y[dim]) * float(POS_INV);
+								}
+							} else {
+								for (int dim = 0; dim < NDIM; dim++) {
+									dX[dim] = (float(this_x[dim]) - float(Y[dim])) * float(POS_INV);  // 15
+								}
 							}
-						} else {
-							for (int dim = 0; dim < NDIM; dim++) {
-								dX[dim] = (float(X[i - xb][dim]) - float(Y[dim])) * float(POS_INV);  // 15
+							const float r2 = dX.dot(dX);								   // 5
+							const float r = sqrt(r2);									   // 1
+							const float rinv = float(1) / max(r, 0.5 * h);             	   // 2
+							const float rinv3 = rinv * rinv * rinv;                        // 2
+							float f, p;
+							if (r > h) {
+								f = rinv3;
+								p = rinv;
+							} else if (r > 0.5 * h) {
+								const float roh = min(r * Hinv, 1.0);                           // 2
+								const float roh2 = roh * roh;                                 // 1
+								const float roh3 = roh2 * roh;                                // 1
+								f = float(-32.0 / 3.0);
+								f = f * roh + float(+192.0 / 5.0);						// 1
+								f = f * roh + float(-48.0);								// 1
+								f = f * roh + float(+64.0 / 3.0);						// 1
+								f = f * roh3 + float(-1.0 / 15.0);						// 1
+								f *= rinv3;														// 1
+								p = float(+32.0 / 15.0);						// 1
+								p = p * roh + float(-48.0 / 5.0);					// 1
+								p = p * roh + float(+16.0);							// 1
+								p = p * roh + float(-32.0 / 3.0);					// 1
+								p = p * roh2 + float(+16.0 / 5.0);					// 1
+								p = p * roh + float(-1.0 / 15.0);					// 1
+								p *= rinv;                                                    	// 1
+							} else {
+								const float roh = min(r * Hinv, 1.0);                           // 2
+								const float roh2 = roh * roh;                                 // 1
+								f = float(+32.0);
+								f = f * roh + float(-192.0 / 5.0);						// 1
+								f = f * roh2 + float(+32.0 / 3.0);						// 1
+								f *= H3inv;                                                       	// 1
+								p = float(-32.0 / 5.0);
+								p = p * roh + float(+48.0 / 5.0);					// 1
+								p = p * roh2 + float(-16.0 / 3.0);					// 1
+								p = p * roh2 + float(+14.0 / 5.0);					// 1
+								p *= Hinv;														// 1
 							}
+							const auto dXM = dX * m;								// 3
+							for (int dim = 0; dim < NDIM; dim++) {
+								G[iwarp][n].g[dim] -= dXM[dim] * f;    				// 6
+							}
+							// 13S + 2D = 15
+							G[iwarp][n].phi -= p * m;    						// 2
 						}
-						const float r2 = dX.dot(dX);								   // 5
-						const float r = sqrt(r2);									   // 1
-						const float rinv = float(1) / max(r, 0.5 * h);             	   // 2
-						const float rinv3 = rinv * rinv * rinv;                        // 2
-						float f, p;
-						if (r > h) {
-							f = rinv3;
-							p = rinv;
-						} else if (r > 0.5 * h) {
-							const float roh = min(r * Hinv, 1.0);                           // 2
-							const float roh2 = roh * roh;                                 // 1
-							const float roh3 = roh2 * roh;                                // 1
-							f = float(-32.0 / 3.0);
-							f = f * roh + float(+192.0 / 5.0);						// 1
-							f = f * roh + float(-48.0);								// 1
-							f = f * roh + float(+64.0 / 3.0);						// 1
-							f = f * roh3 + float(-1.0 / 15.0);						// 1
-							f *= rinv3;														// 1
-							p = float(+32.0 / 15.0);						// 1
-							p = p * roh + float(-48.0 / 5.0);					// 1
-							p = p * roh + float(+16.0);							// 1
-							p = p * roh + float(-32.0 / 3.0);					// 1
-							p = p * roh2 + float(+16.0 / 5.0);					// 1
-							p = p * roh + float(-1.0 / 15.0);					// 1
-							p *= rinv;                                                    	// 1
-						} else {
-							const float roh = min(r * Hinv, 1.0);                           // 2
-							const float roh2 = roh * roh;                                 // 1
-							f = float(+32.0);
-							f = f * roh + float(-192.0 / 5.0);						// 1
-							f = f * roh2 + float(+32.0 / 3.0);						// 1
-							f *= H3inv;                                                       	// 1
-							p = float(-32.0 / 5.0);
-							p = p * roh + float(+48.0 / 5.0);					// 1
-							p = p * roh2 + float(-16.0 / 3.0);					// 1
-							p = p * roh2 + float(+14.0 / 5.0);					// 1
-							p *= Hinv;														// 1
-						}
-						const auto dXM = dX * m;								// 3
-						for (int dim = 0; dim < NDIM; dim++) {
-							G[iwarp][n].g[dim] -= dXM[dim] * f;    				// 6
-						}
-						// 13S + 2D = 15
-						G[iwarp][n].phi -= p * m;    						// 2
 					}
 				}
 				for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
@@ -326,7 +331,8 @@ __global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<p
 	}
 }
 
-__global__ void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_src *z, int *xindex, int *zindex, bool ewald) {
+__global__
+void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_src *z, int *xindex, int *zindex, bool ewald) {
 //	printf("sizeof(force) = %li\n", sizeof(force));
 
 	const int iwarp = threadIdx.y;
@@ -368,8 +374,8 @@ __global__ void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_
 				vect<double> g;
 				double phi;
 				multipole_interaction(g, phi, M, dX); // 516
-				G[iwarp][n].g += g;  // 0 / 3
-				G[iwarp][n].phi += phi;		          // 0 / 1
+				G[iwarp][n].g += g; // 0 / 3
+				G[iwarp][n].phi += phi; // 0 / 1
 			}
 			for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
 				if (n < N) {
@@ -522,11 +528,16 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	cuda_init();
 	std::uint64_t interactions = 0;
 	{
-		std::vector<int> xindex;
-		std::vector<int> yindex;
-		std::vector<force> f;
-		std::vector < vect < pos_type >> x;
-		std::vector<std::pair<part_iter, part_iter>> y;
+		static thread_local std::vector<int> xindex;
+		static thread_local std::vector<int> yindex;
+		static thread_local std::vector<force> f;
+		static thread_local std::vector<vect<pos_type>> x;
+		static thread_local std::vector<std::pair<part_iter, part_iter>> y;
+		xindex.resize(0);
+		yindex.resize(0);
+		f.resize(0);
+		x.resize(0);
+		y.resize(0);
 		int xi = 0;
 		int yi = 0;
 		for (const auto &unit : units) {
@@ -566,7 +577,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 
 PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
 
-																										CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+							CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 		while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 			yield_to_hpx();
 		}
@@ -581,11 +592,17 @@ PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>
 
 	}
 	{
-		std::vector<int> xindex;
-		std::vector<int> zindex;
-		std::vector<force> f;
-		std::vector < vect < pos_type >> x;
-		std::vector<multi_src> z;
+		static thread_local std::vector<int> xindex;
+		static thread_local std::vector<int> zindex;
+		static thread_local std::vector<force> f;
+		static thread_local std::vector<vect<pos_type>> x;
+		static thread_local std::vector<multi_src> z;
+		xindex.resize(0);
+		zindex.resize(0);
+		f.resize(0);
+		x.resize(0);
+		z.resize(0);
+
 		int xi = 0;
 		int zi = 0;
 		int size = 0;
@@ -628,7 +645,7 @@ PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>
 
 PC_direct_kernel<<<dim3(size,1,1),dim3(WARPSIZE,PCNWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,ctx.z,ctx.xi,ctx.zi,opts.ewald);
 
-																		CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+																												CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 			while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 				yield_to_hpx();
 			}
