@@ -8,21 +8,6 @@ static const auto one = simd_float(1.0);
 static const auto half = simd_float(0.5);
 static const simd_float eps = simd_float(std::numeric_limits<float>::min());
 
-double ewald_near_separation2(const vect<double> x) {
-	double d = 0.0;
-	for (int dim = 0; dim < NDIM; dim++) {
-		const double absx = std::abs(x[dim]);
-		double this_d = std::min(absx, (double) 1.0 - absx);
-		d += this_d * this_d;
-	}
-	return d;
-}
-
-double ewald_far_separation2(const vect<double> x) {
-	static const auto r2 = 0.25 * 0.25;
-	return std::max(r2, ewald_near_separation2(x));
-}
-
 #include <tigergrav/interactions.hpp>
 
 std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<pos_type>> &x, std::vector<const multi_src*> &y) {

@@ -34,7 +34,7 @@ HPX_REGISTER_COMPONENT(hpx::components::managed_component<tree>, tree);
 #define MAX_STACK 24
 
 std::atomic<std::uint64_t> tree::flop(0);
-double tree::theta_inv;
+float tree::theta_inv;
 double tree::pct_active;
 std::uint64_t workgroup_size;
 
@@ -400,8 +400,7 @@ void trash_workspace(workspace &&w) {
 interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<double> L,
 		rung_type min_rung, bool do_out, int stack_cnt) {
 	static const auto opts = options::get();
-	static const auto h = opts.soft_len;
-	static const double m = opts.m_tot / opts.problem_size;
+	static const float h = opts.soft_len;
 	decltype(group_ranges)().swap(group_ranges);
 	bool force_left, force_right;
 	interaction_stats istats;
@@ -449,9 +448,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		if (c.chk->pend == c.chk->pbegin) {
 			continue;
 		}
-		const auto dX = multixdouble - pos_to_double(c.chk->x);
-		const auto dx2 = opts.ewald ? ewald_near_separation2(dX) : dX.dot(dX);
-		const auto radius = (r + c.chk->r + h) * theta_inv;
+		const float dx2 = separation2(multi.x, c.chk->x);
+		const float radius = (r + c.chk->r + h) * theta_inv;
 		const bool far = dx2 > radius * radius;
 		if (far) {
 			if (c.opened) {
@@ -475,9 +473,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			if (c.chk->pend == c.chk->pbegin) {
 				continue;
 			}
-			const auto dX = multixdouble - pos_to_double(c.chk->x);
-			const auto dx2 = ewald_far_separation2(dX);
-			const auto radius = (r + c.chk->r + h) * theta_inv;
+			const float dx2 = ewald_far_separation2(multi.x, c.chk->x);
+			const float radius = (r + c.chk->r + h) * theta_inv;
 			const bool far = dx2 > radius * radius;
 			if (far) {
 				if (c.opened) {
@@ -555,9 +552,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 				if (c.chk->pend == c.chk->pbegin) {
 					continue;
 				}
-				const auto dX = multixdouble - pos_to_double(c.chk->x);
-				const auto dx2 = opts.ewald ? ewald_near_separation2(dX) : dX.dot(dX);
-				const auto radius = (r + c.chk->r + h) * theta_inv;
+				const float dx2 = separation2(multi.x, c.chk->x);
+				const float radius = (r + c.chk->r + h) * theta_inv;
 				const bool far = dx2 > radius * radius;
 				if (c.opened) {
 					dsource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
@@ -590,9 +586,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 					if (c.chk->pend == c.chk->pbegin) {
 						continue;
 					}
-					const auto dX = multixdouble - pos_to_double(c.chk->x);
-					const auto dx2 = ewald_far_separation2(dX);
-					const auto radius = (r + c.chk->r + h) * theta_inv;
+					const float dx2 = ewald_far_separation2(multi.x, c.chk->x);
+					const float radius = (r + c.chk->r + h) * theta_inv;
 					const bool far = dx2 > radius * radius;
 					if (c.opened) {
 						esource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
@@ -632,7 +627,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		for (auto &v : dmulti_futs) {
 			dmulti_srcs.push_back(v.get());
 		}
-		if (!opts.cuda ||dmulti_srcs.size() < 32 ) {
+		if (!opts.cuda || dmulti_srcs.size() < 32) {
 			flop += gravity_PC_direct(*fptr, *xptr, dmulti_srcs);
 			dmulti_srcs.resize(0);
 		}
@@ -648,7 +643,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			flop += gravity_PC_ewald(*fptr, *xptr, emulti_srcs);
 //			printf( "%i\n", esource_iters.size());
 			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters));
-			istats.CP_ewald += xptr->size() *emulti_srcs.size();
+			istats.CP_ewald += xptr->size() * emulti_srcs.size();
 			istats.PP_ewald += xptr->size() * esource_count;
 		}
 		flop += gwork_pp_complete(gwork_id, &(*fptr), &(*xptr), dsource_iters, dmulti_srcs, [this, min_rung, do_out, fptr, xptr]() {
@@ -670,7 +665,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 
 void tree::find_groups(std::vector<check_pair> checklist, int stack_cnt) {
 	static const auto opts = options::get();
-	static const auto L = 1.001 * std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
+	static const float L = 1.001 * std::pow(opts.problem_size, -1.0 / 3.0) * opts.link_len;
 	if (flags.level == 0) {
 		reset_node_cache();
 		part_vect_reset();
@@ -699,9 +694,8 @@ void tree::find_groups(std::vector<check_pair> checklist, int stack_cnt) {
 		if (c.chk->pend == c.chk->pbegin) {
 			continue;
 		}
-		const auto dX = multixdouble - pos_to_double(c.chk->x);
-		const auto dx2 = opts.ewald ? ewald_near_separation2(dX) : dX.dot(dX);
-		const auto radius = (r + c.chk->r + L);
+		const float dx2 = separation2(multi.x, c.chk->x);
+		const float radius = (r + c.chk->r + L);
 		const bool far = dx2 > radius * radius;
 		if (!far) {
 			if (c.chk->is_leaf) {
@@ -735,9 +729,8 @@ void tree::find_groups(std::vector<check_pair> checklist, int stack_cnt) {
 				if (c.chk->pend == c.chk->pbegin) {
 					continue;
 				}
-				const auto dX = multixdouble - pos_to_double(c.chk->x);
-				const auto dx2 = opts.ewald ? ewald_near_separation2(dX) : dX.dot(dX);
-				const auto radius = (r + c.chk->r + L);
+				const float dx2 = separation2(multi.x, c.chk->x);
+				const float radius = (r + c.chk->r + L);
 				const bool far = dx2 > radius * radius;
 				if (c.opened) {
 					const auto other_range = part_vect_range(c.chk->pbegin, c.chk->pend);

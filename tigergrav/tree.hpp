@@ -242,7 +242,7 @@ class tree: public hpx::components::managed_component_base<tree> {
 		std::uint32_t leaf :1;
 	} flags;
 
-	static double theta_inv;
+	static float theta_inv;
 	static std::atomic<std::uint64_t> flop;
 	static double pct_active;
 
