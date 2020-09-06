@@ -631,6 +631,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			flop += gravity_PC_direct(*fptr, *xptr, dmulti_srcs);
 			dmulti_srcs.resize(0);
 		}
+//		printf( "%i\n", multi_srcs.size());
+//		flop += gravity_PP_direct(*fptr, *xptr, part_vect_read_positions(dsource_iters), do_out);
 		istats.CP_direct += xptr->size() * dmulti_srcs.size();
 		istats.PP_direct += xptr->size() * dsource_count;
 		if (opts.ewald) {
@@ -639,6 +641,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 				emulti_srcs.push_back(v.get());
 			}
 			flop += gravity_PC_ewald(*fptr, *xptr, emulti_srcs);
+//			printf( "%i\n", esource_iters.size());
 			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters));
 			istats.CP_ewald += xptr->size() * emulti_srcs.size();
 			istats.PP_ewald += xptr->size() * esource_count;

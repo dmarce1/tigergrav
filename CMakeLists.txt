@@ -25,7 +25,6 @@ enable_language(CUDA)
 set(CMAKE_CXX_FLAGS "-g -O3 -march=native")
 
 set(tigergrav_source_files
-	src/memory.cpp
 	src/cosmo.cpp
 	src/gravity_cuda.cu
 	src/gravity.cpp

@@ -192,7 +192,7 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 
 CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-																						CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
+																				CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
@@ -399,25 +399,27 @@ struct cuda_context {
 	force *f;
 	vect<pos_type> *x;
 	std::pair<part_iter, part_iter> *y;
+	multi_src *z;
 	int *xi;
 	int *yi;
+	int *zi;
 	force *fp;
 	vect<pos_type> *xp;
+	multi_src *zp;
 	std::pair<part_iter, part_iter> *yp;
 	int *xip;
 	int *yip;
-	bool empty;
-	cuda_context() {
-		empty = true;
-	}
-	cuda_context(int xs, int ys, int is) {
-		empty = false;
+	int *zip;
+	cuda_context(int xs, int ys, int zs, int is) {
 		xsize = 1;
 		ysize = 1;
 		zsize = 1;
 		isize = 1;
 		while (xsize < xs) {
 			xsize *= 2;
+		}
+		while (zsize < zs) {
+			zsize *= 2;
 		}
 		while (ysize < ys) {
 			ysize *= 2;
@@ -428,16 +430,20 @@ struct cuda_context {
 		CUDA_CHECK(cudaMalloc(&f, sizeof(force) * xsize));
 		CUDA_CHECK(cudaMalloc(&x, sizeof(vect<pos_type> ) * xsize));
 		CUDA_CHECK(cudaMalloc(&y, sizeof(std::pair<part_iter, part_iter>) * ysize));
+		CUDA_CHECK(cudaMalloc(&z, sizeof(multi_src) * zsize));
 		CUDA_CHECK(cudaMalloc(&xi, sizeof(int) * isize));
 		CUDA_CHECK(cudaMalloc(&yi, sizeof(int) * isize));
+		CUDA_CHECK(cudaMalloc(&zi, sizeof(int) * isize));
 		CUDA_CHECK(cudaMallocHost(&fp, sizeof(force) * xsize));
 		CUDA_CHECK(cudaMallocHost(&xp, sizeof(vect<pos_type> ) * xsize));
 		CUDA_CHECK(cudaMallocHost(&yp, sizeof(std::pair<part_iter, part_iter>) * ysize));
+		CUDA_CHECK(cudaMallocHost(&zp, sizeof(multi_src) * zsize));
 		CUDA_CHECK(cudaMallocHost(&xip, sizeof(int) * isize));
 		CUDA_CHECK(cudaMallocHost(&yip, sizeof(int) * isize));
+		CUDA_CHECK(cudaMallocHost(&zip, sizeof(int) * isize));
 		CUDA_CHECK(cudaStreamCreate(&stream));
 	}
-	void resize(int xs, int ys, int is) {
+	void resize(int xs, int ys, int zs, int is) {
 		if (xs > xsize) {
 			while (xsize < xs) {
 				xsize *= 2;
@@ -460,106 +466,6 @@ struct cuda_context {
 			CUDA_CHECK(cudaFreeHost(yp));
 			CUDA_CHECK(cudaMallocHost(&yp, sizeof(std::pair<part_iter, part_iter>) * ysize));
 		}
-		if (is > isize) {
-			while (isize < is) {
-				isize *= 2;
-			}
-			CUDA_CHECK(cudaFree(xi));
-			CUDA_CHECK(cudaFree(yi));
-			CUDA_CHECK(cudaMalloc(&xi, sizeof(int) * isize));
-			CUDA_CHECK(cudaMalloc(&yi, sizeof(int) * isize));
-			CUDA_CHECK(cudaFreeHost(xip));
-			CUDA_CHECK(cudaFreeHost(yip));
-			CUDA_CHECK(cudaMallocHost(&xip, sizeof(int) * isize));
-			CUDA_CHECK(cudaMallocHost(&yip, sizeof(int) * isize));
-		}
-	}
-};
-
-static std::atomic<int> lock(0);
-static std::stack<cuda_context> stack;
-
-cuda_context pop_context(int xs, int ys, int is) {
-	while (lock++ != 0) {
-		lock--;
-	}
-	if (stack.empty()) {
-		lock--;
-		return cuda_context(xs, ys, is);
-	} else {
-		auto ctx = stack.top();
-		stack.pop();
-		lock--;
-		ctx.resize(xs, ys, is);
-		return ctx;
-	}
-}
-
-void push_context(cuda_context ctx) {
-	while (lock++ != 0) {
-		lock--;
-	}
-	stack.push(ctx);
-	lock--;
-}
-
-struct cuda_context_pc {
-	int xsize, ysize, zsize, isize;
-	cudaStream_t stream;
-	force *f;
-	vect<pos_type> *x;
-	multi_src *z;
-	int *xi;
-	int *zi;
-	force *fp;
-	vect<pos_type> *xp;
-	multi_src *zp;
-	int *xip;
-	int *zip;
-	bool empty;
-	cuda_context_pc() {
-		empty = true;
-	}
-	cuda_context_pc(int xs, int zs, int is) {
-		empty = false;
-		xsize = 1;
-		zsize = 1;
-		isize = 1;
-		while (xsize < xs) {
-			xsize *= 2;
-		}
-		while (zsize < zs) {
-			zsize *= 2;
-		}
-		while (isize < is) {
-			isize *= 2;
-		}
-		CUDA_CHECK(cudaMalloc(&f, sizeof(force) * xsize));
-		CUDA_CHECK(cudaMalloc(&x, sizeof(vect<pos_type> ) * xsize));
-		CUDA_CHECK(cudaMalloc(&z, sizeof(multi_src) * zsize));
-		CUDA_CHECK(cudaMalloc(&xi, sizeof(int) * isize));
-		CUDA_CHECK(cudaMalloc(&zi, sizeof(int) * isize));
-		CUDA_CHECK(cudaMallocHost(&fp, sizeof(force) * xsize));
-		CUDA_CHECK(cudaMallocHost(&xp, sizeof(vect<pos_type> ) * xsize));
-		CUDA_CHECK(cudaMallocHost(&zp, sizeof(multi_src) * zsize));
-		CUDA_CHECK(cudaMallocHost(&xip, sizeof(int) * isize));
-		CUDA_CHECK(cudaMallocHost(&zip, sizeof(int) * isize));
-		CUDA_CHECK(cudaStreamCreate(&stream));
-	}
-	void resize(int xs, int zs, int is) {
-		if (xs > xsize) {
-			while (xsize < xs) {
-				xsize *= 2;
-			}
-			CUDA_CHECK(cudaFree(x));
-			CUDA_CHECK(cudaFree(f));
-			CUDA_CHECK(cudaMalloc(&f, sizeof(force) * xsize));
-			CUDA_CHECK(cudaMalloc(&x, sizeof(vect<pos_type> ) * xsize));
-			CUDA_CHECK(cudaFreeHost(xp));
-			CUDA_CHECK(cudaFreeHost(fp));
-			CUDA_CHECK(cudaMallocHost(&fp, sizeof(force) * xsize));
-			CUDA_CHECK(cudaMallocHost(&xp, sizeof(vect<pos_type> ) * xsize));
-		}
 		if (zs > zsize) {
 			while (zsize < zs) {
 				zsize *= 2;
@@ -574,42 +480,46 @@ struct cuda_context_pc {
 				isize *= 2;
 			}
 			CUDA_CHECK(cudaFree(xi));
+			CUDA_CHECK(cudaFree(yi));
 			CUDA_CHECK(cudaFree(zi));
 			CUDA_CHECK(cudaMalloc(&xi, sizeof(int) * isize));
+			CUDA_CHECK(cudaMalloc(&yi, sizeof(int) * isize));
 			CUDA_CHECK(cudaMalloc(&zi, sizeof(int) * isize));
 			CUDA_CHECK(cudaFreeHost(xip));
+			CUDA_CHECK(cudaFreeHost(yip));
 			CUDA_CHECK(cudaFreeHost(zip));
 			CUDA_CHECK(cudaMallocHost(&xip, sizeof(int) * isize));
+			CUDA_CHECK(cudaMallocHost(&yip, sizeof(int) * isize));
 			CUDA_CHECK(cudaMallocHost(&zip, sizeof(int) * isize));
 		}
 	}
 };
 
-static std::atomic<int> lock_pc(0);
-static std::stack<cuda_context_pc> stack_pc;
+static std::atomic<int> lock(0);
+static std::stack<cuda_context> stack;
 
-cuda_context_pc pop_context_pc(int xs, int zs, int is) {
-	while (lock_pc++ != 0) {
-		lock_pc--;
+cuda_context pop_context(int xs, int ys, int zs, int is) {
+	while (lock++ != 0) {
+		lock--;
 	}
-	if (stack_pc.empty()) {
-		lock_pc--;
-		return cuda_context_pc(xs, zs, is);
+	if (stack.empty()) {
+		lock--;
+		return cuda_context(xs, ys, zs, is);
 	} else {
-		auto ctx = stack_pc.top();
-		stack_pc.pop();
-		lock_pc--;
-		ctx.resize(xs, zs, is);
+		auto ctx = stack.top();
+		stack.pop();
+		lock--;
+		ctx.resize(xs, ys, zs, is);
 		return ctx;
 	}
 }
 
-void push_context_pc(cuda_context_pc ctx) {
-	while (lock_pc++ != 0) {
-		lock_pc--;
+void push_context(cuda_context ctx) {
+	while (lock++ != 0) {
+		lock--;
 	}
-	stack_pc.push(ctx);
-	lock_pc--;
+	stack.push(ctx);
+	lock--;
 }
 
 std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
@@ -617,8 +527,6 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 	static const float m = opts.m_tot / opts.problem_size;
 	cuda_init();
 	std::uint64_t interactions = 0;
-	cuda_context ctx;
-	cuda_context_pc ctx_pc;
 	{
 		static thread_local std::vector<int> xindex;
 		static thread_local std::vector<int> yindex;
@@ -655,7 +563,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 		const auto xibytes = sizeof(int) * xindex.size();
 		const auto yibytes = sizeof(int) * yindex.size();
 
-		ctx = pop_context(x.size(), y.size(), xindex.size());
+		auto ctx = pop_context(x.size(), y.size(), 0, xindex.size());
 		memcpy(ctx.fp, f.data(), fbytes);
 		memcpy(ctx.xp, x.data(), xbytes);
 		memcpy(ctx.yp, y.data(), ybytes);
@@ -669,7 +577,19 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 
 PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
 
-											CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+							CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+		while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
+			yield_to_hpx();
+		}
+		int k = 0;
+		for (const auto &unit : units) {
+			for (auto &this_f : *unit.fptr) {
+				this_f = ctx.fp[k];
+				k++;
+			}
+		}
+		push_context(ctx);
+
 	}
 	{
 		static thread_local std::vector<int> xindex;
@@ -710,52 +630,38 @@ PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>
 			const auto xibytes = sizeof(int) * xindex.size();
 			const auto zibytes = sizeof(int) * zindex.size();
 
-			ctx_pc = pop_context_pc(x.size(), z.size(), zindex.size());
-			memcpy(ctx_pc.fp, f.data(), fbytes);
-			memcpy(ctx_pc.xp, x.data(), xbytes);
-			memcpy(ctx_pc.zp, z.data(), zbytes);
-			memcpy(ctx_pc.xip, xindex.data(), xibytes);
-			memcpy(ctx_pc.zip, zindex.data(), zibytes);
-			CUDA_CHECK(cudaMemcpyAsync(ctx_pc.f, ctx_pc.fp, fbytes, cudaMemcpyHostToDevice, ctx_pc.stream));
-//		printf( "%li %lli %lli\n", zbytes, ctx_pc.z, ctx_pc.zp);
-			CUDA_CHECK(cudaMemcpyAsync(ctx_pc.z, ctx_pc.zp, zbytes, cudaMemcpyHostToDevice, ctx_pc.stream));
-			CUDA_CHECK(cudaMemcpyAsync(ctx_pc.x, ctx_pc.xp, xbytes, cudaMemcpyHostToDevice, ctx_pc.stream));
-			CUDA_CHECK(cudaMemcpyAsync(ctx_pc.xi, ctx_pc.xip, xibytes, cudaMemcpyHostToDevice, ctx_pc.stream));
-			CUDA_CHECK(cudaMemcpyAsync(ctx_pc.zi, ctx_pc.zip, zibytes, cudaMemcpyHostToDevice, ctx_pc.stream));
+			auto ctx = pop_context(x.size(), 0, z.size(), zindex.size());
+			memcpy(ctx.fp, f.data(), fbytes);
+			memcpy(ctx.xp, x.data(), xbytes);
+			memcpy(ctx.zp, z.data(), zbytes);
+			memcpy(ctx.xip, xindex.data(), xibytes);
+			memcpy(ctx.zip, zindex.data(), zibytes);
+			CUDA_CHECK(cudaMemcpyAsync(ctx.f, ctx.fp, fbytes, cudaMemcpyHostToDevice, ctx.stream));
+//		printf( "%li %lli %lli\n", zbytes, ctx.z, ctx.zp);
+			CUDA_CHECK(cudaMemcpyAsync(ctx.z, ctx.zp, zbytes, cudaMemcpyHostToDevice, ctx.stream));
+			CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
+			CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
+			CUDA_CHECK(cudaMemcpyAsync(ctx.zi, ctx.zip, zibytes, cudaMemcpyHostToDevice, ctx.stream));
 
-PC_direct_kernel<<<dim3(size,1,1),dim3(WARPSIZE,PCNWARP,1),0,ctx_pc.stream>>>(ctx_pc.f,ctx_pc.x,ctx_pc.z,ctx_pc.xi,ctx_pc.zi,opts.ewald);
+PC_direct_kernel<<<dim3(size,1,1),dim3(WARPSIZE,PCNWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,ctx.z,ctx.xi,ctx.zi,opts.ewald);
 
-																																		CUDA_CHECK(cudaMemcpyAsync(ctx_pc.fp, ctx_pc.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
-		}
-	}
-
-
-	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
-		yield_to_hpx();
-	}
-	int k = 0;
-	for (const auto &unit : units) {
-		for (auto &this_f : *unit.fptr) {
-			this_f = ctx.fp[k];
-			k++;
-		}
-	}
-	push_context(ctx);
-	if (!ctx_pc.empty) {
-		while (cudaStreamQuery(ctx_pc.stream) != cudaSuccess) {
-			yield_to_hpx();
-		}
-		int k = 0;
-		for (const auto &unit : units) {
-			if (unit.z.size()) {
-				for (auto &this_f : *unit.fptr) {
-					this_f = ctx_pc.fp[k];
-					k++;
+																												CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+			while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
+				yield_to_hpx();
+			}
+			int k = 0;
+			for (const auto &unit : units) {
+				if (unit.z.size()) {
+					for (auto &this_f : *unit.fptr) {
+						this_f = ctx.fp[k];
+						k++;
+					}
 				}
 			}
+			push_context(ctx);
 		}
-		push_context_pc(ctx_pc);
 	}
+	thread_cnt--;
 	return interactions * 36;
 }
 
