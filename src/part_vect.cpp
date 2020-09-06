@@ -6,6 +6,7 @@
 #include <tigergrav/groups.hpp>
 #include <tigergrav/map.hpp>
 #include <tigergrav/gravity_cuda.hpp>
+#include <tigergrav/memory.hpp>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -339,7 +340,7 @@ void part_vect_group_proc1(std::vector<particle> ps) {
 
 HPX_PLAIN_ACTION (part_vect_group_proc1);
 
-hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &&f) {
+hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, bool do_out, std::vector<force> &f, bool local) {
 	kick_return rc;
 	const auto opts = options::get();
 	const double eps = 10.0 * std::numeric_limits<double>::min();
@@ -421,7 +422,8 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 	}
 	f.resize(f.size() - k);
 	if (f.size()) {
-		part_vect_kick_action()(localities[myid + 1], part_end, e, min_rung, do_out, std::move(f));
+		auto tmp = f;
+		part_vect_kick_action()(localities[myid + 1], part_end, e, min_rung, do_out, tmp, false);
 	}
 	if (do_out && group_proc.size()) {
 		return hpx::async([](std::unordered_map<int, std::vector<particle>> &&group_proc) {
@@ -433,6 +435,10 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 		}, std::move(group_proc));
 	} else {
 		return hpx::make_ready_future();
+	}
+	if( local ) {
+		const memory<force> mem;
+		mem.trash_vector(&f);
 	}
 }
 

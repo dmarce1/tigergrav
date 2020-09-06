@@ -168,5 +168,9 @@ bool options::process_options(int argc, char *argv[]) {
 	SHOW(t_max);
 	SHOW(theta);
 	SHOW(z0);
+	if( cuda && parts_per_node > 64) {
+		printf( "No more than 64 parts per node allowed with CUDA\n");
+		abort();
+	}
 	return true;
 }

@@ -76,6 +76,6 @@ std::pair<std::uint64_t, vect<double>> part_vect_center_of_mass(part_iter b, par
 multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_iter b, part_iter e);
 double part_vect_drift(double t, rung_type);
 std::vector<vect<pos_type>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung);
-hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type rung, bool do_out, std::vector<force>&& f);
+hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type rung, bool do_out, std::vector<force>& f, bool local = true);
 void part_vect_find_groups2();
 

@@ -2,6 +2,7 @@
 #include <tigergrav/time.hpp>
 #include <tigergrav/tree.hpp>
 #include <tigergrav/groups.hpp>
+#include <tigergrav/memory.hpp>
 
 #include <atomic>
 #include <algorithm>
@@ -537,8 +538,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		istats += rc_r;
 		istats += rc_l;
 	} else {
-
-		auto fptr = std::make_shared<std::vector<force>>();
+		const memory<force> fmem;
+		auto fptr = fmem.get_vector();
 		auto xptr = std::make_shared<std::vector<vect<pos_type>>>();
 		dsource_iters.resize(0);
 		esource_iters.resize(0);
@@ -623,6 +624,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			(*fptr)[j].g = this_f.g;
 			j++;
 		}
+
 		dmulti_srcs.resize(0);
 		for (auto &v : dmulti_futs) {
 			dmulti_srcs.push_back(v.get());
@@ -655,7 +657,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			for (int i = 0; i < fptr->size(); i++) {
 				(*fptr)[i].phi -= phi_self;
 			}
-			return part_vect_kick(part_begin, part_end, min_rung, do_out, std::move(*fptr));
+			auto tmp = part_vect_kick(part_begin, part_end, min_rung, do_out, *fptr);
+			return tmp;
 		}, do_out);
 
 	}
