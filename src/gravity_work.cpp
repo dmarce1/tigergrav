@@ -48,6 +48,13 @@ struct gwork_group {
 	gwork_group() {
 		mcount = 0;
 		workadded = 0;
+		static const auto opts = options::get();
+		complete.reserve(opts.workgroup_size);
+		if (opts.cuda) {
+			cunits.reserve(opts.workgroup_size);
+		} else {
+			units.reserve(opts.workgroup_size * 512);
+		}
 	}
 	void free() {
 		decltype(units)().swap(units);
