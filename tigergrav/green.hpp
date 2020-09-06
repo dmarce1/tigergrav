@@ -245,8 +245,9 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 //		printf( "H = %e %e %e\n", h[0], h[1], h[2]);
 					const float h2 = h.dot( h);
 					const float hdotx = h.dot(X);
-						const float co = cosf(twopi * hdotx);
-						const float so = sinf(twopi * hdotx);
+						float co;
+						float so;
+						sincosf(twopi*hdotx,&so,&co);
 						D() += hpart() * co;
 						for (int a = 0; a < NDIM; a++) {
 							D(a) += hpart(a) * so;
