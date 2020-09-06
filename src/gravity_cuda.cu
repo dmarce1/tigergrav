@@ -190,7 +190,7 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 
 CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-						CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
+								CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
@@ -507,88 +507,127 @@ void push_context(cuda_context ctx) {
 }
 
 std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
-	cuda_init();
-	thread_cnt++;
-
 	static const auto opts = options::get();
 	static const float m = opts.m_tot / opts.problem_size;
-	std::vector<int> xindex;
-	std::vector<int> yindex;
-	std::vector<int> zindex;
-	std::vector<force> f;
-	std::vector < vect < pos_type >> x;
-	std::vector<std::pair<part_iter, part_iter>> y;
-	std::vector<multi_src> z;
-
-	int xi = 0;
-	int yi = 0;
-	int zi = 0;
+	cuda_init();
 	std::uint64_t interactions = 0;
-	for (const auto &unit : units) {
+	{
+		std::vector<int> xindex;
+		std::vector<int> yindex;
+		std::vector<force> f;
+		std::vector < vect < pos_type >> x;
+		std::vector<std::pair<part_iter, part_iter>> y;
+		int xi = 0;
+		int yi = 0;
+		for (const auto &unit : units) {
+			xindex.push_back(xi);
+			yindex.push_back(yi);
+			xi += unit.xptr->size();
+			yi += unit.yiters.size();
+			f.insert(f.end(), unit.fptr->begin(), unit.fptr->end());
+			x.insert(x.end(), unit.xptr->begin(), unit.xptr->end());
+			for (int j = 0; j < unit.yiters.size(); j++) {
+				std::pair<part_iter, part_iter> iter = unit.yiters[j];
+				iter.first -= y_begin;
+				iter.second -= y_begin;
+				interactions += unit.xptr->size() * (iter.second - iter.first);
+				y.push_back(iter);
+			}
+		}
 		xindex.push_back(xi);
 		yindex.push_back(yi);
+		const auto fbytes = sizeof(force) * f.size();
+		const auto xbytes = sizeof(vect<pos_type> ) * x.size();
+		const auto ybytes = sizeof(std::pair<part_iter, part_iter>) * y.size();
+		const auto xibytes = sizeof(int) * xindex.size();
+		const auto yibytes = sizeof(int) * yindex.size();
+
+		auto ctx = pop_context(x.size(), y.size(), 0, xindex.size());
+		memcpy(ctx.fp, f.data(), fbytes);
+		memcpy(ctx.xp, x.data(), xbytes);
+		memcpy(ctx.yp, y.data(), ybytes);
+		memcpy(ctx.xip, xindex.data(), xibytes);
+		memcpy(ctx.yip, yindex.data(), yibytes);
+		CUDA_CHECK(cudaMemcpyAsync(ctx.f, ctx.fp, fbytes, cudaMemcpyHostToDevice, ctx.stream));
+		CUDA_CHECK(cudaMemcpyAsync(ctx.y, ctx.yp, ybytes, cudaMemcpyHostToDevice, ctx.stream));
+		CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
+		CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
+		CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
+
+PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
+
+								CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+		while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
+			yield_to_hpx();
+		}
+		int k = 0;
+		for (const auto &unit : units) {
+			for (auto &this_f : *unit.fptr) {
+				this_f = ctx.fp[k];
+				k++;
+			}
+		}
+		push_context(ctx);
+
+	}
+	{
+		std::vector<int> xindex;
+		std::vector<int> zindex;
+		std::vector<force> f;
+		std::vector < vect < pos_type >> x;
+		std::vector<multi_src> z;
+		int xi = 0;
+		int zi = 0;
+		std::uint64_t interactions = 0;
+		for (const auto &unit : units) {
+			xindex.push_back(xi);
+			zindex.push_back(zi);
+			xi += unit.xptr->size();
+			zi += unit.z.size();
+			f.insert(f.end(), unit.fptr->begin(), unit.fptr->end());
+			x.insert(x.end(), unit.xptr->begin(), unit.xptr->end());
+			for (int j = 0; j < unit.z.size(); j++) {
+				z.push_back(*unit.z[j]);
+			}
+		}
+		xindex.push_back(xi);
 		zindex.push_back(zi);
-		xi += unit.xptr->size();
-		yi += unit.yiters.size();
-		zi += unit.z.size();
-		f.insert(f.end(), unit.fptr->begin(), unit.fptr->end());
-		x.insert(x.end(), unit.xptr->begin(), unit.xptr->end());
-		for (int j = 0; j < unit.yiters.size(); j++) {
-			std::pair<part_iter, part_iter> iter = unit.yiters[j];
-			iter.first -= y_begin;
-			iter.second -= y_begin;
-			interactions += unit.xptr->size() * (iter.second - iter.first);
-			y.push_back(iter);
-		}
-		for (int j = 0; j < unit.z.size(); j++) {
-			z.push_back(*unit.z[j]);
-		}
-	}
-	xindex.push_back(xi);
-	yindex.push_back(yi);
-	zindex.push_back(zi);
-	const auto fbytes = sizeof(force) * f.size();
-	const auto xbytes = sizeof(vect<pos_type> ) * x.size();
-	const auto ybytes = sizeof(std::pair<part_iter, part_iter>) * y.size();
-	const auto zbytes = sizeof(multi_src) * z.size();
-	const auto xibytes = sizeof(int) * xindex.size();
-	const auto yibytes = sizeof(int) * yindex.size();
-	const auto zibytes = sizeof(int) * zindex.size();
+		const auto fbytes = sizeof(force) * f.size();
+		const auto xbytes = sizeof(vect<pos_type> ) * x.size();
+		const auto zbytes = sizeof(multi_src) * z.size();
+		const auto xibytes = sizeof(int) * xindex.size();
+		const auto zibytes = sizeof(int) * zindex.size();
 
-	auto ctx = pop_context(x.size(), y.size(), z.size(), zindex.size());
-	memcpy(ctx.fp, f.data(), fbytes);
-	memcpy(ctx.xp, x.data(), xbytes);
-	memcpy(ctx.yp, y.data(), ybytes);
-	memcpy(ctx.zp, z.data(), zbytes);
-	memcpy(ctx.xip, xindex.data(), xibytes);
-	memcpy(ctx.yip, yindex.data(), yibytes);
-	memcpy(ctx.zip, zindex.data(), zibytes);
-	CUDA_CHECK(cudaMemcpyAsync(ctx.f, ctx.fp, fbytes, cudaMemcpyHostToDevice, ctx.stream));
-	CUDA_CHECK(cudaMemcpyAsync(ctx.y, ctx.yp, ybytes, cudaMemcpyHostToDevice, ctx.stream));
-	if (zbytes != 0) {
+		auto ctx = pop_context(x.size(), 0, z.size(), zindex.size());
+		memcpy(ctx.fp, f.data(), fbytes);
+		memcpy(ctx.xp, x.data(), xbytes);
+		memcpy(ctx.zp, z.data(), zbytes);
+		memcpy(ctx.xip, xindex.data(), xibytes);
+		memcpy(ctx.zip, zindex.data(), zibytes);
+		CUDA_CHECK(cudaMemcpyAsync(ctx.f, ctx.fp, fbytes, cudaMemcpyHostToDevice, ctx.stream));
+		if (zbytes != 0) {
 //		printf( "%li %lli %lli\n", zbytes, ctx.z, ctx.zp);
-		CUDA_CHECK(cudaMemcpyAsync(ctx.z, ctx.zp, zbytes, cudaMemcpyHostToDevice, ctx.stream));
-	}
-	CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
-	CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
-	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
-	CUDA_CHECK(cudaMemcpyAsync(ctx.zi, ctx.zip, zibytes, cudaMemcpyHostToDevice, ctx.stream));
-
-	PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
-	PC_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
-
-				CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
-	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
-		yield_to_hpx();
-	}
-	int k = 0;
-	for (const auto &unit : units) {
-		for (auto &this_f : *unit.fptr) {
-			this_f = ctx.fp[k];
-			k++;
+			CUDA_CHECK(cudaMemcpyAsync(ctx.z, ctx.zp, zbytes, cudaMemcpyHostToDevice, ctx.stream));
 		}
+		CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
+		CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
+		CUDA_CHECK(cudaMemcpyAsync(ctx.zi, ctx.zip, zibytes, cudaMemcpyHostToDevice, ctx.stream));
+
+PC_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.z,ctx.xi,ctx.yi,ctx.zi, m, opts.soft_len, opts.ewald);
+
+								CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+		while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
+			yield_to_hpx();
+		}
+		int k = 0;
+		for (const auto &unit : units) {
+			for (auto &this_f : *unit.fptr) {
+				this_f = ctx.fp[k];
+				k++;
+			}
+		}
+		push_context(ctx);
 	}
-	push_context(ctx);
 	thread_cnt--;
 	return interactions * 36;
 }
