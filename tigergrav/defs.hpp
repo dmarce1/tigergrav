@@ -7,7 +7,7 @@
 
 #define ERROR() printf( "ERROR %s %i\n", __FILE__, __LINE__)
 
-#define SYNCRATE 16
+#define SYNCRATE 10
 
 //#define USE_AVX512
 #define USE_AVX2
