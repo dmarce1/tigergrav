@@ -256,7 +256,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		rc.m.m = multi.m;
 		rc.m.x = multi.x;
 		rc.m.r = r;
-		rc.m.r = num_active;
+		rc.m.num_active = num_active;
 		rc.r = box;
 		rc.c = get_check_item();
 		return rc;
