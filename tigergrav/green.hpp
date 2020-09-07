@@ -62,57 +62,137 @@ struct periodic_parts: public std::vector<expansion<float>> {
 template<class SINGLE>  // 167
 CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
 		const vect<SINGLE> &dx) {
-	static const SINGLE two(2.0);
-
-	D() = d0;													// 1
-	for (int a = 0; a < NDIM; a++) {
-		auto &Da = D(a);
-		Da = dx[a] * d1;										// 3
-		for (int b = 0; b <= a; b++) {
-			auto &Dab = D(a, b);
-			const auto dxadxb = dx[a] * dx[b];					// 6
-			Dab = dxadxb * d2;									// 6
-			for (int c = 0; c <= b; c++) {
-				auto &Dabc = D(a, b, c);
-				const auto dxadxbdxc = dxadxb * dx[c];			// 10
-				Dabc = dxadxbdxc * d3;							// 10
-				for (int d = 0; d <= c; d++) {
-					auto &Dabcd = D(a, b, c, d);
-					Dabcd = dxadxbdxc * dx[d] * d4;				// 30
-				}
-			}
-		}
-	}
-	for (int a = 0; a < NDIM; a++) {
-		auto &Daa = D(a, a);
-		auto &Daaa = D(a, a, a);
-		auto &Daaaa = D(a, a, a, a);
-		Daa += d1;												// 3
-		Daaa = fma(dx[a], d2, Daaa);							// 3
-		Daaaa = fma(dx[a] * dx[a], d3, Daaaa);				// 6
-		Daaaa = fma(two, d2, Daaaa);							// 3
-		for (int b = 0; b <= a; b++) {
-			auto &Daab = D(a, a, b);
-			auto &Dabb = D(a, b, b);
-			auto &Daaab = D(a, a, a, b);
-			auto &Daabb = D(a, a, b, b);
-			auto &Dabbb = D(a, b, b, b);
-			const auto dxadxb = dx[a] * dx[b];					// 6
-			Daab = fma(dx[b], d2, Daab);						// 6
-			Dabb = fma(dx[a], d2, Dabb);						// 6
-			Daaab = fma(dxadxb, d3, Daaab);					// 6
-			Dabbb = fma(dxadxb, d3, Dabbb);					// 6
-			Daabb += d2;										// 6
-			for (int c = 0; c <= b; c++) {
-				auto &Daabc = D(a, a, b, c);
-				auto &Dabcc = D(a, b, c, c);
-				auto &Dabbc = D(a, b, b, c);
-				Daabc = fma(dx[b], dx[c] * d3, Daabc);		// 20
-				Dabcc = fma(dxadxb, d3, Dabcc);				// 10
-				Dabbc = fma(dx[a], dx[c] * d3, Dabbc);		// 20
-			}
-		}
-	}
+	SINGLE dxadxb;
+	SINGLE dxadxbdxc;
+	D[0] = d0;
+	D[1] = dx[0] * d1;
+	dxadxb = dx[0] * dx[0];
+	D[4] = dxadxb * d2;
+	dxadxbdxc = dx[0] * dx[0] * dx[0];
+	D[10] = dxadxbdxc * d3;
+	D[20] = dxadxbdxc * dx[0] * d4;
+	D[2] = dx[1] * d1;
+	dxadxb = dx[1] * dx[0];
+	D[5] = dxadxb * d2;
+	dxadxbdxc = dx[1] * dx[0] * dx[0];
+	D[11] = dxadxbdxc * d3;
+	D[21] = dxadxbdxc * dx[0] * d4;
+	dxadxb = dx[1] * dx[1];
+	D[7] = dxadxb * d2;
+	dxadxbdxc = dx[1] * dx[1] * dx[0];
+	D[13] = dxadxbdxc * d3;
+	D[23] = dxadxbdxc * dx[0] * d4;
+	dxadxbdxc = dx[1] * dx[1] * dx[1];
+	D[16] = dxadxbdxc * d3;
+	D[26] = dxadxbdxc * dx[0] * d4;
+	D[30] = dxadxbdxc * dx[1] * d4;
+	D[3] = dx[2] * d1;
+	dxadxb = dx[2] * dx[0];
+	D[6] = dxadxb * d2;
+	dxadxbdxc = dx[2] * dx[0] * dx[0];
+	D[12] = dxadxbdxc * d3;
+	D[22] = dxadxbdxc * dx[0] * d4;
+	dxadxb = dx[2] * dx[1];
+	D[8] = dxadxb * d2;
+	dxadxbdxc = dx[2] * dx[1] * dx[0];
+	D[14] = dxadxbdxc * d3;
+	D[24] = dxadxbdxc * dx[0] * d4;
+	dxadxbdxc = dx[2] * dx[1] * dx[1];
+	D[17] = dxadxbdxc * d3;
+	D[27] = dxadxbdxc * dx[0] * d4;
+	D[31] = dxadxbdxc * dx[1] * d4;
+	dxadxb = dx[2] * dx[2];
+	D[9] = dxadxb * d2;
+	dxadxbdxc = dx[2] * dx[2] * dx[0];
+	D[15] = dxadxbdxc * d3;
+	D[25] = dxadxbdxc * dx[0] * d4;
+	dxadxbdxc = dx[2] * dx[2] * dx[1];
+	D[18] = dxadxbdxc * d3;
+	D[28] = dxadxbdxc * dx[0] * d4;
+	D[32] = dxadxbdxc * dx[1] * d4;
+	dxadxbdxc = dx[2] * dx[2] * dx[2];
+	D[19] = dxadxbdxc * d3;
+	D[29] = dxadxbdxc * dx[0] * d4;
+	D[33] = dxadxbdxc * dx[1] * d4;
+	D[34] = dxadxbdxc * dx[2] * d4;
+	D[4] += d1;
+	D[10] = fma(dx[0], d2, D[10]);
+	D[20] = fma(dx[0]*dx[0], d2, D[20]);
+	D[20] = fma(float(2.0), d2, D[0]);
+	dxadxb = dx[0] * dx[0];
+	D[10] = fma(dx[0], d2, D[10]);
+	D[10] = fma(dx[0], d2, D[10]);
+	D[20] = fma(dxadxb, d3, D[20]);
+	D[20] = fma(dxadxb, d3, D[20]);
+	D[20] += d2;
+	D[20] = fma(dx[0], dx[0] * d3, D[20]);
+	D[20] = fma(dxadxb, d3, D[20]);
+	D[20] = fma(dx[0], dx[0] * d3, D[20]);
+	D[7] += d1;
+	D[16] = fma(dx[1], d2, D[16]);
+	D[30] = fma(dx[1]*dx[1], d2, D[30]);
+	D[30] = fma(float(2.0), d2, D[1]);
+	dxadxb = dx[1] * dx[0];
+	D[13] = fma(dx[0], d2, D[13]);
+	D[11] = fma(dx[1], d2, D[11]);
+	D[26] = fma(dxadxb, d3, D[26]);
+	D[21] = fma(dxadxb, d3, D[21]);
+	D[23] += d2;
+	D[23] = fma(dx[0], dx[0] * d3, D[23]);
+	D[21] = fma(dxadxb, d3, D[21]);
+	D[21] = fma(dx[1], dx[0] * d3, D[21]);
+	dxadxb = dx[1] * dx[1];
+	D[16] = fma(dx[1], d2, D[16]);
+	D[16] = fma(dx[1], d2, D[16]);
+	D[30] = fma(dxadxb, d3, D[30]);
+	D[30] = fma(dxadxb, d3, D[30]);
+	D[30] += d2;
+	D[26] = fma(dx[1], dx[0] * d3, D[26]);
+	D[23] = fma(dxadxb, d3, D[23]);
+	D[26] = fma(dx[1], dx[0] * d3, D[26]);
+	D[30] = fma(dx[1], dx[1] * d3, D[30]);
+	D[30] = fma(dxadxb, d3, D[30]);
+	D[30] = fma(dx[1], dx[1] * d3, D[30]);
+	D[9] += d1;
+	D[19] = fma(dx[2], d2, D[19]);
+	D[34] = fma(dx[2]*dx[2], d2, D[34]);
+	D[34] = fma(float(2.0), d2, D[2]);
+	dxadxb = dx[2] * dx[0];
+	D[15] = fma(dx[0], d2, D[15]);
+	D[12] = fma(dx[2], d2, D[12]);
+	D[29] = fma(dxadxb, d3, D[29]);
+	D[22] = fma(dxadxb, d3, D[22]);
+	D[25] += d2;
+	D[25] = fma(dx[0], dx[0] * d3, D[25]);
+	D[22] = fma(dxadxb, d3, D[22]);
+	D[22] = fma(dx[2], dx[0] * d3, D[22]);
+	dxadxb = dx[2] * dx[1];
+	D[18] = fma(dx[1], d2, D[18]);
+	D[17] = fma(dx[2], d2, D[17]);
+	D[33] = fma(dxadxb, d3, D[33]);
+	D[31] = fma(dxadxb, d3, D[31]);
+	D[32] += d2;
+	D[28] = fma(dx[1], dx[0] * d3, D[28]);
+	D[24] = fma(dxadxb, d3, D[24]);
+	D[27] = fma(dx[2], dx[0] * d3, D[27]);
+	D[32] = fma(dx[1], dx[1] * d3, D[32]);
+	D[31] = fma(dxadxb, d3, D[31]);
+	D[31] = fma(dx[2], dx[1] * d3, D[31]);
+	dxadxb = dx[2] * dx[2];
+	D[19] = fma(dx[2], d2, D[19]);
+	D[19] = fma(dx[2], d2, D[19]);
+	D[34] = fma(dxadxb, d3, D[34]);
+	D[34] = fma(dxadxb, d3, D[34]);
+	D[34] += d2;
+	D[29] = fma(dx[2], dx[0] * d3, D[29]);
+	D[25] = fma(dxadxb, d3, D[25]);
+	D[29] = fma(dx[2], dx[0] * d3, D[29]);
+	D[33] = fma(dx[2], dx[1] * d3, D[33]);
+	D[32] = fma(dxadxb, d3, D[32]);
+	D[33] = fma(dx[2], dx[1] * d3, D[33]);
+	D[34] = fma(dx[2], dx[2] * d3, D[34]);
+	D[34] = fma(dxadxb, d3, D[34]);
+	D[34] = fma(dx[2], dx[2] * d3, D[34]);
 
 }
 

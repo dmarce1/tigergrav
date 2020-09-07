@@ -7,156 +7,202 @@ __device__ const cuda_ewald_const& cuda_get_const();
 #endif
 // 43009,703
 template<class DOUBLE, class SINGLE> // 986 // 251936
-CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M2, vect<SINGLE> dX, bool ewald) { // 670/700 + 418 * NREAL + 50 * NFOUR
-#ifdef __CUDA_ARCH__
-	const expansion<float>& expansion_factor = cuda_get_const().exp_factors;
-#else
-	static const float efs[LP + 1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
-			5.00000000e-01, 1.00000000e+00, 5.00000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 5.00000000e-01, 1.00000000e+00, 5.00000000e-01,
-			1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 1.66666667e-01, 2.50000000e-01, 5.00000000e-01,
-			2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
-			4.16666667e-02, 0.0 };
-	const expansion<float> &expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
-#endif
-
-	expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
-
-	// 760
-	auto &L0 = L();
-	L0 += M2() * D();																// 5
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-			L0 += M2(a, b) * D(a, b) * expansion_factor(a, b);						// 36
-			for (int c = b; c < 3; c++) {
-				L0 -= M2(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);			// 60
-			}
-		}
+CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &Lacc, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald) { // 670/700 + 418 * NREAL + 50 * NFOUR
+	const expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
+	expansion<SINGLE> L;
+	auto &L0 = L;
+	for (int i = 0; i < LP; i++) {
+		L[i] = M[0] * D[i];
 	}
-	for (int a = 0; a < 3; a++) {
-		auto &La = L(a);
-		La += M2() * D(a);
-		for (int b = 0; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
-				La += M2(c, b) * D(a, b, c) * expansion_factor(c, b);				// 108
-				for (int d = c; d < 3; d++) {
-					La -= M2(b, c, d) * D(a, b, c, d) * expansion_factor(b, c, d);	//180
-				}
-			}
-		}
-	}
-
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-			auto &Lab = L(a, b);
-			Lab += M2() * D(a, b);												// 30
-			for (int c = 0; c < 3; c++) {
-				for (int d = c; d < 3; d++) {
-					Lab += M2(c, d) * D(a, b, c, d) * expansion_factor(c, d);	 // 216
-				}
-			}
-		}
-	}
-
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
-				auto &Labc = L(a, b, c);
-				Labc += M2() * D(a, b, c);										// 50
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
-				for (int d = c; d < 3; d++) {
-					auto &Labcd = L(a, b, c, d);
-					Labcd += M2() * D(a, b, c, d);								// 75
-				}
-			}
-		}
+	L[0] = fma(M[1], D[4] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[7], D[10] * float(1.666666670e-01), L[0]);
+	L[0] = fma(-M[8], D[11] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[9], D[12] * float(5.000000000e-01), L[0]);
+	L[0] = fma(M[2], D[5], L[0]);
+	L[0] = fma(-M[10], D[13] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[11], D[14], L[0]);
+	L[0] = fma(M[3], D[6], L[0]);
+	L[0] = fma(-M[12], D[15] * float(5.000000000e-01), L[0]);
+	L[0] = fma(M[4], D[7] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[13], D[16] * float(1.666666670e-01), L[0]);
+	L[0] = fma(-M[14], D[17] * float(5.000000000e-01), L[0]);
+	L[0] = fma(M[5], D[8], L[0]);
+	L[0] = fma(-M[15], D[18] * float(5.000000000e-01), L[0]);
+	L[0] = fma(M[6], D[9] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[16], D[19] * float(1.666666670e-01), L[0]);
+	L[1] = fma(M[1], D[10] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[7], D[20] * float(1.666666670e-01), L[1]);
+	L[1] = fma(-M[8], D[21] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[9], D[22] * float(5.000000000e-01), L[1]);
+	L[1] = fma(M[2], D[11], L[1]);
+	L[1] = fma(-M[10], D[23] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[11], D[24], L[1]);
+	L[1] = fma(M[3], D[12], L[1]);
+	L[1] = fma(-M[12], D[25] * float(5.000000000e-01), L[1]);
+	L[1] = fma(M[4], D[13] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[13], D[26] * float(1.666666670e-01), L[1]);
+	L[1] = fma(-M[14], D[27] * float(5.000000000e-01), L[1]);
+	L[1] = fma(M[5], D[14], L[1]);
+	L[1] = fma(-M[15], D[28] * float(5.000000000e-01), L[1]);
+	L[1] = fma(M[6], D[15] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[16], D[29] * float(1.666666670e-01), L[1]);
+	L[2] = fma(M[1], D[11] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[7], D[21] * float(1.666666670e-01), L[2]);
+	L[2] = fma(-M[8], D[23] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[9], D[24] * float(5.000000000e-01), L[2]);
+	L[2] = fma(M[2], D[13], L[2]);
+	L[2] = fma(-M[10], D[26] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[11], D[27], L[2]);
+	L[2] = fma(M[3], D[14], L[2]);
+	L[2] = fma(-M[12], D[28] * float(5.000000000e-01), L[2]);
+	L[2] = fma(M[4], D[16] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[13], D[30] * float(1.666666670e-01), L[2]);
+	L[2] = fma(-M[14], D[31] * float(5.000000000e-01), L[2]);
+	L[2] = fma(M[5], D[17], L[2]);
+	L[2] = fma(-M[15], D[32] * float(5.000000000e-01), L[2]);
+	L[2] = fma(M[6], D[18] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[16], D[33] * float(1.666666670e-01), L[2]);
+	L[3] = fma(M[1], D[12] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[7], D[22] * float(1.666666670e-01), L[3]);
+	L[3] = fma(-M[8], D[24] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[9], D[25] * float(5.000000000e-01), L[3]);
+	L[3] = fma(M[2], D[14], L[3]);
+	L[3] = fma(-M[10], D[27] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[11], D[28], L[3]);
+	L[3] = fma(M[3], D[15], L[3]);
+	L[3] = fma(-M[12], D[29] * float(5.000000000e-01), L[3]);
+	L[3] = fma(M[4], D[17] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[13], D[31] * float(1.666666670e-01), L[3]);
+	L[3] = fma(-M[14], D[32] * float(5.000000000e-01), L[3]);
+	L[3] = fma(M[5], D[18], L[3]);
+	L[3] = fma(-M[15], D[33] * float(5.000000000e-01), L[3]);
+	L[3] = fma(M[6], D[19] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[16], D[34] * float(1.666666670e-01), L[3]);
+	L[4] = fma(M[1], D[20] * float(5.000000000e-01), L[4]);
+	L[4] = fma(M[2], D[21], L[4]);
+	L[4] = fma(M[3], D[22], L[4]);
+	L[4] = fma(M[4], D[23] * float(5.000000000e-01), L[4]);
+	L[4] = fma(M[5], D[24], L[4]);
+	L[4] = fma(M[6], D[25] * float(5.000000000e-01), L[4]);
+	L[5] = fma(M[1], D[21] * float(5.000000000e-01), L[5]);
+	L[5] = fma(M[2], D[23], L[5]);
+	L[5] = fma(M[3], D[24], L[5]);
+	L[5] = fma(M[4], D[26] * float(5.000000000e-01), L[5]);
+	L[5] = fma(M[5], D[27], L[5]);
+	L[5] = fma(M[6], D[28] * float(5.000000000e-01), L[5]);
+	L[6] = fma(M[1], D[22] * float(5.000000000e-01), L[6]);
+	L[6] = fma(M[2], D[24], L[6]);
+	L[6] = fma(M[3], D[25], L[6]);
+	L[6] = fma(M[4], D[27] * float(5.000000000e-01), L[6]);
+	L[6] = fma(M[5], D[28], L[6]);
+	L[6] = fma(M[6], D[29] * float(5.000000000e-01), L[6]);
+	L[7] = fma(M[1], D[23] * float(5.000000000e-01), L[7]);
+	L[7] = fma(M[2], D[26], L[7]);
+	L[7] = fma(M[3], D[27], L[7]);
+	L[7] = fma(M[4], D[30] * float(5.000000000e-01), L[7]);
+	L[7] = fma(M[5], D[31], L[7]);
+	L[7] = fma(M[6], D[32] * float(5.000000000e-01), L[7]);
+	L[8] = fma(M[1], D[24] * float(5.000000000e-01), L[8]);
+	L[8] = fma(M[2], D[27], L[8]);
+	L[8] = fma(M[3], D[28], L[8]);
+	L[8] = fma(M[4], D[31] * float(5.000000000e-01), L[8]);
+	L[8] = fma(M[5], D[32], L[8]);
+	L[8] = fma(M[6], D[33] * float(5.000000000e-01), L[8]);
+	L[9] = fma(M[1], D[25] * float(5.000000000e-01), L[9]);
+	L[9] = fma(M[2], D[28], L[9]);
+	L[9] = fma(M[3], D[29], L[9]);
+	L[9] = fma(M[4], D[32] * float(5.000000000e-01), L[9]);
+	L[9] = fma(M[5], D[33], L[9]);
+	L[9] = fma(M[6], D[34] * float(5.000000000e-01), L[9]);
+	for (int i = 0; i < LP; i++) {
+		Lacc[i] += L[i];
 	}
 }
 
 template<class DOUBLE, class SINGLE> // 401 / 251351
 inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SINGLE> dX, bool ewald = false) { // 390 / 47301
 	static const expansion_factors<SINGLE> expansion_factor;
-	expansion<SINGLE> D;
-	if (ewald) {
-		D = green_ewald(dX);		// 251175
-	} else {
-		D = green_direct(dX);          // 226
-	}
-
+	const expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
 	// 175
-	auto &L0 = L();
-	L0 += M * D();													// 5
-	for (int a = 0; a < 3; a++) {
-		auto &La = L(a);
-		La += M * D(a);												// 15
-		for (int b = a; b < 3; b++) {
-			auto &Lab = L(a, b);
-			Lab += M * D(a, b);										// 30
-			for (int c = b; c < 3; c++) {
-				auto &Labc = L(a, b, c);
-				Labc += M * D(a, b, c);								// 50
-				for (int d = c; d < 3; d++) {
-					auto &Labcd = L(a, b, c, d);
-					Labcd += M * D(a, b, c, d);						// 75
-				}
-			}
-		}
+	for (int i = 0; i < LP; i++) {
+		L[i] += M * D[i];
 	}
 }
 
 template<class DOUBLE, class SINGLE> // 516 / 251466
 CUDA_EXPORT inline void multipole_interaction(vect<DOUBLE> &g, DOUBLE &phi, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
-	static const float efs[LP + 1] = { 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 5.00000000e-01, 1.00000000e+00, 1.00000000e+00,
-			5.00000000e-01, 1.00000000e+00, 5.00000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 5.00000000e-01, 1.00000000e+00, 5.00000000e-01,
-			1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 1.66666667e-01, 2.50000000e-01, 5.00000000e-01,
-			2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
-			4.16666667e-02, 0.0 };
-	const expansion<float> &expansion_factor = *reinterpret_cast<const expansion<float>*>(efs);
-	expansion<SINGLE> D;
-	if (ewald) {
-		D = green_ewald(dX);				// 251176
-	} else {
-		D = green_direct(dX);				// 226
-	}
+	const expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
+	SINGLE L[4];
 
-	//290
-	auto &ffirst = phi;
-	ffirst = M() * D();																// 5
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-			ffirst += M(a, b) * D(a, b) * expansion_factor(a, b);					// 36
-		}
+	for (int i = 0; i < 4; i++) {
+		L[i] = M[0] * D[i];
 	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
-				ffirst -= M(a, b, c) * D(a, b, c) * expansion_factor(a, b, c);		// 60
-			}
-		}
-	}
-	g = DOUBLE(0);
-	for (int a = 0; a < 3; a++) {
-		g[a] -= M() * D(a);													// 15
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
-				g[a] -= M(c, b) * D(a, b, c) * expansion_factor(c, b);		// 108
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
-				for (int d = c; d < 3; d++) {
-					auto &fseconda = g[a];
-					fseconda += M(c, b, d) * D(a, b, c, d) * expansion_factor(b, c, d); // 180
-				}
-			}
-		}
+	L[0] = fma(M[1], D[4] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[7], D[10] * float(1.666666670e-01), L[0]);
+	L[0] = fma(-M[8], D[11] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[9], D[12] * float(5.000000000e-01), L[0]);
+	L[0] = fma(M[2], D[5], L[0]);
+	L[0] = fma(-M[10], D[13] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[11], D[14], L[0]);
+	L[0] = fma(M[3], D[6], L[0]);
+	L[0] = fma(-M[12], D[15] * float(5.000000000e-01), L[0]);
+	L[0] = fma(M[4], D[7] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[13], D[16] * float(1.666666670e-01), L[0]);
+	L[0] = fma(-M[14], D[17] * float(5.000000000e-01), L[0]);
+	L[0] = fma(M[5], D[8], L[0]);
+	L[0] = fma(-M[15], D[18] * float(5.000000000e-01), L[0]);
+	L[0] = fma(M[6], D[9] * float(5.000000000e-01), L[0]);
+	L[0] = fma(-M[16], D[19] * float(1.666666670e-01), L[0]);
+	L[1] = fma(M[1], D[10] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[7], D[20] * float(1.666666670e-01), L[1]);
+	L[1] = fma(-M[8], D[21] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[9], D[22] * float(5.000000000e-01), L[1]);
+	L[1] = fma(M[2], D[11], L[1]);
+	L[1] = fma(-M[10], D[23] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[11], D[24], L[1]);
+	L[1] = fma(M[3], D[12], L[1]);
+	L[1] = fma(-M[12], D[25] * float(5.000000000e-01), L[1]);
+	L[1] = fma(M[4], D[13] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[13], D[26] * float(1.666666670e-01), L[1]);
+	L[1] = fma(-M[14], D[27] * float(5.000000000e-01), L[1]);
+	L[1] = fma(M[5], D[14], L[1]);
+	L[1] = fma(-M[15], D[28] * float(5.000000000e-01), L[1]);
+	L[1] = fma(M[6], D[15] * float(5.000000000e-01), L[1]);
+	L[1] = fma(-M[16], D[29] * float(1.666666670e-01), L[1]);
+	L[2] = fma(M[1], D[11] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[7], D[21] * float(1.666666670e-01), L[2]);
+	L[2] = fma(-M[8], D[23] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[9], D[24] * float(5.000000000e-01), L[2]);
+	L[2] = fma(M[2], D[13], L[2]);
+	L[2] = fma(-M[10], D[26] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[11], D[27], L[2]);
+	L[2] = fma(M[3], D[14], L[2]);
+	L[2] = fma(-M[12], D[28] * float(5.000000000e-01), L[2]);
+	L[2] = fma(M[4], D[16] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[13], D[30] * float(1.666666670e-01), L[2]);
+	L[2] = fma(-M[14], D[31] * float(5.000000000e-01), L[2]);
+	L[2] = fma(M[5], D[17], L[2]);
+	L[2] = fma(-M[15], D[32] * float(5.000000000e-01), L[2]);
+	L[2] = fma(M[6], D[18] * float(5.000000000e-01), L[2]);
+	L[2] = fma(-M[16], D[33] * float(1.666666670e-01), L[2]);
+	L[3] = fma(M[1], D[12] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[7], D[22] * float(1.666666670e-01), L[3]);
+	L[3] = fma(-M[8], D[24] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[9], D[25] * float(5.000000000e-01), L[3]);
+	L[3] = fma(M[2], D[14], L[3]);
+	L[3] = fma(-M[10], D[27] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[11], D[28], L[3]);
+	L[3] = fma(M[3], D[15], L[3]);
+	L[3] = fma(-M[12], D[29] * float(5.000000000e-01), L[3]);
+	L[3] = fma(M[4], D[17] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[13], D[31] * float(1.666666670e-01), L[3]);
+	L[3] = fma(-M[14], D[32] * float(5.000000000e-01), L[3]);
+	L[3] = fma(M[5], D[18], L[3]);
+	L[3] = fma(-M[15], D[33] * float(5.000000000e-01), L[3]);
+	L[3] = fma(M[6], D[19] * float(5.000000000e-01), L[3]);
+	L[3] = fma(-M[16], D[34] * float(1.666666670e-01), L[3]);
+	phi = L[0];
+	for (int dim = 0; dim < NDIM; dim++) {
+		g[dim] = -L[1 + dim];
 	}
 }
