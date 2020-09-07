@@ -426,7 +426,6 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 		part_vect_kick_action()(localities[myid + 1], part_end, e, min_rung, do_out, tmp, false);
 	}
 	if( local ) {
-		printf( "!\n");
 		const memory<force> mem;
 		mem.trash_vector(&f);
 	}
