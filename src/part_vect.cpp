@@ -425,6 +425,11 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 		auto tmp = f;
 		part_vect_kick_action()(localities[myid + 1], part_end, e, min_rung, do_out, tmp, false);
 	}
+	if( local ) {
+		printf( "!\n");
+		const memory<force> mem;
+		mem.trash_vector(&f);
+	}
 	if (do_out && group_proc.size()) {
 		return hpx::async([](std::unordered_map<int, std::vector<particle>> &&group_proc) {
 			std::vector<hpx::future<void>> futs;
@@ -435,10 +440,6 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 		}, std::move(group_proc));
 	} else {
 		return hpx::make_ready_future();
-	}
-	if( local ) {
-		const memory<force> mem;
-		mem.trash_vector(&f);
 	}
 }
 
