@@ -60,6 +60,12 @@ struct raw_id_type_hash {
 	}
 };
 
+void yield_to_hpx() {
+	num_threads--;
+	hpx::this_thread::yield();
+	num_threads++;
+}
+
 void manage_checkptr(check_item *ptr) {
 	std::lock_guard<mutex_type> lock(check_ptr_mtx);
 	check_ptrs.insert(ptr);

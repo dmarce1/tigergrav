@@ -117,7 +117,7 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 	D[34] = dxadxbdxc * dx[2] * d4;
 	D[4] += d1;
 	D[10] = fma(dx[0], d2, D[10]);
-	D[20] = fma(dx[0]*dx[0], d2, D[20]);
+	D[20] = fma(dx[0] * dx[0], d2, D[20]);
 	D[20] = fma(float(2.0), d2, D[0]);
 	dxadxb = dx[0] * dx[0];
 	D[10] = fma(dx[0], d2, D[10]);
@@ -130,7 +130,7 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 	D[20] = fma(dx[0], dx[0] * d3, D[20]);
 	D[7] += d1;
 	D[16] = fma(dx[1], d2, D[16]);
-	D[30] = fma(dx[1]*dx[1], d2, D[30]);
+	D[30] = fma(dx[1] * dx[1], d2, D[30]);
 	D[30] = fma(float(2.0), d2, D[1]);
 	dxadxb = dx[1] * dx[0];
 	D[13] = fma(dx[0], d2, D[13]);
@@ -155,7 +155,7 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 	D[30] = fma(dx[1], dx[1] * d3, D[30]);
 	D[9] += d1;
 	D[19] = fma(dx[2], d2, D[19]);
-	D[34] = fma(dx[2]*dx[2], d2, D[34]);
+	D[34] = fma(dx[2] * dx[2], d2, D[34]);
 	D[34] = fma(float(2.0), d2, D[2]);
 	dxadxb = dx[2] * dx[0];
 	D[15] = fma(dx[0], d2, D[15]);
@@ -197,20 +197,37 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 }
 
 template<class DOUBLE, class SINGLE>  // 576
-CUDA_EXPORT void green_deriv_ewald(expansion<DOUBLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
+CUDA_EXPORT void green_deriv_ewald(expansion<DOUBLE> &Dacc, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
 		const vect<SINGLE> &dx) {
 	static const SINGLE two(2.0);
-	D() += d0;													//  4
+	expansion<SINGLE> D;
+	D() = d0;													//  4
 	for (int a = 0; a < NDIM; a++) {
 		auto &Da = D(a);
-		Da += dx[a] * d1;										// 15
+		Da = dx[a] * d1;										// 15
+		for (int b = 0; b <= a; b++) {
+			auto &Dab = D(a, b);
+			const auto dxadxb = dx[a] * dx[b];					// 6
+			Dab = dxadxb * d2;									// 30
+			for (int c = 0; c <= b; c++) {
+				auto &Dabc = D(a, b, c);
+				const auto dxadxbdxc = dxadxb * dx[c];			// 10
+				Dabc = dxadxbdxc * d3;							// 50
+				for (int d = 0; d <= c; d++) {
+					D(a, b, c, d) = dxadxbdxc * dx[d] * d4;			// 90
+				}
+			}
+		}
+	}
+	for (int a = 0; a < NDIM; a++) {
+		auto &Da = D(a);
 		auto &Daa = D(a, a);
 		auto &Daaa = D(a, a, a);
 		auto &Daaaa = D(a, a, a, a);
 		Daa += d1;												// 12
-		Daaa += dx[a] * d2;										// 15
-		Daaaa += dx[a] * dx[a] * d3;							// 18
-		Daaaa += two * d2;										// 12
+		Daaa = fma(dx[a], d2, Daaa);										// 15
+		Daaaa = fma(dx[a] * dx[a], d3, Daaaa);							// 18
+		Daaaa = fma(two, d2, Daaaa);										// 12
 		for (int b = 0; b <= a; b++) {
 			auto &Dab = D(a, b);
 			auto &Daab = D(a, a, b);
@@ -219,30 +236,26 @@ CUDA_EXPORT void green_deriv_ewald(expansion<DOUBLE> &D, const SINGLE &d0, const
 			auto &Daabb = D(a, a, b, b);
 			auto &Dabbb = D(a, b, b, b);
 			const auto dxadxb = dx[a] * dx[b];					// 6
-			Dab += dxadxb * d2;									// 30
-			Daab += dx[b] * d2;									// 30
-			Dabb += dx[a] * d2;									// 30
-			Daaab += dxadxb * d3;								// 30
-			Dabbb += dxadxb * d3;								// 30
+			Daab = fma(dx[b], d2, Daab);									// 30
+			Dabb = fma(dx[a], d2, Dabb);									// 30
+			Daaab = fma(dxadxb, d3, Daaab);								// 30
+			Dabbb = fma(dxadxb, d3, Dabbb);								// 30
 			Daabb += d2;										// 24
 			for (int c = 0; c <= b; c++) {
 				auto &Dabc = D(a, b, c);
 				const auto dxadxbdxc = dxadxb * dx[c];			// 10
-				Dabc += dxadxbdxc * d3;							// 50
 				auto &Daabc = D(a, a, b, c);
 				auto &Dabcc = D(a, b, c, c);
 				auto &Dabbc = D(a, b, b, c);
-				Daabc += dx[b] * dx[c] * d3;					// 60
-				Dabcc += dxadxb * d3;							// 50
-				Dabbc += dx[a] * dx[c] * d3;					// 60
-				for (int d = 0; d <= c; d++) {
-					auto &Dabcd = D(a, b, c, d);
-					Dabcd += dxadxbdxc * dx[d] * d4;			// 90
-				}
+				Daabc = fma(dx[b] * dx[c], d3, Daabc);					// 60
+				Dabcc = fma(dxadxb, d3, Dabcc);							// 50
+				Dabbc = fma(dx[a] * dx[c], d3, Dabbc);					// 60
 			}
 		}
 	}
-
+	for (int i = 0; i < LP; i++) {
+		Dacc[i] += D[i];
+	}
 }
 
 template<class T>
@@ -270,6 +283,7 @@ CUDA_EXPORT inline expansion<T> green_direct(const vect<T> &dX) {		// 59  + 167 
 
 __device__ const cuda_ewald_const& cuda_get_const();
 
+
 CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	const auto& cuda_const = cuda_get_const();
 	const auto& four_indices = cuda_const.four_indices;
@@ -289,6 +303,7 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	const float r = abs(X);
 	const float zmask = r > rcut;											// 2
 	expansion<double> D;
+	expansion<float> Ds;
 	D = 0.0;
 	for( auto n : real_indices) {
 	//	printf( "n = %e %e %e\n", n[0], n[1], n[2]);
@@ -328,45 +343,51 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 						float co;
 						float so;
 						sincosf(twopi*hdotx,&so,&co);
-						D() += hpart() * co;
+						for( int i = 0; i < LP; i++) {
+							Ds[i] = 0.0;
+						}
+						Ds()  += hpart()*co;
 						for (int a = 0; a < NDIM; a++) {
-							D(a) += hpart(a) * so;
+							D(a) += hpart(a)* so;
 							for (int b = 0; b <= a; b++) {
-								D(a, b) += hpart(a,b) * co;
+								D(a, b) +=  hpart(a,b)* co;
 								for (int c = 0; c <= b; c++) {
-									D(a, b, c) += hpart(a,b,c) * so;
+									D(a, b, c) += hpart(a,b,c)* so;
 									for (int d = 0; d <= c; d++) {
 										D(a, b, c, d) += hpart(a,b,c,d)* co;
 									}
 								}
 							}
-					}
+						}
+						for( int i = 0; i < LP; i++) {
+							D[i] += Ds[i];
+						}
 	}
 
-	expansion<float> rcD;
 
 	for (int i = 0; i < LP; i++) {
-		rcD[i] =D[i];																	// 70
+		Ds[i] =D[i];																	// 70
 	}
 	const auto D1 = green_direct(X);													// 167
 	const float rinv = -D1();														// 2
-	rcD() = (M_PI / 4.0) + rcD() + zmask * rinv;												// 2
+	Ds() = (M_PI / 4.0) + Ds() + zmask * rinv;												// 2
 	for (int a = 0; a < NDIM; a++) {
-		rcD(a) = (rcD(a) - zmask * D1(a));												// 6
+		Ds(a) = (Ds(a) - zmask * D1(a));												// 6
 		for (int b = 0; b <= a; b++) {
-			rcD(a, b) = (rcD(a, b) - zmask * D1(a, b));									// 12
+			Ds(a, b) = (Ds(a, b) - zmask * D1(a, b));									// 12
 			for (int c = 0; c <= b; c++) {
-				rcD(a, b, c) = (rcD(a, b, c) - zmask * D1(a, b, c));					// 20
+				Ds(a, b, c) = (Ds(a, b, c) - zmask * D1(a, b, c));					// 20
 				for (int d = 0; d <= c; d++) {
-					rcD(a, b, c, d) = (rcD(a, b, c, d) - zmask * D1(a, b, c, d));		// 30
+					Ds(a, b, c, d) = (Ds(a, b, c, d) - zmask * D1(a, b, c, d));		// 30
 				}
 			}
 		}
 	}
 
-	return rcD;
+	return Ds;
 
 }
+
 #else
 
 template<class T>

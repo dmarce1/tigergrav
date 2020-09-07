@@ -51,6 +51,7 @@ void cuda_init() {
 
 		CUDA_CHECK(cudaMemcpyToSymbol(cuda_ewald, &c, sizeof(cuda_ewald_const)));
 		init = true;
+//		CUDA_CHECK(cudaThreadSetLimit(cudaLimitStackSize, 2048));
 	}
 	lock--;
 }
@@ -192,7 +193,7 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 
 CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-																				CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
+																					CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}
@@ -577,7 +578,7 @@ std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 
 PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald);
 
-							CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+									CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 		while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 			yield_to_hpx();
 		}
@@ -645,7 +646,7 @@ PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>
 
 PC_direct_kernel<<<dim3(size,1,1),dim3(WARPSIZE,PCNWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,ctx.z,ctx.xi,ctx.zi,opts.ewald);
 
-																												CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+																															CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
 			while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 				yield_to_hpx();
 			}
