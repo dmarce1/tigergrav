@@ -348,13 +348,13 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 						}
 						Ds()  += hpart()*co;
 						for (int a = 0; a < NDIM; a++) {
-							D(a) += hpart(a)* so;
+							Ds(a) += hpart(a)* so;
 							for (int b = 0; b <= a; b++) {
-								D(a, b) +=  hpart(a,b)* co;
+								Ds(a, b) +=  hpart(a,b)* co;
 								for (int c = 0; c <= b; c++) {
-									D(a, b, c) += hpart(a,b,c)* so;
+									Ds(a, b, c) += hpart(a,b,c)* so;
 									for (int d = 0; d <= c; d++) {
-										D(a, b, c, d) += hpart(a,b,c,d)* co;
+										Ds(a, b, c, d) += hpart(a,b,c,d)* co;
 									}
 								}
 							}
