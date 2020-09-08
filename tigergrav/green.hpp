@@ -117,8 +117,8 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 	D[34] = dxadxbdxc * dx[2] * d4;
 	D[4] += d1;
 	D[10] = fma(dx[0], d2, D[10]);
-	D[20] = fma(dx[0] * dx[0], d2, D[20]);
-	D[20] = fma(float(2.0), d2, D[0]);
+	D[20] = fma(dx[0]*dx[0], d3, D[20]);
+	D[20] = fma(float(2.0), d2, D[20]);
 	dxadxb = dx[0] * dx[0];
 	D[10] = fma(dx[0], d2, D[10]);
 	D[10] = fma(dx[0], d2, D[10]);
@@ -130,8 +130,8 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 	D[20] = fma(dx[0], dx[0] * d3, D[20]);
 	D[7] += d1;
 	D[16] = fma(dx[1], d2, D[16]);
-	D[30] = fma(dx[1] * dx[1], d2, D[30]);
-	D[30] = fma(float(2.0), d2, D[1]);
+	D[30] = fma(dx[1]*dx[1], d3, D[30]);
+	D[30] = fma(float(2.0), d2, D[30]);
 	dxadxb = dx[1] * dx[0];
 	D[13] = fma(dx[0], d2, D[13]);
 	D[11] = fma(dx[1], d2, D[11]);
@@ -155,8 +155,8 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 	D[30] = fma(dx[1], dx[1] * d3, D[30]);
 	D[9] += d1;
 	D[19] = fma(dx[2], d2, D[19]);
-	D[34] = fma(dx[2] * dx[2], d2, D[34]);
-	D[34] = fma(float(2.0), d2, D[2]);
+	D[34] = fma(dx[2]*dx[2], d3, D[34]);
+	D[34] = fma(float(2.0), d2, D[34]);
 	dxadxb = dx[2] * dx[0];
 	D[15] = fma(dx[0], d2, D[15]);
 	D[12] = fma(dx[2], d2, D[12]);
@@ -193,7 +193,6 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 	D[34] = fma(dx[2], dx[2] * d3, D[34]);
 	D[34] = fma(dxadxb, d3, D[34]);
 	D[34] = fma(dx[2], dx[2] * d3, D[34]);
-
 }
 
 template<class DOUBLE, class SINGLE>  // 576
@@ -201,58 +200,7 @@ CUDA_EXPORT void green_deriv_ewald(expansion<DOUBLE> &Dacc, const SINGLE &d0, co
 		const vect<SINGLE> &dx) {
 	static const SINGLE two(2.0);
 	expansion<SINGLE> D;
-	D() = d0;													//  4
-	for (int a = 0; a < NDIM; a++) {
-		auto &Da = D(a);
-		Da = dx[a] * d1;										// 15
-		for (int b = 0; b <= a; b++) {
-			auto &Dab = D(a, b);
-			const auto dxadxb = dx[a] * dx[b];					// 6
-			Dab = dxadxb * d2;									// 30
-			for (int c = 0; c <= b; c++) {
-				auto &Dabc = D(a, b, c);
-				const auto dxadxbdxc = dxadxb * dx[c];			// 10
-				Dabc = dxadxbdxc * d3;							// 50
-				for (int d = 0; d <= c; d++) {
-					D(a, b, c, d) = dxadxbdxc * dx[d] * d4;			// 90
-				}
-			}
-		}
-	}
-	for (int a = 0; a < NDIM; a++) {
-		auto &Da = D(a);
-		auto &Daa = D(a, a);
-		auto &Daaa = D(a, a, a);
-		auto &Daaaa = D(a, a, a, a);
-		Daa += d1;												// 12
-		Daaa = fma(dx[a], d2, Daaa);										// 15
-		Daaaa = fma(dx[a] * dx[a], d3, Daaaa);							// 18
-		Daaaa = fma(two, d2, Daaaa);										// 12
-		for (int b = 0; b <= a; b++) {
-			auto &Dab = D(a, b);
-			auto &Daab = D(a, a, b);
-			auto &Dabb = D(a, b, b);
-			auto &Daaab = D(a, a, a, b);
-			auto &Daabb = D(a, a, b, b);
-			auto &Dabbb = D(a, b, b, b);
-			const auto dxadxb = dx[a] * dx[b];					// 6
-			Daab = fma(dx[b], d2, Daab);									// 30
-			Dabb = fma(dx[a], d2, Dabb);									// 30
-			Daaab = fma(dxadxb, d3, Daaab);								// 30
-			Dabbb = fma(dxadxb, d3, Dabbb);								// 30
-			Daabb += d2;										// 24
-			for (int c = 0; c <= b; c++) {
-				auto &Dabc = D(a, b, c);
-				const auto dxadxbdxc = dxadxb * dx[c];			// 10
-				auto &Daabc = D(a, a, b, c);
-				auto &Dabcc = D(a, b, c, c);
-				auto &Dabbc = D(a, b, b, c);
-				Daabc = fma(dx[b] * dx[c], d3, Daabc);					// 60
-				Dabcc = fma(dxadxb, d3, Dabcc);							// 50
-				Dabbc = fma(dx[a] * dx[c], d3, Dabbc);					// 60
-			}
-		}
-	}
+	green_deriv_direct(D,d0,d1,d2,d3,d4,dx);
 	for (int i = 0; i < LP; i++) {
 		Dacc[i] += D[i];
 	}
