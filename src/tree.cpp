@@ -451,26 +451,54 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 
 	std::uint64_t dsource_count = 0;
 	std::uint64_t esource_count = 0;
-	for (auto c : dchecklist) {
-		if (c.chk->pend == c.chk->pbegin) {
-			continue;
-		}
-		const float dx2 = separation2(multi.x, c.chk->x);
-		const float radius = (r + c.chk->r + h) * theta_inv;
-		const bool far = dx2 > radius * radius;
-		if (far) {
-			if (c.opened) {
-				dsource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
-				dsource_count += c.chk->pend - c.chk->pbegin;
-			} else {
-				dmulti_futs.push_back(c.chk->node.get_multi_srcs());
+
+	vect<simd_int> X;
+	simd_float RpH = r + h;
+	for (int dim = 0; dim < NDIM; dim++) {
+		X[dim] = multi.x[dim];
+	}
+
+	int max_ci = dchecklist.size() - 1;
+	for (int ci = 0; ci < dchecklist.size(); ci += simd_float::size()) {
+		vect<simd_int> Y;
+		simd_float CR;
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int k = 0; k < simd_float::size(); k++) {
+				const int index = std::min((ci + k), max_ci);
+				Y[dim][k] = dchecklist[index].chk->x[dim];
 			}
-		} else {
-			if (c.chk->is_leaf) {
-				c.opened = true;
-				next_dchecklist.push_back(c);
+		}
+		for (int k = 0; k < simd_float::size(); k++) {
+			const int index = std::min((ci + k), max_ci);
+			CR[k] = dchecklist[index].chk->r;
+		}
+		vect<simd_float> dX;
+		for (int dim = 0; dim < NDIM; dim++) {
+			if( opts.ewald ) {
+				dX[dim] = simd_float(X[dim] - Y[dim]) * POS_INV;
 			} else {
-				dfuts.push_back(c.chk->node.get_node_attributes());
+				dX[dim] =  (simd_float(X[dim]) - simd_float(Y[dim])) * POS_INV;
+			}
+		}
+		const simd_float dX2 = dX.dot(dX);
+		const simd_float radius = (RpH + CR) * simd_float(theta_inv);
+		const simd_float far = dX2 > (radius * radius);
+		for (int this_ci = ci; this_ci < std::min(ci + (int) simd_float::size(), max_ci + 1); this_ci++) {
+			auto &c = dchecklist[this_ci];
+			if (far[this_ci - ci] == 1.0) {
+				if (c.opened) {
+					dsource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
+					dsource_count += c.chk->pend - c.chk->pbegin;
+				} else {
+					dmulti_futs.push_back(c.chk->node.get_multi_srcs());
+				}
+			} else {
+				if (c.chk->is_leaf) {
+					c.opened = true;
+					next_dchecklist.push_back(c);
+				} else {
+					dfuts.push_back(c.chk->node.get_node_attributes());
+				}
 			}
 		}
 	}
@@ -559,13 +587,13 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 				if (c.chk->pend == c.chk->pbegin) {
 					continue;
 				}
-				const float dx2 = separation2(multi.x, c.chk->x);
-				const float radius = (r + c.chk->r + h) * theta_inv;
-				const bool far = dx2 > radius * radius;
 				if (c.opened) {
 					dsource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
 					dsource_count += c.chk->pend - c.chk->pbegin;
 				} else {
+					const float dx2 = separation2(multi.x, c.chk->x);
+					const float radius = (r + c.chk->r + h) * theta_inv;
+					const bool far = dx2 > radius * radius;
 					if (far) {
 						dmulti_futs.push_back(c.chk->node.get_multi_srcs());
 					} else {

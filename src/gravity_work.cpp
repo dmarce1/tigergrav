@@ -113,30 +113,32 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	if (do_work) {
 		if (opts.cuda) {
 			for (auto &unit : entry.cunits) {
-				static thread_local std::vector<std::pair<part_iter, part_iter>> tmp;
-				tmp.resize(0);
-				std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
-					return a.first < b.first;
-				});
-				std::pair<part_iter, part_iter> iter;
-				int group_size = SYNCRATE;
-				tmp.push_back(unit.yiters[0]);
-				for (int i = 1; i < unit.yiters.size(); i++) {
-					if (tmp.back().second == unit.yiters[i].first) {
-						tmp.back().second = unit.yiters[i].second;
-					} else {
-						tmp.push_back(unit.yiters[i]);
+				if (unit.yiters.size()) {
+					static thread_local std::vector<std::pair<part_iter, part_iter>> tmp;
+					tmp.resize(0);
+					std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
+						return a.first < b.first;
+					});
+					std::pair<part_iter, part_iter> iter;
+					int group_size = SYNCRATE;
+					tmp.push_back(unit.yiters[0]);
+					for (int i = 1; i < unit.yiters.size(); i++) {
+						if (tmp.back().second == unit.yiters[i].first) {
+							tmp.back().second = unit.yiters[i].second;
+						} else {
+							tmp.push_back(unit.yiters[i]);
+						}
 					}
-				}
-				unit.yiters.resize(0);
-				for (auto &this_iter : tmp) {
-					const int this_size = this_iter.second - this_iter.first;
-					const int ngroups = (this_size - 1) / group_size + 1;
-					const int this_group_size = (this_size - 1) / ngroups + 1;
-					for (int j = this_iter.first; j < this_iter.second; j += group_size) {
-						iter.first = j;
-						iter.second = std::min(this_iter.second, (part_iter) (j + group_size));
-						unit.yiters.push_back(iter);
+					unit.yiters.resize(0);
+					for (auto &this_iter : tmp) {
+						const int this_size = this_iter.second - this_iter.first;
+						const int ngroups = (this_size - 1) / group_size + 1;
+						const int this_group_size = (this_size - 1) / ngroups + 1;
+						for (int j = this_iter.first; j < this_iter.second; j += group_size) {
+							iter.first = j;
+							iter.second = std::min(this_iter.second, (part_iter) (j + group_size));
+							unit.yiters.push_back(iter);
+						}
 					}
 				}
 			}

@@ -106,6 +106,7 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, s
 		X[dim] = x[dim];
 	}
 	std::array<multi_src, simd_float::size()> ystage;
+	vect<simd_float> dX;
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
 		for (int k = 0; k < simd_float::size(); k++) {
 			if (j + k < cnt1) {
@@ -126,7 +127,6 @@ std::uint64_t gravity_CC_direct(expansion<double> &L, const vect<pos_type> &x, s
 			}
 		}
 
-		vect<simd_float> dX;
 		if (opts.ewald) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(POS_INV); // 18

@@ -25,11 +25,11 @@ class general_vect {
 #endif
 public:
 	CUDA_EXPORT general_vect() {
-#ifndef __CUDA_ARCH__
-		for (int d = 0; d < NDIM; d++) {
-			v[d] = std::numeric_limits<T>::signaling_NaN();
-		}
-#endif
+//#ifndef __CUDA_ARCH__
+//		for (int d = 0; d < NDIM; d++) {
+//			v[d] = std::numeric_limits<T>::signaling_NaN();
+//		}
+//#endif
 	}
 	CUDA_EXPORT general_vect(std::array<T, N> a);
 	CUDA_EXPORT general_vect(T a);
