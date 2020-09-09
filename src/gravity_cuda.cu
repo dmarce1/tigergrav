@@ -34,7 +34,7 @@ void cuda_init() {
 				2.50000000e-01, 1.66666667e-01, 5.00000000e-01, 5.00000000e-01, 1.66666667e-01, 4.16666667e-02, 1.66666667e-01, 2.50000000e-01, 1.66666667e-01,
 				4.16666667e-02, 0.0 };
 
-		cuda_ewald_const c;
+		static cuda_ewald_const c;
 		const ewald_indices indices_real(EWALD_REAL_N2, false);
 		const ewald_indices indices_four(EWALD_FOUR_N2, true);
 		const periodic_parts periodic;

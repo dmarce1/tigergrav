@@ -283,7 +283,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 				const vect<simd_float> dx = dX0 - n;                         	// 3
 				const simd_float r2 = dx.dot(dx);								// 5
 				const simd_float r = sqrt(r2);                      			// 7
-				const simd_float mask = cut_mask * (r < 3.6);                   // 3
+				const simd_float mask = cut_mask * (r < EWALD_RADIUS_CUTOFF);                   // 3
 				simd_float rinv = mask * 1.0 / max(r, rcut);				    //37
 				const simd_float r2inv = rinv * rinv;						    // 1
 				const simd_float r3inv = r2inv * rinv;						    // 1

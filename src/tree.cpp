@@ -32,7 +32,7 @@ HPX_REGISTER_ACTION(get_check_item_action_type);
 HPX_REGISTER_COMPONENT(hpx::components::managed_component<tree>, tree);
 #endif
 
-#define MAX_STACK 24
+#define MAX_STACK 18
 
 std::atomic<std::uint64_t> tree::flop(0);
 float tree::theta_inv;

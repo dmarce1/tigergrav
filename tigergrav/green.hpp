@@ -1,7 +1,8 @@
 #pragma once
 
-constexpr float EWALD_REAL_N2 = 18;
-constexpr float EWALD_FOUR_N2 = 9;
+constexpr float EWALD_REAL_N2 = 13;
+constexpr float EWALD_FOUR_N2 = 7;
+constexpr float EWALD_RADIUS_CUTOFF = 2.54168;
 
 #include <tigergrav/expansion.hpp>
 
@@ -254,10 +255,9 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	expansion<float> Ds;
 	D = 0.0;
 	for( auto n : real_indices) {
-	//	printf( "n = %e %e %e\n", n[0], n[1], n[2]);
 					const vect<float> dx = X - vect<float>(n);				// 3
 				const float r2 = dx.dot(dx);				// 5
-				if (r2 < 12.96) {
+				if (r2 < (EWALD_RADIUS_CUTOFF*EWALD_RADIUS_CUTOFF)) {
 					const float r = sqrt(r2);					// 7
 					const float r4 = r2 * r2;					// 1
 					const float cmask = 1.0 - (n.dot(n) > 0.0);
@@ -371,7 +371,7 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 		const T r6 = r2 * r4;					// 1
 		const T r = sqrt(r2);					// 7
 		const T cmask = T(1) - (n.dot(n) > 0.0);
-		const T mask = (T(1) - (T(1) - zmask) * cmask) * (r < 3.6);
+		const T mask = (T(1) - (T(1) - zmask) * cmask) * (r < EWALD_RADIUS_CUTOFF);
 		const T rinv = mask / max(r, rcut);		// 36
 		const T r2inv = rinv * rinv;			// 1
 		const T r3inv = r2inv * rinv;			// 1
