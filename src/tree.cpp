@@ -91,31 +91,42 @@ template<class F>
 inline auto thread_if_avail(F &&f, bool left, int nparts, bool force, int stack_cnt) {
 	const auto opts = options::get();
 	bool thread;
+	bool thread_bcof_stack = false;
 
 	if (force) {
 		thread = true;
+		thread_bcof_stack = true;
 	} else {
 		if (nparts > workgroup_size) {
 			if (left && num_threads < opts.oversubscription * hardware_concurrency) {
 				thread = true;
 			} else {
 				thread = (stack_cnt == MAX_STACK - 1);
+				thread_bcof_stack = true;
 				if (thread)
 					printf("Stack thread\n");
 			}
 		} else {
+			thread = (stack_cnt == MAX_STACK - 1);
+			thread_bcof_stack = true;
 			if (thread)
 				printf("Stack thread\n");
 		}
 	}
 	if (thread) {
-		num_threads++;
-		auto rc = hpx::async([](F &&f) {
-			auto rc = f(0);
-			num_threads--;
+		if (!thread_bcof_stack) {
+			num_threads++;
+			auto rc = hpx::async([](F &&f) {
+				auto rc = f(0);
+				num_threads--;
+				return rc;
+			},std::forward<F>(f));
 			return rc;
-		},std::forward<F>(f));
-		return rc;
+		} else {
+			return hpx::make_ready_future(hpx::async([](F &&f) {
+				return f(0);
+			},std::forward<F>(f)).get());
+		}
 	} else {
 		return hpx::async(hpx::launch::deferred, [stack_cnt](F &&f) {
 			return f(stack_cnt + 1);
