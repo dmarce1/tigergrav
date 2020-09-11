@@ -37,6 +37,6 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 bool cuda_thread_count();
 
 std::uint64_t gravity_PP_direct_cuda(std::vector<cuda_work_unit>&&);
-std::uint64_t gravity_CC_ewald_cuda(expansion<double>& L, const vect<pos_type> &x, std::vector<const multi_src*> &y);
+std::uint64_t gravity_CC_ewald_cuda(expansion<float>& L, const vect<pos_type> &x, std::vector<const multi_src*> &y);
 
 #endif /* TIGERGRAV_GRAVITY_CUDA_HPP_ */

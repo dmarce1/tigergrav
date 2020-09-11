@@ -81,14 +81,14 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 #define PCNWARP (PCWORKSIZE/WARPSIZE)
 #define WARPSIZE 32
 
-__global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X, const multi_src *y, int ysize) {
+__global__ void CC_ewald_kernel(expansion<float> *lptr, const vect<pos_type> X, const multi_src *y, int ysize) {
 
 	int l = threadIdx.x + blockDim.x * blockIdx.x;
 	int n = threadIdx.x;
 	int tb_size = blockDim.x;
 	auto &L = *lptr;
 
-	__shared__ expansion<double>
+	__shared__ expansion<float>
 	Lacc[CCSIZE];
 	for (int i = 0; i < LP; i++) {
 		Lacc[n][i] = 0.0;
@@ -121,18 +121,18 @@ __global__ void CC_ewald_kernel(expansion<double> *lptr, const vect<pos_type> X,
 struct cuda_context_ewald {
 	int ysize;
 	cudaStream_t stream;
-	expansion<double> *L;
+	expansion<float> *L;
 	multi_src *y;
-	expansion<double> *Lp;
+	expansion<float> *Lp;
 	multi_src *yp;
 	cuda_context_ewald(int ys) {
 		ysize = 1;
 		while (ysize < ys) {
 			ysize *= 2;
 		}
-		CUDA_CHECK(cudaMalloc(&L, sizeof(expansion<double> )));
+		CUDA_CHECK(cudaMalloc(&L, sizeof(expansion<float> )));
 		CUDA_CHECK(cudaMalloc(&y, sizeof(multi_src) * ysize));
-		CUDA_CHECK(cudaMallocHost(&Lp, sizeof(expansion<double> )));
+		CUDA_CHECK(cudaMallocHost(&Lp, sizeof(expansion<float> )));
 		CUDA_CHECK(cudaMallocHost(&yp, sizeof(multi_src) * ysize));
 		CUDA_CHECK(cudaStreamCreate(&stream));
 	}
@@ -176,7 +176,7 @@ void push_context_ewald(cuda_context_ewald ctx) {
 	lock_ewald--;
 }
 
-std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
+std::uint64_t gravity_CC_ewald_cuda(expansion<float> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
 
 	cuda_init();
 
@@ -187,13 +187,13 @@ std::uint64_t gravity_CC_ewald_cuda(expansion<double> &L, const vect<pos_type> &
 	}
 	*ctx.Lp = L;
 	CUDA_CHECK(cudaMemcpyAsync(ctx.y, ctx.yp, sizeof(multi_src) * y.size(), cudaMemcpyHostToDevice, ctx.stream));
-	CUDA_CHECK(cudaMemcpyAsync(ctx.L, ctx.Lp, sizeof(expansion<double> ), cudaMemcpyHostToDevice, ctx.stream));
+	CUDA_CHECK(cudaMemcpyAsync(ctx.L, ctx.Lp, sizeof(expansion<float> ), cudaMemcpyHostToDevice, ctx.stream));
 
 	int tb_size = (((y.size() - 1) / CCSIZE) + 1) * CCSIZE;
 
 CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size());
 
-																					CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<double> ), cudaMemcpyDeviceToHost, ctx.stream));
+																					CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<float> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
 		yield_to_hpx();
 	}

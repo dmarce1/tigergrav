@@ -220,13 +220,11 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, 
 	part_iter begin = std::max(b, part_begin);
 	for (int round = 0; !done; round++) {
 		int other = round_robin(myid - low_proc, round, nproc) + low_proc;
-//		printf("%i %i %i %i %i %i\n", myid, b, mid, e, round % nproc, other);
 		if (other >= 0 && other >= part_vect_locality_id(mid)) {
 			std::vector<particle> send;
 			send.reserve(chunk_size);
 			done = true;
 			std::unique_lock<mutex_type> lock(sort_mutex);
-//			printf( "--%i %i %i\n",myid, begin,std::min(part_end, mid) );
 			for (part_iter i = begin; i < std::min(part_end, mid); i++) {
 				if (pos_to_double(parts(i).x[dim]) >= xmid) {
 					send.push_back(parts(i));
@@ -237,7 +235,6 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, 
 				}
 			}
 			if (!done) {
-				//			printf("%i Sending %i to %i\n", myid, send.size(), other);
 				lock.unlock();
 				auto recv = part_vect_sort_end_action()(localities[other], b, e, mid, xmid, dim, std::move(send));
 				lock.lock();
@@ -425,7 +422,7 @@ hpx::future<void> part_vect_kick(part_iter b, part_iter e, rung_type min_rung, b
 		auto tmp = f;
 		part_vect_kick_action()(localities[myid + 1], part_end, e, min_rung, do_out, tmp, false);
 	}
-	if( local ) {
+	if (local) {
 		const memory<force> mem;
 		mem.trash_vector(&f);
 	}
@@ -478,7 +475,7 @@ void part_vect_find_groups2() {
 
 std::vector<vect<pos_type>> part_vect_read_active_positions(part_iter b, part_iter e, rung_type rung) {
 	std::vector<vect<pos_type>> x;
-	hpx::future<std::vector<vect<pos_type>>> fut;
+	hpx::future < std::vector<vect<pos_type>> > fut;
 	x.reserve(e - b);
 	if (e > part_end) {
 		fut = hpx::async < part_vect_read_active_positions_action > (localities[myid + 1], part_end, e, rung);
@@ -700,7 +697,7 @@ inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_it
 	std::unique_lock<mutex_type> lock(pos_cache_mtx[index]);
 	auto iter = pos_cache[index].find(b);
 	if (iter == pos_cache[index].end()) {
-		hpx::lcos::local::promise<hpx::future<std::vector<vect<pos_type>>>> promise;
+		hpx::lcos::local::promise < hpx::future < std::vector<vect<pos_type>> >> promise;
 		auto fut = promise.get_future();
 		pos_cache[index][b] = fut.then([b](decltype(fut) f) {
 			return f.get().get();
@@ -789,7 +786,7 @@ std::vector<vect<pos_type>> part_vect_read_positions(const std::vector<std::pair
 //			printf( "-%i %i %i\n", size, local.size(), nonlocal.size());
 		}
 	}
-	std::vector<hpx::future<std::vector<vect<pos_type>>>> futs;
+	std::vector < hpx::future < std::vector<vect<pos_type>> >> futs;
 	for (auto &iter : nonlocal) {
 		futs.push_back(part_vect_read_position(iter.first, iter.second));
 	}
@@ -917,35 +914,25 @@ part_iter part_vect_count_lo(part_iter b, part_iter e, double xmid, int dim) {
 
 part_iter part_vect_sort(part_iter b, part_iter e, double xmid, int dim) {
 
-//	printf("Sorting %i %i on %i %i %i\n", b, e, myid, part_begin, part_end);
+	pos_type xmid_int = (xmid - 0.5) * POS_MAX;
 	if (e == b) {
 		return e;
 	} else {
-		for (auto i = part_begin; i < part_end; i++) {
-//			printf("%e\n", pos_to_double(parts(i).x[dim]));
-		}
-		//	printf("----\n");
 		if (e <= part_end) {
 			auto lo = b;
 			auto hi = e;
 			while (lo < hi) {
-				if (pos_to_double(parts(lo).x[dim]) >= xmid) {
+				if (parts(lo).x[dim] >= xmid_int) {
 					while (lo != hi) {
 						hi--;
-						if (pos_to_double(parts(hi).x[dim]) < xmid) {
-							auto tmp = parts(lo);
-							parts(lo) = parts(hi);
-							parts(hi) = tmp;
+						if (parts(hi).x[dim] < xmid_int) {
+							std::swap(parts(lo), parts(hi));
 							break;
 						}
 					}
 				}
 				lo++;
 			}
-			for (auto i = part_begin; i < part_end; i++) {
-				//			printf("%e\n", pos_to_double(parts(i).x[dim]));
-			}
-			//		printf("****\n");
 			return hi;
 		} else {
 			auto count = part_vect_count_lo(b, e, xmid, dim);
