@@ -60,11 +60,11 @@ struct periodic_parts: public std::vector<expansion<float>> {
 	}
 };
 
-template<class SINGLE>  // 167
-CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
-		const vect<SINGLE> &dx) {
-	SINGLE dxadxb;
-	SINGLE dxadxbdxc;
+template<class T>  // 167
+CUDA_EXPORT void green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3, const T &d4,
+		const vect<T> &dx) {
+	T dxadxb;
+	T dxadxbdxc;
 	D[0] = d0;
 	D[1] = dx[0] * d1;
 	dxadxb = dx[0] * dx[0];
@@ -196,16 +196,141 @@ CUDA_EXPORT void green_deriv_direct(expansion<SINGLE> &D, const SINGLE &d0, cons
 	D[34] = fma(dx[2], dx[2] * d3, D[34]);
 }
 
-template<class DOUBLE, class SINGLE>  // 576
-CUDA_EXPORT void green_deriv_ewald(expansion<DOUBLE> &Dacc, const SINGLE &d0, const SINGLE &d1, const SINGLE &d2, const SINGLE &d3, const SINGLE &d4,
-		const vect<SINGLE> &dx) {
-	static const SINGLE two(2.0);
-	expansion<SINGLE> D;
-	green_deriv_direct(D,d0,d1,d2,d3,d4,dx);
-	for (int i = 0; i < LP; i++) {
-		Dacc[i] += D[i];
-	}
-}
+template<class T>  // 576
+CUDA_EXPORT void green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3, const T &d4,
+		const vect<T> &dx) {
+	static const T two(2.0);
+	T dxadxb;
+	T dxadxbdxc;
+	D[0] += d0;
+	D[1] = fma( dx[0], d1, D[1]);
+	dxadxb = dx[0] * dx[0];
+	D[4] = fma( dxadxb,  d2, D[4]);
+	dxadxbdxc = dx[0] * dx[0] * dx[0];
+	D[10] = fma(dxadxbdxc,  d3, D[10]);
+	D[20] = fma( dxadxbdxc * dx[0],  d4, D[20]);
+	D[2] = fma(dx[1], d1, D[2]);;
+	dxadxb = dx[1] * dx[0];
+	D[5] = fma( dxadxb,  d2, D[5]);
+	dxadxbdxc = dx[1] * dx[0] * dx[0];
+	D[11] = fma(dxadxbdxc, d3, D[11]);
+	D[21] = fma( dxadxbdxc * dx[0], d4, D[21]);
+	dxadxb = dx[1] * dx[1];
+	D[7] = fma( dxadxb,  d2, D[7]);
+	dxadxbdxc = dx[1] * dx[1] * dx[0];
+	D[13] = fma(dxadxbdxc, d3, D[13]);
+	D[23] = fma(dxadxbdxc * dx[0], d4, D[23]);
+	dxadxbdxc = dx[1] * dx[1] * dx[1];
+	D[16] = fma(dxadxbdxc,  d3, D[16]);
+	D[26] = fma( dxadxbdxc * dx[0], d4, D[26]);
+	D[30] = fma( dxadxbdxc * dx[1], d4, D[30]);
+	D[3] = fma(dx[2],  d1, D[3]);
+	dxadxb = dx[2] * dx[0];
+	D[6] = fma(dxadxb , d2, D[6]);
+	dxadxbdxc = dx[2] * dx[0] * dx[0];
+	D[12] = fma(dxadxbdxc, d3, D[12]);
+	D[22] = fma(dxadxbdxc * dx[0], d4, D[22]);
+	dxadxb = dx[2] * dx[1];
+	D[8] = fma(dxadxb, d2, D[8]);
+	dxadxbdxc = dx[2] * dx[1] * dx[0];
+	D[14] = fma(dxadxbdxc, d3, D[14]);
+	D[24] = fma(dxadxbdxc * dx[0], d4, D[24]);
+	dxadxbdxc = dx[2] * dx[1] * dx[1];
+	D[17] = fma(dxadxbdxc,d3, D[17]);
+	D[27] = fma(dxadxbdxc * dx[0],d4, D[27]);
+	D[31] = fma(dxadxbdxc * dx[1], d4, D[31]);
+	dxadxb = dx[2] * dx[2];
+	D[9] = fma(dxadxb, d2, D[9]);
+	dxadxbdxc = dx[2] * dx[2] * dx[0];
+	D[15] = fma(dxadxbdxc, d3, D[15]);
+	D[25] = fma( dxadxbdxc * dx[0], d4, D[25]);
+	dxadxbdxc = dx[2] * dx[2] * dx[1];
+	D[18] = fma(dxadxbdxc,d3, D[18]);
+	D[28] = fma( dxadxbdxc * dx[0], d4, D[28]);
+	D[32] = fma( dxadxbdxc * dx[1], d4, D[32]);
+	dxadxbdxc = dx[2] * dx[2] * dx[2];
+	D[19] = fma(dxadxbdxc, d3, D[19]);
+	D[29] = fma(dxadxbdxc * dx[0], d4, D[29]);
+	D[33] = fma(dxadxbdxc * dx[1], d4, D[33]);
+	D[34] = fma(dxadxbdxc * dx[2], d4, D[34]);
+	D[4] += d1;
+	D[10] = fma(dx[0], d2, D[10]);
+	D[20] = fma(dx[0]*dx[0], d3, D[20]);
+	D[20] = fma(float(2.0), d2, D[20]);
+	dxadxb = dx[0] * dx[0];
+	D[10] = fma(dx[0], d2, D[10]);
+	D[10] = fma(dx[0], d2, D[10]);
+	D[20] = fma(dxadxb, d3, D[20]);
+	D[20] = fma(dxadxb, d3, D[20]);
+	D[20] += d2;
+	D[20] = fma(dx[0], dx[0] * d3, D[20]);
+	D[20] = fma(dxadxb, d3, D[20]);
+	D[20] = fma(dx[0], dx[0] * d3, D[20]);
+	D[7] += d1;
+	D[16] = fma(dx[1], d2, D[16]);
+	D[30] = fma(dx[1]*dx[1], d3, D[30]);
+	D[30] = fma(float(2.0), d2, D[30]);
+	dxadxb = dx[1] * dx[0];
+	D[13] = fma(dx[0], d2, D[13]);
+	D[11] = fma(dx[1], d2, D[11]);
+	D[26] = fma(dxadxb, d3, D[26]);
+	D[21] = fma(dxadxb, d3, D[21]);
+	D[23] += d2;
+	D[23] = fma(dx[0], dx[0] * d3, D[23]);
+	D[21] = fma(dxadxb, d3, D[21]);
+	D[21] = fma(dx[1], dx[0] * d3, D[21]);
+	dxadxb = dx[1] * dx[1];
+	D[16] = fma(dx[1], d2, D[16]);
+	D[16] = fma(dx[1], d2, D[16]);
+	D[30] = fma(dxadxb, d3, D[30]);
+	D[30] = fma(dxadxb, d3, D[30]);
+	D[30] += d2;
+	D[26] = fma(dx[1], dx[0] * d3, D[26]);
+	D[23] = fma(dxadxb, d3, D[23]);
+	D[26] = fma(dx[1], dx[0] * d3, D[26]);
+	D[30] = fma(dx[1], dx[1] * d3, D[30]);
+	D[30] = fma(dxadxb, d3, D[30]);
+	D[30] = fma(dx[1], dx[1] * d3, D[30]);
+	D[9] += d1;
+	D[19] = fma(dx[2], d2, D[19]);
+	D[34] = fma(dx[2]*dx[2], d3, D[34]);
+	D[34] = fma(float(2.0), d2, D[34]);
+	dxadxb = dx[2] * dx[0];
+	D[15] = fma(dx[0], d2, D[15]);
+	D[12] = fma(dx[2], d2, D[12]);
+	D[29] = fma(dxadxb, d3, D[29]);
+	D[22] = fma(dxadxb, d3, D[22]);
+	D[25] += d2;
+	D[25] = fma(dx[0], dx[0] * d3, D[25]);
+	D[22] = fma(dxadxb, d3, D[22]);
+	D[22] = fma(dx[2], dx[0] * d3, D[22]);
+	dxadxb = dx[2] * dx[1];
+	D[18] = fma(dx[1], d2, D[18]);
+	D[17] = fma(dx[2], d2, D[17]);
+	D[33] = fma(dxadxb, d3, D[33]);
+	D[31] = fma(dxadxb, d3, D[31]);
+	D[32] += d2;
+	D[28] = fma(dx[1], dx[0] * d3, D[28]);
+	D[24] = fma(dxadxb, d3, D[24]);
+	D[27] = fma(dx[2], dx[0] * d3, D[27]);
+	D[32] = fma(dx[1], dx[1] * d3, D[32]);
+	D[31] = fma(dxadxb, d3, D[31]);
+	D[31] = fma(dx[2], dx[1] * d3, D[31]);
+	dxadxb = dx[2] * dx[2];
+	D[19] = fma(dx[2], d2, D[19]);
+	D[19] = fma(dx[2], d2, D[19]);
+	D[34] = fma(dxadxb, d3, D[34]);
+	D[34] = fma(dxadxb, d3, D[34]);
+	D[34] += d2;
+	D[29] = fma(dx[2], dx[0] * d3, D[29]);
+	D[25] = fma(dxadxb, d3, D[25]);
+	D[29] = fma(dx[2], dx[0] * d3, D[29]);
+	D[33] = fma(dx[2], dx[1] * d3, D[33]);
+	D[32] = fma(dxadxb, d3, D[32]);
+	D[33] = fma(dx[2], dx[1] * d3, D[33]);
+	D[34] = fma(dx[2], dx[2] * d3, D[34]);
+	D[34] = fma(dxadxb, d3, D[34]);
+	D[34] = fma(dx[2], dx[2] * d3, D[34]);}
 
 template<class T>
 CUDA_EXPORT inline expansion<T> green_direct(const vect<T> &dX) {		// 59  + 167 = 226
@@ -251,8 +376,7 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	static const float rcut(1.0e-6);
 	const float r = abs(X);
 	const float zmask = r > rcut;											// 2
-	expansion<double> D;
-	expansion<float> Ds;
+	expansion<float> D;
 	D = 0.0;
 	for( auto n : real_indices) {
 					const vect<float> dx = X - vect<float>(n);				// 3
@@ -291,48 +415,38 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 						float co;
 						float so;
 						sincosf(twopi*hdotx,&so,&co);
-						for( int i = 0; i < LP; i++) {
-							Ds[i] = 0.0;
-						}
-						Ds()  += hpart()*co;
+						D()  = fma(hpart(), co, D());
 						for (int a = 0; a < NDIM; a++) {
-							Ds(a) += hpart(a)* so;
+							D(a) = fma(hpart(a), so, D(a));
 							for (int b = 0; b <= a; b++) {
-								Ds(a, b) +=  hpart(a,b)* co;
+								D(a, b) =  fma(hpart(a,b), co, D(a,b));
 								for (int c = 0; c <= b; c++) {
-									Ds(a, b, c) += hpart(a,b,c)* so;
+									D(a, b, c) = fma(hpart(a,b,c), so, D(a,b,c));
 									for (int d = 0; d <= c; d++) {
-										Ds(a, b, c, d) += hpart(a,b,c,d)* co;
+										D(a, b, c, d) = fma(hpart(a,b,c,d), co, D(a,b,c,d));
 									}
 								}
 							}
 						}
-						for( int i = 0; i < LP; i++) {
-							D[i] += Ds[i];
-						}
 	}
 
-
-	for (int i = 0; i < LP; i++) {
-		Ds[i] =D[i];																	// 70
-	}
 	const auto D1 = green_direct(X);													// 167
 	const float rinv = -D1();														// 2
-	Ds() = (M_PI / 4.0) + Ds() + zmask * rinv;												// 2
+	D() = (M_PI / 4.0) + D() + zmask * rinv;												// 2
 	for (int a = 0; a < NDIM; a++) {
-		Ds(a) = (Ds(a) - zmask * D1(a));												// 6
+		D(a) = (D(a) - zmask * D1(a));												// 6
 		for (int b = 0; b <= a; b++) {
-			Ds(a, b) = (Ds(a, b) - zmask * D1(a, b));									// 12
+			D(a, b) = (D(a, b) - zmask * D1(a, b));									// 12
 			for (int c = 0; c <= b; c++) {
-				Ds(a, b, c) = (Ds(a, b, c) - zmask * D1(a, b, c));					// 20
+				D(a, b, c) = (D(a, b, c) - zmask * D1(a, b, c));					// 20
 				for (int d = 0; d <= c; d++) {
-					Ds(a, b, c, d) = (Ds(a, b, c, d) - zmask * D1(a, b, c, d));		// 30
+					D(a, b, c, d) = (D(a, b, c, d) - zmask * D1(a, b, c, d));		// 30
 				}
 			}
 		}
 	}
 
-	return Ds;
+	return D;
 
 }
 
@@ -341,7 +455,7 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 template<class T>
 inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 	static const periodic_parts periodic;
-	expansion<simd_double> D;
+	expansion<T> D;
 	D = 0.0;
 	vect<T> n;
 	vect<float> h;
