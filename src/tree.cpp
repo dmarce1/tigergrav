@@ -100,9 +100,12 @@ inline auto thread_if_avail(F &&f, bool left, int nparts, bool force, int stack_
 				thread = true;
 			} else {
 				thread = (stack_cnt == MAX_STACK - 1);
+				if (thread)
+					printf("Stack thread\n");
 			}
 		} else {
-			thread = (stack_cnt == MAX_STACK - 1);
+			if (thread)
+				printf("Stack thread\n");
 		}
 	}
 	if (thread) {
@@ -474,10 +477,10 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		}
 		vect<simd_float> dX;
 		for (int dim = 0; dim < NDIM; dim++) {
-			if( opts.ewald ) {
+			if (opts.ewald) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * POS_INV;
 			} else {
-				dX[dim] =  (simd_float(X[dim]) - simd_float(Y[dim])) * POS_INV;
+				dX[dim] = (simd_float(X[dim]) - simd_float(Y[dim])) * POS_INV;
 			}
 		}
 		const simd_float dX2 = dX.dot(dX);

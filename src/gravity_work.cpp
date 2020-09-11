@@ -67,8 +67,8 @@ struct gwork_group {
 mutex_type groups_mtx[GROUP_TABLE_SIZE];
 std::unordered_map<int, gwork_group> groups[GROUP_TABLE_SIZE];
 
-std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<pos_type>> *x, const std::vector<std::pair<part_iter, part_iter>> &y,
-		const std::vector<const multi_src*> &z, std::function<hpx::future<void>(void)> &&complete, bool do_phi) {
+std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<pos_type>> *x, std::vector<std::pair<part_iter, part_iter>> y,
+		std::vector<const multi_src*> z, std::function<hpx::future<void>(void)> &&complete, bool do_phi) {
 	static const auto opts = options::get();
 	static const auto m = opts.m_tot / opts.problem_size;
 	static const auto h = opts.soft_len;
@@ -87,23 +87,26 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 		abort();
 	}
 	auto &entry = iter->second;
-	if (opts.cuda) {
-		cuda_work_unit cu;
-		cu.yiters = y;
-		cu.z = z;
-		cu.xptr = x;
-		cu.fptr = g;
-		entry.cunits.push_back(cu);
-	} else {
-		for (auto &j : y) {
-			unit.yb = j.first;
-			unit.ye = j.second;
-			entry.units.push_back(unit);
+	{
+		std::lock_guard<mutex_type> lock(groups_mtx[gi]);
+		if (opts.cuda) {
+			cuda_work_unit cu;
+			cu.yiters = std::move(y);
+			cu.z = std::move(z);
+			cu.xptr = x;
+			cu.fptr = g;
+			entry.cunits.push_back(cu);
+		} else {
+			for (auto &j : y) {
+				unit.yb = j.first;
+				unit.ye = j.second;
+				entry.units.push_back(unit);
+			}
 		}
+		entry.complete.push_back(std::move(complete));
+		entry.workadded++;
+		do_work = entry.workadded == entry.mcount;
 	}
-	entry.complete.push_back(std::move(complete));
-	entry.workadded++;
-	do_work = entry.workadded == entry.mcount;
 	if (entry.workadded > entry.mcount) {
 		printf("Error too much work added %i %i %i\n", id, entry.workadded, entry.mcount);
 		abort();
