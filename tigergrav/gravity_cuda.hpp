@@ -11,8 +11,8 @@
 #include <tigergrav/gravity.hpp>
 #include <tigergrav/particle.hpp>
 
-#define EWALD_NFOUR 80
-#define EWALD_NREAL 203
+#define EWALD_NFOUR 92
+#define EWALD_NREAL 171
 
 struct cuda_ewald_const {
 	vect<float> four_indices[EWALD_NFOUR];
