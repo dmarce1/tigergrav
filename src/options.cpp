@@ -46,6 +46,7 @@ bool options::process_options(int argc, char *argv[]) {
 	("cuda", po::value<bool>(&cuda)->default_value(0), "use CUDA") //
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("oversubscription", po::value<int>(&oversubscription)->default_value(4), "thread oversubscription rate hint") //
+	("min_level", po::value<int>(&min_level)->default_value(0), "minimum level - used to force long range ewald computation") //
 	("workgroup_size", po::value<int>(&workgroup_size)->default_value(64), "size of a workgroup in units of parts_per_node") //
 	("out_parts", po::value<int>(&out_parts)->default_value(-1), "number of particles for output file") //
 	("nout", po::value<int>(&nout)->default_value(64), "number of outputs") //

@@ -1,7 +1,7 @@
 #pragma once
 
 constexpr float EWALD_REAL_N2 = 11;
-constexpr float EWALD_FOUR_N2 = 8;
+constexpr float EWALD_FOUR_N2 = 7;
 constexpr float EWALD_RADIUS_CUTOFF = 2.6;
 
 #include <tigergrav/expansion.hpp>

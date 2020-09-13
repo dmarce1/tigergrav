@@ -179,7 +179,7 @@ refine_return tree::refine(int stack_cnt) {
 	const auto &opts = options::get();
 
 	refine_return rc;
-	if (part_end - part_begin > opts.parts_per_node && is_leaf()) {
+	if (((part_end - part_begin > opts.parts_per_node) || (flags.level < opts.min_level)) && is_leaf()) {
 		double max_span = 0.0;
 		range box = box_id_to_range(boxid);
 		int max_dim;
