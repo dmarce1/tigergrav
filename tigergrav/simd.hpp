@@ -18,7 +18,6 @@
 #define SIMDALIGN                  __attribute__((aligned(64)))
 #define SIMD_VLEN 16
 #define _simd_float                 __m512
-#define _simd_double 				__m512d
 #define _simd_int                   __m512i
 #define _mmx_add_ps(a,b)            _mm512_add_ps((a),(b))
 #define _mmx_sub_ps(a,b)            _mm512_sub_ps((a),(b))
@@ -49,7 +48,6 @@
 #define SIMD_VLEN 8
 #define _simd_float                 __m256
 #define _simd_int                   __m256i
-#define _simd_double                __m256d
 #define _mmx_add_ps(a,b)            _mm256_add_ps((a),(b))
 #define _mmx_sub_ps(a,b)            _mm256_sub_ps((a),(b))
 #define _mmx_mul_ps(a,b)            _mm256_mul_ps((a),(b))
@@ -79,7 +77,6 @@
 #define SIMD_VLEN 4
 #define _simd_float                 __m128
 #define _simd_int                   __m128i
-#define _simd_double                 __m128d
 #define _mmx_add_ps(a,b)            _mm_add_ps((a),(b))
 #define _mmx_sub_ps(a,b)            _mm_sub_ps((a),(b))
 #define _mmx_mul_ps(a,b)            _mm_mul_ps((a),(b))
@@ -105,7 +102,6 @@
 
 class simd_float;
 class simd_int;
-class simd_double;
 
 class simd_float {
 private:
@@ -266,7 +262,6 @@ public:
 #endif
 		return rc;
 	}
-	friend class simd_double;
 }SIMDALIGN;
 ;
 
@@ -330,7 +325,6 @@ public:
 	inline int operator[](std::size_t i) const {
 		return reinterpret_cast<const int*>(&v)[i];
 	}
-	friend class simd_double;
 	friend class simd_float;
 
 }SIMDALIGN;
@@ -346,213 +340,6 @@ inline simd_float::simd_float(simd_int i) {
 #endif
 
 }
-class simd_double {
-private:
-	_simd_double a[4];
-public:
-	static constexpr std::size_t size() {
-		return 2 * SIMD_VLEN;
-	}
-	simd_double() = default;
-	inline ~simd_double() = default;
-	simd_double(const simd_double&) = default;
-	inline simd_double(double d) {
-#ifdef USE_AVX512
-        a[0] = _mm512_set_pd(d, d, d, d, d, d, d, d);
-        a[1] = _mm512_set_pd(d, d, d, d, d, d, d, d);
-        a[2] = _mm512_set_pd(d, d, d, d, d, d, d, d);
-        a[3] = _mm512_set_pd(d, d, d, d, d, d, d, d);
-#endif
-#ifdef USE_AVX2
-		a[0] = _mm256_set_pd(d, d, d, d);
-		a[1] = _mm256_set_pd(d, d, d, d);
-		a[2] = _mm256_set_pd(d, d, d, d);
-		a[3] = _mm256_set_pd(d, d, d, d);
-#endif
-	}
-
-	union int_union {
-#ifdef USE_AVX512
-		__m256i m1[4];
-		__m512i m2[2];
-#endif
-#ifdef USE_AVX2
-		__m128i m1[4];
-		__m256i m2[2];
-#endif
-#ifdef USE_AVX
-#error 'AVX not complete'
-#endif
-	};
-
-	union float_union {
-#ifdef USE_AVX512
-		__m256 m1[4];
-		__m512 m2[2];
-#endif
-#ifdef USE_AVX2
-		__m128 m1[4];
-		__m256 m2[2];
-#endif
-#ifdef USE_AVX
-#error 'AVX not complete'
-#endif
-	};
-
-	inline simd_double(simd_int i) {
-		int_union u;
-		u.m2[0] = i.v[0];
-		u.m2[1] = i.v[1];
-#ifdef USE_AVX512
-		a[0] = _mm512_cvtepi32_pd(u.m1[0]);
-		a[1] = _mm512_cvtepi32_pd(u.m1[1]);
-		a[2] = _mm512_cvtepi32_pd(u.m1[2]);
-		a[3] = _mm512_cvtepi32_pd(u.m1[3]);
-#endif
-#ifdef USE_AVX2
-		a[0] = _mm256_cvtepi32_pd(u.m1[0]);
-		a[1] = _mm256_cvtepi32_pd(u.m1[1]);
-		a[2] = _mm256_cvtepi32_pd(u.m1[2]);
-		a[3] = _mm256_cvtepi32_pd(u.m1[3]);
-#endif
-
-	}
-
-	inline simd_double(simd_float i) {
-		float_union u;
-		u.m2[0] = i.v[0];
-		u.m2[1] = i.v[1];
-#ifdef USE_AVX512
-		a[0] = _mm512_cvtps_pd(u.m1[0]);
-		a[1] = _mm512_cvtps_pd(u.m1[1]);
-		a[2] = _mm512_cvtps_pd(u.m1[2]);
-		a[3] = _mm512_cvtps_pd(u.m1[3]);
-#endif
-#ifdef USE_AVX2
-		a[0] = _mm256_cvtps_pd(u.m1[0]);
-		a[1] = _mm256_cvtps_pd(u.m1[1]);
-		a[2] = _mm256_cvtps_pd(u.m1[2]);
-		a[3] = _mm256_cvtps_pd(u.m1[3]);
-#endif
-
-	}
-
-	inline operator simd_float() const {
-		float_union u;
-#ifdef USE_AVX512
-		u.m1[0] = _mm512_cvtpd_ps(a[0]);
-		u.m1[1] = _mm512_cvtpd_ps(a[1]);
-		u.m1[2] = _mm512_cvtpd_ps(a[2]);
-		u.m1[3] = _mm512_cvtpd_ps(a[3]);
-#endif
-#ifdef USE_AVX2
-		u.m1[0] = _mm256_cvtpd_ps(a[0]);
-		u.m1[1] = _mm256_cvtpd_ps(a[1]);
-		u.m1[2] = _mm256_cvtpd_ps(a[2]);
-		u.m1[3] = _mm256_cvtpd_ps(a[3]);
-#endif
-		simd_float f;
-		f.v[0] = u.m2[0];
-		f.v[1] = u.m2[1];
-		return f;
-	}
-
-	inline simd_double& operator=(const simd_double &other) = default;
-	simd_double& operator=(simd_double &&other) = default;
-	inline simd_double operator+(const simd_double &other) const {
-		simd_double r;
-		r.a[0] = _mmx_add_pd(a[0], other.a[0]);
-		r.a[1] = _mmx_add_pd(a[1], other.a[1]);
-		r.a[2] = _mmx_add_pd(a[2], other.a[2]);
-		r.a[3] = _mmx_add_pd(a[3], other.a[3]);
-		return r;
-	}
-	inline simd_double operator-(const simd_double &other) const {
-		simd_double r;
-		r.a[0] = _mmx_sub_pd(a[0], other.a[0]);
-		r.a[1] = _mmx_sub_pd(a[1], other.a[1]);
-		r.a[2] = _mmx_sub_pd(a[2], other.a[2]);
-		r.a[3] = _mmx_sub_pd(a[3], other.a[3]);
-		return r;
-	}
-	inline simd_double operator*(const simd_double &other) const {
-		simd_double r;
-		r.a[0] = _mmx_mul_pd(a[0], other.a[0]);
-		r.a[1] = _mmx_mul_pd(a[1], other.a[1]);
-		r.a[2] = _mmx_mul_pd(a[2], other.a[2]);
-		r.a[3] = _mmx_mul_pd(a[3], other.a[3]);
-		return r;
-	}
-	inline simd_double operator/(const simd_double &other) const {
-		simd_double r;
-		r.a[0] = _mmx_div_pd(a[0], other.a[0]);
-		r.a[1] = _mmx_div_pd(a[1], other.a[1]);
-		r.a[2] = _mmx_div_pd(a[2], other.a[2]);
-		r.a[3] = _mmx_div_pd(a[3], other.a[3]);
-		return r;
-	}
-	inline simd_double operator+() const {
-		return *this;
-	}
-	inline simd_double operator-() const {
-		return simd_double(0.0) - *this;
-	}
-	inline simd_double operator/(double d) const {
-		const simd_double other = 1.0 / d;
-		return *this * other;
-	}
-	inline simd_double& operator+=(const simd_double &other) {
-		a[0] = _mmx_add_pd(a[0], other.a[0]);
-		a[1] = _mmx_add_pd(a[1], other.a[1]);
-		a[2] = _mmx_add_pd(a[2], other.a[2]);
-		a[3] = _mmx_add_pd(a[3], other.a[3]);
-		return *this;
-	}
-	inline simd_double& operator-=(const simd_double &other) {
-		a[0] = _mmx_sub_pd(a[0], other.a[0]);
-		a[1] = _mmx_sub_pd(a[1], other.a[1]);
-		a[2] = _mmx_sub_pd(a[2], other.a[2]);
-		a[3] = _mmx_sub_pd(a[3], other.a[3]);
-		return *this;
-	}
-	inline simd_double& operator*=(const simd_double &other) {
-		a[0] = _mmx_mul_pd(a[0], other.a[0]);
-		a[1] = _mmx_mul_pd(a[1], other.a[1]);
-		a[2] = _mmx_mul_pd(a[2], other.a[2]);
-		a[3] = _mmx_mul_pd(a[3], other.a[3]);
-		return *this;
-	}
-	inline simd_double& operator/=(const simd_double &other) {
-		a[0] = _mmx_div_pd(a[0], other.a[0]);
-		a[1] = _mmx_div_pd(a[1], other.a[1]);
-		a[2] = _mmx_div_pd(a[2], other.a[2]);
-		a[3] = _mmx_div_pd(a[3], other.a[3]);
-		return *this;
-	}
-
-	double sum() const {
-		double s = 0.0;
-		for (int i = 0; i < 4; i++) {
-			s += a[0][i];
-			s += a[1][i];
-			s += a[2][i];
-			s += a[3][i];
-		}
-		return s;
-	}
-
-	inline double& operator[](std::size_t i) {
-		return (reinterpret_cast<double*>(&a))[i];
-	}
-	inline int operator[](std::size_t i) const {
-		return (reinterpret_cast<const double*>(&a))[i];
-	}
-
-	friend simd_double max(const simd_double &a, const simd_double &b);
-	friend simd_double abs(const simd_double &a);
-
-}SIMDALIGN;
-
 inline simd_float two_pow(const simd_float &r) {											// 13
 	static const simd_float zero = simd_float(0.0);
 	static const simd_float one = simd_float(1.0);
@@ -744,19 +531,6 @@ inline simd_float max(const simd_float &a, const simd_float &b) {
 }
 
 inline simd_float abs(const simd_float &a) {
-	return max(a, -a);
-}
-
-inline simd_double max(const simd_double &c, const simd_double &b) {
-	simd_double r;
-	r.a[0] = _mmx_max_pd(c.a[0], b.a[0]);
-	r.a[1] = _mmx_max_pd(c.a[1], b.a[1]);
-	r.a[2] = _mmx_max_pd(c.a[2], b.a[2]);
-	r.a[3] = _mmx_max_pd(c.a[3], b.a[3]);
-	return r;
-}
-
-inline simd_double abs(const simd_double &a) {
 	return max(a, -a);
 }
 

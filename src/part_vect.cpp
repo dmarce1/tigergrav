@@ -580,13 +580,13 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 	rc.m = 0.0;
 	rc.x = double_to_pos(com);
 	multipole<simd_float> M;
-	vect<simd_double> Xcom;
+	vect<simd_float> Xcom;
 	M = simd_float(0.0);
 	for (int dim = 0; dim < NDIM; dim++) {
 		Xcom[dim] = com[dim];
 	}
 	for (part_iter i = b; i < this_end; i += simd_float::size()) {
-		vect<simd_double> X;
+		vect<simd_float> X;
 		simd_float mass;
 		for (int k = 0; k < simd_float::size(); k++) {
 			if (i + k < this_end) {

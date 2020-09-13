@@ -189,8 +189,8 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 			decltype(entry.units)().swap(entry.units);
 
 			static thread_local std::vector<vect<simd_int>> X;
-			static thread_local std::vector<vect<simd_double>> G;
-			static thread_local std::vector<simd_double> Phi;
+			static thread_local std::vector<vect<simd_float>> G;
+			static thread_local std::vector<simd_float> Phi;
 			for (auto &sunit : sunits) {
 				const auto y = part_vect_read_position(sunit.yb, sunit.ye).get();
 				int xcount = 0;
@@ -237,11 +237,11 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 						}
 						if (opts.ewald) {
 							for (int dim = 0; dim < NDIM; dim++) {
-								dX[dim] = simd_float(simd_double(X[i][dim] - Y[dim]) * simd_double(POS_INV)); // 18
+								dX[dim] = simd_float(simd_float(X[i][dim] - Y[dim]) * simd_float(POS_INV)); // 18
 							}
 						} else {
 							for (int dim = 0; dim < NDIM; dim++) {
-								dX[dim] = simd_float(simd_double(X[i][dim]) * simd_double(POS_INV) - simd_double(Y[dim]) * simd_double(POS_INV));
+								dX[dim] = simd_float(simd_float(X[i][dim]) * simd_float(POS_INV) - simd_float(Y[dim]) * simd_float(POS_INV));
 							}
 						}
 						const simd_float r2 = dX.dot(dX);								   // 5
@@ -273,7 +273,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 
 						const auto dXM = dX * m;
 						for (int dim = 0; dim < NDIM; dim++) {
-							G[i][dim] -= simd_double(dXM[dim] * f);    						// 15
+							G[i][dim] -= simd_float(dXM[dim] * f);    						// 15
 						}
 //					printf( "----\n");
 //					for( int k = 0; k < simd_float::size(); k++) {
@@ -299,7 +299,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 							p3 = fma(p3, roh2, simd_float(+14.0 / 5.0));    						// 1
 							p3 *= Hinv;    						// 1
 
-							Phi[i] -= simd_double((sw1 * p1 + sw2 * p2 + sw3 * p3) * m);    						// 10
+							Phi[i] -= simd_float((sw1 * p1 + sw2 * p2 + sw3 * p3) * m);    						// 10
 						}
 
 					}

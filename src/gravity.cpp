@@ -23,8 +23,8 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 	static const simd_float H2(h2);
 	vect<simd_int> X, Y;
 	multipole<simd_float> M;
-	std::vector<vect<simd_double>> G(x.size(), vect<simd_double>(simd_float(0)));
-	std::vector<simd_double> Phi(x.size(), simd_double(0.0));
+	std::vector<vect<simd_float>> G(x.size(), vect<simd_float>(simd_float(0)));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -62,8 +62,8 @@ std::uint64_t gravity_PC_direct(std::vector<force> &f, const std::vector<vect<po
 					dX[dim] = simd_float(X[dim]) * simd_float(POS_INV) - simd_float(Y[dim]) * simd_float(POS_INV);
 				}
 			}
-			vect<simd_double> g;
-			simd_double phi;
+			vect<simd_float> g;
+			simd_float phi;
 			multipole_interaction(g, phi, M, dX, false); // 516
 
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -97,8 +97,8 @@ std::uint64_t gravity_CC_direct(expansion<float> &L, const vect<pos_type> &x, st
 	static const simd_float H2(h2);
 	vect<simd_int> X, Y;
 	multipole<simd_float> M;
-	expansion<simd_double> Lacc;
-	Lacc = simd_double(0);
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -162,8 +162,8 @@ std::uint64_t gravity_CP_direct(expansion<float> &L, const vect<pos_type> &x, st
 	static const simd_float H2(h2);
 	vect<simd_int> Y, X;
 	simd_float M;
-	expansion<simd_double> Lacc;
-	Lacc = simd_double(0);
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -223,8 +223,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 	static const auto half = simd_float(0.5);
 
 	static const auto opts = options::get();
-	static const simd_double M(opts.m_tot / opts.problem_size);
-	simd_double mask;
+	static const simd_float M(opts.m_tot / opts.problem_size);
+	simd_float mask;
 	static const bool ewald = opts.ewald;
 	static const auto h = opts.soft_len;
 	static const auto h2 = h * h;
@@ -232,8 +232,8 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 
 	static const periodic_parts periodic;
 	vect<simd_int> X, Y;
-	std::vector<vect<simd_double>> G(x.size(), vect<simd_double>(simd_double(0)));
-	std::vector<simd_double> Phi(x.size(), simd_double(0.0));
+	std::vector<vect<simd_float>> G(x.size(), vect<simd_float>(simd_float(0)));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -267,12 +267,12 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			static const simd_float twopi(2 * M_PI);
 			static const simd_float pioverfour(M_PI / 4.0);
 			static const simd_float fouroversqrtpi(4.0 / sqrt(M_PI));
-			static const simd_double phi0(2.8372975);
+			static const simd_float phi0(2.8372975);
 			vect<float> h;
 			vect<simd_float> n;
-			simd_double phi = 0.0;
-			vect<simd_double> g;
-			g = simd_double(0);
+			simd_float phi = 0.0;
+			vect<simd_float> g;
+			g = simd_float(0);
 			const simd_float r = abs(dX0);										// 5
 			simd_float cut_mask = r > rcut;										// 2
 
@@ -318,7 +318,7 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 			// 63
 			simd_float rinv = 1.0 / max(r, rcut);								// 2
 			phi += pioverfour + rinv;											// 6
-			const simd_double sw = cut_mask;									// 2
+			const simd_float sw = cut_mask;									// 2
 			phi = phi0 * (simd_float(1.0) - sw) + phi * sw;						// 8
 			const auto rinv3 = cut_mask * rinv * rinv * rinv;					// 3
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -358,8 +358,8 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 	static const simd_float H2(h2);
 	vect<simd_int> X, Y;
 	multipole<simd_float> M;
-	std::vector<vect<simd_double>> G(x.size(), vect<float>(0.0));
-	std::vector<simd_double> Phi(x.size(), simd_double(0.0));
+	std::vector<vect<simd_float>> G(x.size(), vect<float>(0.0));
+	std::vector<simd_float> Phi(x.size(), simd_float(0.0));
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -392,8 +392,8 @@ std::uint64_t gravity_PC_ewald(std::vector<force> &f, const std::vector<vect<pos
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(POS_INV); // 18
 			}
-			vect<simd_double> g;
-			simd_double phi;
+			vect<simd_float> g;
+			simd_float phi;
 			multipole_interaction(g, phi, M, dX, true); // 516
 
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -430,8 +430,8 @@ std::uint64_t gravity_CC_ewald(expansion<float> &L, const vect<pos_type> &x, std
 	static const simd_float H2(h2);
 	vect<simd_int> X, Y;
 	multipole<simd_float> M;
-	expansion<simd_double> Lacc;
-	Lacc = simd_double(0);
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);
@@ -494,8 +494,8 @@ std::uint64_t gravity_CP_ewald(expansion<float> &L, const vect<pos_type> &x, std
 	static const simd_float H2(h2);
 	vect<simd_int> Y, X;
 	simd_float M;
-	expansion<simd_double> Lacc;
-	Lacc = simd_double(0);
+	expansion<simd_float> Lacc;
+	Lacc = simd_float(0);
 	const auto cnt1 = y.size();
 	const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
 	y.resize(cnt2);

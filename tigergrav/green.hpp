@@ -453,6 +453,7 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 }
 
 #else
+#ifndef __CUDACC__
 
 template<class T>
 inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
@@ -551,4 +552,5 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 	}
 	return rcD;
 }
+#endif
 #endif
