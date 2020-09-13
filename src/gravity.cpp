@@ -309,14 +309,14 @@ std::uint64_t gravity_PP_ewald(std::vector<force> &f, const std::vector<vect<pos
 				const simd_float omega = twopi * hdotdx;						// 1
 				simd_float s, c;
 				sincos(omega, &s, &c);											// 25
-				phi += H() * c * cut_mask;										// 6
+				phi += simd_float(H()) * c * cut_mask;										// 6
 				for (int dim = 0; dim < NDIM; dim++) {
-					g[dim] -= H(dim) * s * cut_mask;							// 18
+					g[dim] -= simd_float(H(dim)) * s * cut_mask;							// 18
 				}
 			}
 
 			// 63
-			simd_float rinv = 1.0 / max(r, rcut);								// 2
+			simd_float rinv = simd_float(1.0) / max(r, rcut);								// 2
 			phi += pioverfour + rinv;											// 6
 			const simd_float sw = cut_mask;									// 2
 			phi = phi0 * (simd_float(1.0) - sw) + phi * sw;						// 8

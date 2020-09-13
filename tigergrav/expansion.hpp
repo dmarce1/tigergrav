@@ -30,7 +30,7 @@ constexpr int LP = 35;
 
 struct force {
 	float phi;
-	float padding;
+//	float padding;
 	vect<float> g;
 	template<class A>
 	void serialize(A &&arc, unsigned) {

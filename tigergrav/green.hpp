@@ -516,15 +516,15 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 		const T omega = twopi * hdotdx;							// 1
 		T co, si;
 		sincos(omega, &si, &co);								// 25
-		D() += H() * co;										// 5
+		D() += simd_float(H()) * co;										// 5
 		for (int a = 0; a < NDIM; a++) {
-			D(a) += H(a) * si;									// 15
+			D(a) += simd_float(H(a)) * si;									// 15
 			for (int b = 0; b <= a; b++) {
-				D(a, b) += H(a, b) * co;						// 30
+				D(a, b) += simd_float(H(a, b)) * co;						// 30
 				for (int c = 0; c <= b; c++) {
-					D(a, b, c) += H(a, b, c) * si;				// 50
+					D(a, b, c) += simd_float(H(a, b, c)) * si;				// 50
 					for (int d = 0; d <= c; d++) {
-						D(a, b, c, d) += H(a, b, c, d) * co; 	// 75
+						D(a, b, c, d) += simd_float(H(a, b, c, d)) * co; 	// 75
 					}
 				}
 
