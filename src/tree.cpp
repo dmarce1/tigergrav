@@ -665,12 +665,47 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		}
 		*xptr = part_vect_read_active_positions(part_begin, part_end, do_out ? rung_type(0) : min_rung);
 		fptr->resize(xptr->size());
-		int j = 0;
-		for (auto i = xptr->begin(); i != xptr->end(); i++) {
-			force this_f = L.translate_L2(vect<float>(pos_to_double((*xptr)[j]) - multixdouble));
-			(*fptr)[j].phi = this_f.phi;
-			(*fptr)[j].g = this_f.g;
-			j++;
+		if (xptr->size() > 4) {
+			expansion<simd_float> Lvec;
+			for (int i = 0; i < LP; i++) {
+				Lvec[i] = L[i];
+			}
+			vect<pos_type> Y = multi.x;
+			for (int i = 0; i < xptr->size(); i += simd_float::size()) {
+				vect<simd_int> X;
+				simd_float phi;
+				vect<simd_float> g;
+				for (int k = 0; k < simd_float::size(); k++) {
+					const int j = std::min(i + k, (int) xptr->size() - 1);
+					for (int dim = 0; dim < NDIM; dim++) {
+						X[dim][k] = (*xptr)[j][dim];
+					}
+				}
+				vect<simd_float> dX;
+				for (int dim = 0; dim < NDIM; dim++) {
+					dX[dim] = simd_float(X[dim] - Y[dim]) * POS_INV;
+				}
+				Lvec.translate_L2(g, phi, dX);
+				for (int k = 0; k < simd_float::size(); k++) {
+					const int j = i + k;
+					if (j == xptr->size()) {
+						break;
+					}
+					for (int dim = 0; dim < NDIM; dim++) {
+						(*fptr)[j].g[dim] = g[dim][k];
+					}
+					(*fptr)[j].phi = phi[k];
+				}
+			}
+		} else {
+			int j = 0;
+			for (auto i = xptr->begin(); i != xptr->end(); i++) {
+				force this_f;
+				L.translate_L2(this_f.g, this_f.phi, vect<float>(pos_to_double((*xptr)[j]) - multixdouble));
+				(*fptr)[j].phi = this_f.phi;
+				(*fptr)[j].g = this_f.g;
+				j++;
+			}
 		}
 
 		dmulti_srcs.resize(0);

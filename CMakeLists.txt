@@ -22,7 +22,7 @@ find_package(Silo REQUIRED)
 find_package(Boost REQUIRED)
 enable_language(CUDA)
 
-set(CMAKE_CXX_FLAGS "-g -O3 -ffast-math -march=native")
+set(CMAKE_CXX_FLAGS "-DNDEBUG -O3 -ffast-math -march=native")
 
 set(tigergrav_source_files
 	src/cosmo.cpp

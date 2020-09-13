@@ -63,7 +63,7 @@ public:
 	CUDA_EXPORT T& operator ()(int i, int j, int k, int l);
 	CUDA_EXPORT expansion<T>& operator =(const expansion<T> &expansion);
 	CUDA_EXPORT expansion<T>& operator =(T expansion);
-	CUDA_EXPORT force translate_L2(const vect<T> &dX) const;
+	CUDA_EXPORT void translate_L2(vect<T>& g, T& phi, const vect<T> &dX) const;
 	CUDA_EXPORT expansion<T> operator<<(const vect<T> &dX) const;
 	CUDA_EXPORT expansion<T>& operator<<=(const vect<T> &dX);
 	CUDA_EXPORT void compute_D(const vect<T> &Y);
@@ -245,37 +245,36 @@ CUDA_EXPORT inline expansion<T>& expansion<T>::operator<<=(const vect<T> &dX) {
 }
 
 template<class T>
-CUDA_EXPORT inline force expansion<T>::translate_L2(const vect<T> &dX) const {
+CUDA_EXPORT inline void expansion<T>::translate_L2(vect<T>& g, T& phi, const vect<T> &dX) const {
 	const static expansion_factors<T> factor;
 
 	const auto &me = *this;
 	force f;
-	f.phi = (*this)();
+	phi = (*this)();
 	for (int a = 0; a < 3; a++) {
-		f.phi += me(a) * dX[a];
+		phi += me(a) * dX[a];
 		for (int b = a; b < 3; b++) {
-			f.phi += me(a, b) * dX[a] * dX[b] * factor(a, b);
+			phi += me(a, b) * dX[a] * dX[b] * factor(a, b);
 			for (int c = b; c < 3; c++) {
-				f.phi += me(a, b, c) * dX[a] * dX[b] * dX[c] * factor(a, b, c);
+				phi += me(a, b, c) * dX[a] * dX[b] * dX[c] * factor(a, b, c);
 				for (int d = c; d < 3; d++) {
-					f.phi += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * factor(a, b, c, d);
+					phi += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * factor(a, b, c, d);
 				}
 			}
 		}
 	}
 	for (int a = 0; a < 3; a++) {
-		f.g[a] = -(*this)(a);
+		g[a] = -(*this)(a);
 		for (int b = 0; b < 3; b++) {
-			f.g[a] -= me(a, b) * dX[b];
+			g[a] -= me(a, b) * dX[b];
 			for (int c = b; c < 3; c++) {
-				f.g[a] -= me(a, b, c) * dX[b] * dX[c] * factor(b, c);
+				g[a] -= me(a, b, c) * dX[b] * dX[c] * factor(b, c);
 				for (int d = c; d < 3; d++) {
-					f.g[a] -= me(a, b, c, d) * dX[b] * dX[c] * dX[d] * factor(b, c, d);
+					g[a] -= me(a, b, c, d) * dX[b] * dX[c] * dX[d] * factor(b, c, d);
 				}
 			}
 		}
 	}
-	return f;
 }
 
 /* namespace fmmx */
