@@ -363,16 +363,12 @@ inline simd_float two_pow(const simd_float &r) {											// 13
 	r0.v[1] = _mm512_roundscale_ps(r.v[1], _MM_FROUND_TO_NEAREST_INT);
 	n[0] = _mm512_cvtps_epi32(r0.v[0]);
 	n[1] = _mm512_cvtps_epi32(r0.v[1]);
-	r0.v[0] = _mm512_cvtepi32_ps(n[0]);
-	r0.v[1] = _mm512_cvtepi32_ps(n[1]);
 #endif
 #ifdef USE_AVX2
 	r0.v[0] = _mm256_round_ps(r.v[0], _MM_FROUND_TO_NEAREST_INT);							// 1
 	r0.v[1] = _mm256_round_ps(r.v[1], _MM_FROUND_TO_NEAREST_INT);							// 1
 	n[0] = _mm256_cvtps_epi32(r0.v[0]);														// 1
 	n[1] = _mm256_cvtps_epi32(r0.v[1]);														// 1
-	r0.v[0] = _mm256_cvtepi32_ps(n[0]);														// 1
-	r0.v[1] = _mm256_cvtepi32_ps(n[1]);														// 1
 #endif
 	auto x = r - r0;
 	auto y = c8;
@@ -484,21 +480,6 @@ inline simd_float fma(const simd_float &a, const simd_float &b, const simd_float
 	return v;
 }
 
-inline simd_float copysign(const simd_float &y, const simd_float &x) {
-// From https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
-
-	simd_float v;
-	constexpr float signbit = -0.f;
-	static simd_float const avx_signbit = simd_float(signbit);
-	const auto tmp0 = _mmx_andnot_ps(avx_signbit.v[0], y.v[0]);
-	const auto tmp1 = _mmx_andnot_ps(avx_signbit.v[1], y.v[1]);
-	const auto tmp2 = _mmx_and_ps(avx_signbit.v[0], x.v[0]);
-	const auto tmp3 = _mmx_and_ps(avx_signbit.v[1], x.v[1]);
-	v.v[0] = _mmx_or_ps(tmp2, tmp0); // (avx_signbit & from) | (~avx_signbit & to)
-	v.v[1] = _mmx_or_ps(tmp3, tmp1); // (avx_signbit & from) | (~avx_signbit & to)
-	return v;
-}
-
 inline simd_float sqrt(const simd_float &vec) {
 	simd_float r;
 	r.v[0] = _mmx_sqrt_ps(vec.v[0]);
@@ -528,10 +509,6 @@ inline simd_float max(const simd_float &a, const simd_float &b) {
 	r.v[0] = _mmx_max_ps(a.v[0], b.v[0]);
 	r.v[1] = _mmx_max_ps(a.v[1], b.v[1]);
 	return r;
-}
-
-inline simd_float abs(const simd_float &a) {
-	return max(a, -a);
 }
 
 #endif /* TIGERGRAV_SIMD_HPP_ */
