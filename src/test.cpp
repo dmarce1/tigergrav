@@ -18,76 +18,94 @@ const expansion<double> &expansion_factor = *reinterpret_cast<const expansion<do
 
 int main() {
 
-//	D() = d0;													// 1
-	printf("D[0] = d0;\n");
+//	Dfour() = fma(hpart(), co, Dfour());
+	printf("Dfour[0] = fma(hpart[0], co, Dfour[0]);\n");
 	for (int a = 0; a < NDIM; a++) {
-//		auto &Da = D(a);
-//		Da = dx[a] * d1;										// 3
-		printf("D[%i] = dx[%i] * d1;\n", 1 + a, a);
+//		Dfour(a) = fma(hpart(a), so, Dfour(a));
+		printf("Dfour[%i] = fma(hpart[%i], so, Dfour[%i]);\n", 1 + a, 1 + a, 1 + a);
 		for (int b = 0; b <= a; b++) {
-//			auto &Dab = D(a, b);
-//			const auto dxadxb = dx[a] * dx[b];					// 6
-			//			Dab = dxadxb * d2;									// 6
-			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
-			printf("D[%i] = dxadxb * d2;\n", 4 + (int) map2[a][b]);
+			//		Dfour(a, b) = fma(hpart(a, b), co, Dfour(a, b));
+			printf("Dfour[%i] = fma(hpart[%i], co, Dfour[%i]);\n", 4 + map2[a][b], 4 + map2[a][b], 4 + map2[a][b]);
 			for (int c = 0; c <= b; c++) {
-//				auto &Dabc = D(a, b, c);
-//				const auto dxadxbdxc = dxadxb * dx[c];			// 10
-//				Dabc = dxadxbdxc * d3;							// 10
-				printf("dxadxbdxc = dx[%i] * dx[%i] * dx[%i];\n", a, b, c);
-				printf("D[%i] = dxadxbdxc * d3;\n", 10 + (int) map3[a][b][c]);
+//				Dfour(a, b, c) = fma(hpart(a, b, c), so, Dfour(a, b, c));
+				printf("Dfour[%i] = fma(hpart[%i], so, Dfour[%i]);\n", 10 + map3[a][b][c], 10 + map3[a][b][c], 10 + map3[a][b][c]);
 				for (int d = 0; d <= c; d++) {
-//					auto &Dabcd = D(a, b, c, d);
-//					Dabcd = dxadxbdxc * dx[d] * d4;				// 30
-					printf("D[%i] = dxadxbdxc * dx[%i] * d4;\n", 20 + (int) map4[a][b][c][d], d);
+					printf("Dfour[%i] = fma(hpart[%i], co, Dfour[%i]);\n", 20 + map4[a][b][c][d], 20 + map4[a][b][c][d], 20 + map4[a][b][c][d]);
 				}
 			}
 		}
 	}
 
-	for (int a = 0; a < NDIM; a++) {
-//		auto &Daa = D(a, a);
-//		auto &Daaa = D(a, a, a);
-//		auto &Daaaa = D(a, a, a, a);
-//		Daa += d1;												// 3
-		printf("D[%i] += d1;\n", 4 + (int) map2[a][a]);
-//		Daaa = fma(dx[a], d2, Daaa);							// 3
-		printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][a], a, 10 + (int) map3[a][a][a]);
-		//		Daaaa = fma(dx[a] * dx[a], d3, Daaaa);				// 6
-		printf("D[%i] = fma(dx[%i]*dx[%i], d3, D[%i]);\n", 20 + (int) map4[a][a][a][a], a, a, 20 + (int) map4[a][a][a][a]);
-		//	//		Daaaa = fma(two, d2, Daaaa);							// 3
-		printf("D[%i] = fma(float(2.0), d2, D[%i]);\n", 20 + (int) map4[a][a][a][a], 20 + (int) map4[a][a][a][a]);
-		for (int b = 0; b <= a; b++) {
-//			auto &Daab = D(a, a, b);
-//			auto &Dabb = D(a, b, b);
-//			auto &Daaab = D(a, a, a, b);
-//			auto &Daabb = D(a, a, b, b);
-//			auto &Dabbb = D(a, b, b, b);
-//			const auto dxadxb = dx[a] * dx[b];					// 6
-			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
-//			Daab = fma(dx[b], d2, Daab);						// 6
-			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][b], b, 10 + (int) map3[a][a][b]);
-//			Dabb = fma(dx[a], d2, Dabb);						// 6
-			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][b][b], a, 10 + (int) map3[a][b][b]);
-//			Daaab = fma(dxadxb, d3, Daaab);					// 6
-			printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][a][a][b], 20 + (int) map4[a][a][a][b]);
-//			Dabbb = fma(dxadxb, d3, Dabbb);					// 6
-			printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][b][b][b], 20 + (int) map4[a][b][b][b]);
-//			Daabb += d2;										// 6
-			printf("D[%i] += d2;\n", 20 + (int) map4[a][a][b][b]);
-			for (int c = 0; c <= b; c++) {
-				//			auto &Daabc = D(a, a, b, c);
-				//			auto &Dabcc = D(a, b, c, c);
-				//			auto &Dabbc = D(a, b, b, c);
-				//			Daabc = fma(dx[b], dx[c] * d3, Daabc);		// 20
-				printf("D[%i] = fma(dx[%i], dx[%i] * d3, D[%i]);\n", 20 + (int) map4[a][a][b][c], b, c, 20 + (int) map4[a][a][b][c]);
-				//			Dabcc = fma(dxadxb, d3, Dabcc);				// 10
-				printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][b][c][c], 20 + (int) map4[a][b][c][c]);
-//				Dabbc = fma(dx[a], dx[c] * d3, Dabbc);		// 20
-				printf("D[%i] = fma(dx[%i], dx[%i] * d3, D[%i]);\n", 20 + (int) map4[a][b][b][c], a, c, 20 + (int) map4[a][b][b][c]);
-			}
-		}
-	}
+//	D() = d0;													// 1
+//	printf("D[0] = d0;\n");
+//	for (int a = 0; a < NDIM; a++) {
+////		auto &Da = D(a);
+////		Da = dx[a] * d1;										// 3
+//		printf("D[%i] = dx[%i] * d1;\n", 1 + a, a);
+//		for (int b = 0; b <= a; b++) {
+////			auto &Dab = D(a, b);
+////			const auto dxadxb = dx[a] * dx[b];					// 6
+//			//			Dab = dxadxb * d2;									// 6
+//			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
+//			printf("D[%i] = dxadxb * d2;\n", 4 + (int) map2[a][b]);
+//			for (int c = 0; c <= b; c++) {
+////				auto &Dabc = D(a, b, c);
+////				const auto dxadxbdxc = dxadxb * dx[c];			// 10
+////				Dabc = dxadxbdxc * d3;							// 10
+//				printf("dxadxbdxc = dx[%i] * dx[%i] * dx[%i];\n", a, b, c);
+//				printf("D[%i] = dxadxbdxc * d3;\n", 10 + (int) map3[a][b][c]);
+//				for (int d = 0; d <= c; d++) {
+////					auto &Dabcd = D(a, b, c, d);
+////					Dabcd = dxadxbdxc * dx[d] * d4;				// 30
+//					printf("D[%i] = dxadxbdxc * dx[%i] * d4;\n", 20 + (int) map4[a][b][c][d], d);
+//				}
+//			}
+//		}
+//	}
+//
+//	for (int a = 0; a < NDIM; a++) {
+////		auto &Daa = D(a, a);
+////		auto &Daaa = D(a, a, a);
+////		auto &Daaaa = D(a, a, a, a);
+////		Daa += d1;												// 3
+//		printf("D[%i] += d1;\n", 4 + (int) map2[a][a]);
+////		Daaa = fma(dx[a], d2, Daaa);							// 3
+//		printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][a], a, 10 + (int) map3[a][a][a]);
+//		//		Daaaa = fma(dx[a] * dx[a], d3, Daaaa);				// 6
+//		printf("D[%i] = fma(dx[%i]*dx[%i], d3, D[%i]);\n", 20 + (int) map4[a][a][a][a], a, a, 20 + (int) map4[a][a][a][a]);
+//		//	//		Daaaa = fma(two, d2, Daaaa);							// 3
+//		printf("D[%i] = fma(float(2.0), d2, D[%i]);\n", 20 + (int) map4[a][a][a][a], 20 + (int) map4[a][a][a][a]);
+//		for (int b = 0; b <= a; b++) {
+////			auto &Daab = D(a, a, b);
+////			auto &Dabb = D(a, b, b);
+////			auto &Daaab = D(a, a, a, b);
+////			auto &Daabb = D(a, a, b, b);
+////			auto &Dabbb = D(a, b, b, b);
+////			const auto dxadxb = dx[a] * dx[b];					// 6
+//			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
+////			Daab = fma(dx[b], d2, Daab);						// 6
+//			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][b], b, 10 + (int) map3[a][a][b]);
+////			Dabb = fma(dx[a], d2, Dabb);						// 6
+//			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][b][b], a, 10 + (int) map3[a][b][b]);
+////			Daaab = fma(dxadxb, d3, Daaab);					// 6
+//			printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][a][a][b], 20 + (int) map4[a][a][a][b]);
+////			Dabbb = fma(dxadxb, d3, Dabbb);					// 6
+//			printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][b][b][b], 20 + (int) map4[a][b][b][b]);
+////			Daabb += d2;										// 6
+//			printf("D[%i] += d2;\n", 20 + (int) map4[a][a][b][b]);
+//			for (int c = 0; c <= b; c++) {
+//				//			auto &Daabc = D(a, a, b, c);
+//				//			auto &Dabcc = D(a, b, c, c);
+//				//			auto &Dabbc = D(a, b, b, c);
+//				//			Daabc = fma(dx[b], dx[c] * d3, Daabc);		// 20
+//				printf("D[%i] = fma(dx[%i], dx[%i] * d3, D[%i]);\n", 20 + (int) map4[a][a][b][c], b, c, 20 + (int) map4[a][a][b][c]);
+//				//			Dabcc = fma(dxadxb, d3, Dabcc);				// 10
+//				printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][b][c][c], 20 + (int) map4[a][b][c][c]);
+////				Dabbc = fma(dx[a], dx[c] * d3, Dabbc);		// 20
+//				printf("D[%i] = fma(dx[%i], dx[%i] * d3, D[%i]);\n", 20 + (int) map4[a][b][b][c], a, c, 20 + (int) map4[a][b][b][c]);
+//			}
+//		}
+//	}
 
 //
 //	for (int a = 0; a < 3; a++) {

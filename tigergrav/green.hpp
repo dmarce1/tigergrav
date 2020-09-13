@@ -363,13 +363,21 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 	const auto &hparts = cuda_const.periodic_parts;
 	static const float three(3.0);
 	const float fouroversqrtpi(4.0 / sqrt(M_PI));
+	static const float one(1.0);
 	static const float two(2.0);
+	static const float four(4.0);
 	static const float eight(8.0);
 	static const float fifteen(15.0);
 	static const float thirtyfive(35.0);
 	static const float fourty(40.0);
 	static const float fiftysix(56.0);
 	static const float sixtyfour(64.0);
+	static const float p(0.3275911);
+	static const float a1(0.254829592);
+	static const float a2(-0.284496736);
+	static const float a3(1.421413741);
+	static const float a4(-1.453152027);
+	static const float a5(1.061405429);
 	static const float onehundredfive(105.0);
 	static const float rcut(1.0e-6);
 	const float r = abs(X);
@@ -392,8 +400,13 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 			const float r5inv = r2inv * r3inv;			// 1
 			const float r7inv = r2inv * r5inv;			// 1
 			const float r9inv = r2inv * r7inv;			// 1
-			const float erfc0 = erfcf(two * r);			// 76
-			const float exp0 = expf(-two * two * r * r);
+			const float t1 = float(1) / (float(1) + p * two * r);			//37
+			const float t2 = t1 * t1;											// 1
+			const float t3 = t2 * t1;											// 1
+			const float t4 = t2 * t2;											// 1
+			const float t5 = t2 * t3;											// 1
+			const float exp0 = expf(-four * r * r);
+			const float erfc0 = (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * exp0; 			// 11
 			const float expfactor = fouroversqrtpi * r * exp0; 	// 2
 			const float d0 = -erfc0 * rinv;							// 2
 			const float d1 = (expfactor + erfc0) * r3inv;			// 2
@@ -414,19 +427,41 @@ CUDA_EXPORT expansion<float> green_ewald(const vect<float> &X) {
 		float co;
 		float so;
 		sincosf(twopi * hdotx, &so, &co);
-		Dfour() = fma(hpart(), co, Dfour());
-		for (int a = 0; a < NDIM; a++) {
-			Dfour(a) = fma(hpart(a), so, Dfour(a));
-			for (int b = 0; b <= a; b++) {
-				Dfour(a, b) = fma(hpart(a, b), co, Dfour(a, b));
-				for (int c = 0; c <= b; c++) {
-					Dfour(a, b, c) = fma(hpart(a, b, c), so, Dfour(a, b, c));
-					for (int d = 0; d <= c; d++) {
-						Dfour(a, b, c, d) = fma(hpart(a, b, c, d), co, Dfour(a, b, c, d));
-					}
-				}
-			}
-		}
+		Dfour[0] = fma(hpart[0], co, Dfour[0]);
+		Dfour[1] = fma(hpart[1], so, Dfour[1]);
+		Dfour[2] = fma(hpart[2], so, Dfour[2]);
+		Dfour[3] = fma(hpart[3], so, Dfour[3]);
+		Dfour[4] = fma(hpart[4], co, Dfour[4]);
+		Dfour[5] = fma(hpart[5], co, Dfour[5]);
+		Dfour[6] = fma(hpart[6], co, Dfour[6]);
+		Dfour[7] = fma(hpart[7], co, Dfour[7]);
+		Dfour[8] = fma(hpart[8], co, Dfour[8]);
+		Dfour[9] = fma(hpart[9], co, Dfour[9]);
+		Dfour[10] = fma(hpart[10], so, Dfour[10]);
+		Dfour[11] = fma(hpart[11], so, Dfour[11]);
+		Dfour[12] = fma(hpart[12], so, Dfour[12]);
+		Dfour[13] = fma(hpart[13], so, Dfour[13]);
+		Dfour[14] = fma(hpart[14], so, Dfour[14]);
+		Dfour[15] = fma(hpart[15], so, Dfour[15]);
+		Dfour[16] = fma(hpart[16], so, Dfour[16]);
+		Dfour[17] = fma(hpart[17], so, Dfour[17]);
+		Dfour[18] = fma(hpart[18], so, Dfour[18]);
+		Dfour[19] = fma(hpart[19], so, Dfour[19]);
+		Dfour[20] = fma(hpart[20], co, Dfour[20]);
+		Dfour[21] = fma(hpart[21], co, Dfour[21]);
+		Dfour[22] = fma(hpart[22], co, Dfour[22]);
+		Dfour[23] = fma(hpart[23], co, Dfour[23]);
+		Dfour[24] = fma(hpart[24], co, Dfour[24]);
+		Dfour[25] = fma(hpart[25], co, Dfour[25]);
+		Dfour[26] = fma(hpart[26], co, Dfour[26]);
+		Dfour[27] = fma(hpart[27], co, Dfour[27]);
+		Dfour[28] = fma(hpart[28], co, Dfour[28]);
+		Dfour[30] = fma(hpart[30], co, Dfour[30]);
+		Dfour[29] = fma(hpart[29], co, Dfour[29]);
+		Dfour[31] = fma(hpart[31], co, Dfour[31]);
+		Dfour[32] = fma(hpart[32], co, Dfour[32]);
+		Dfour[33] = fma(hpart[33], co, Dfour[33]);
+		Dfour[34] = fma(hpart[34], co, Dfour[34]);
 	}
 	expansion<float> &D = Dreal;
 	for (int i = 0; i < LP; i++) {
@@ -475,7 +510,8 @@ inline expansion<T> green_ewald(const vect<T> &X) {		// 251176
 	static const T fiftysix(56.0);
 	static const T sixtyfour(64.0);
 	static const T onehundredfive(105.0);
-	static const simd_float rcut(1.0e-6);
+	static const float rcut(1.0e-6);
+
 //	printf("%i %i\n", indices_real.size(), indices_four.size());
 	const T r = abs(X);															// 5
 	const simd_float zmask = r > rcut;											// 2
