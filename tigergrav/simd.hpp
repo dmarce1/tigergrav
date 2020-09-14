@@ -128,11 +128,14 @@ public:
 #endif
 	}
 	inline float sum() const {
-		float sum = 0.0;
-		for (int i = 0; i < 2 * SIMD_VLEN; i++) {
-			sum += (*this)[i];
+		simd_float r = *this;
+		for (int N = simd_float::size() / 4; N > 0; N >>= 1) {
+			r.v[0] = _mmx_add_ps(r.v[0], r.v[1]);
+			for (int i = 0; i < N; i++) {
+				r.v[1][i] = r.v[0][i + N];
+			}
 		}
-		return sum;
+		return r.v[0][0] + r.v[0][1];
 	}
 
 	inline simd_float(simd_int i);
@@ -438,7 +441,7 @@ inline simd_float cos(const simd_float &x) {		// 18
 	return sin(x + simd_float(M_PI / 2.0));
 }
 
-inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {// 35
+inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {		// 35
 //#ifdef __AVX512F__
 //	s->v = _mm512_sincos_ps(&(c->v),x.v);
 //#else

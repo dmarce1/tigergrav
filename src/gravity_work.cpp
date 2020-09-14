@@ -252,57 +252,48 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 
 						const simd_float f1 = rinv3;
 						const simd_float p1 = rinv;
-						if ((simd_float(1) - sw1).sum() != 0.0) {
-							simd_float sw3 = r < halfH;								   // 2
-							simd_float sw2 = simd_float(1.0) - sw1 - sw3;								   // 3
-							const simd_float roh = min(r * Hinv, 1);								   // 2
-							const simd_float roh2 = roh * roh;								   // 1
-							const simd_float roh3 = roh2 * roh;								   // 1
+						simd_float sw3 = r < halfH;								   // 2
+						simd_float sw2 = simd_float(1.0) - sw1 - sw3;								   // 3
+						const simd_float roh = min(r * Hinv, 1);								   // 2
+						const simd_float roh2 = roh * roh;								   // 1
+						const simd_float roh3 = roh2 * roh;								   // 1
 
-							simd_float f2 = simd_float(-32.0 / 3.0);
-							f2 = fma(f2, roh, simd_float(+192.0 / 5.0));								   // 1
-							f2 = fma(f2, roh, simd_float(-48.0));								   // 1
-							f2 = fma(f2, roh, simd_float(+64.0 / 3.0));								   // 1
-							f2 = fma(f2, roh3, simd_float(-1.0 / 15.0));								   // 1
-							f2 *= rinv3;								   // 1
+						simd_float f2 = simd_float(-32.0 / 3.0);
+						f2 = fma(f2, roh, simd_float(+192.0 / 5.0));								   // 1
+						f2 = fma(f2, roh, simd_float(-48.0));								   // 1
+						f2 = fma(f2, roh, simd_float(+64.0 / 3.0));								   // 1
+						f2 = fma(f2, roh3, simd_float(-1.0 / 15.0));								   // 1
+						f2 *= rinv3;								   // 1
 
-							simd_float f3 = simd_float(+32.0);
-							f3 = fma(f3, roh, simd_float(-192.0 / 5.0));								   // 1
-							f3 = fma(f3, roh2, simd_float(+32.0 / 3.0));								   // 1
-							f3 *= H3inv;								   // 1
+						simd_float f3 = simd_float(+32.0);
+						f3 = fma(f3, roh, simd_float(-192.0 / 5.0));								   // 1
+						f3 = fma(f3, roh2, simd_float(+32.0 / 3.0));								   // 1
+						f3 *= H3inv;								   // 1
 
-							simd_float f = sw1 * f1 + sw2 * f2 + sw3 * f3;								   // 5
+						simd_float f = sw1 * f1 + sw2 * f2 + sw3 * f3;								   // 5
 
-							const auto dXM = dX * m;
-							for (int dim = 0; dim < NDIM; dim++) {
-								G[i][dim] -= simd_float(dXM[dim] * f);    						// 15
-							}
-							if (do_phi) {
-								// 13S + 2D = 15
+						const auto dXM = dX * m;
+						for (int dim = 0; dim < NDIM; dim++) {
+							G[i][dim] -= simd_float(dXM[dim] * f);    						// 15
+						}
+						if (do_phi) {
+							// 13S + 2D = 15
 
-								simd_float p2 = simd_float(+32.0 / 15.0);    						// 1
-								p2 = fma(p2, roh, simd_float(-48.0 / 5.0));    						// 1
-								p2 = fma(p2, roh, simd_float(+16.0));    						// 1
-								p2 = fma(p2, roh, simd_float(-32.0 / 3.0));    						// 1
-								p2 = fma(p2, roh2, simd_float(+16.0 / 5.0));    						// 1
-								p2 = fma(p2, roh, simd_float(-1.0 / 15.0));    						// 1
-								p2 *= rinv;    						// 1
+							simd_float p2 = simd_float(+32.0 / 15.0);    						// 1
+							p2 = fma(p2, roh, simd_float(-48.0 / 5.0));    						// 1
+							p2 = fma(p2, roh, simd_float(+16.0));    						// 1
+							p2 = fma(p2, roh, simd_float(-32.0 / 3.0));    						// 1
+							p2 = fma(p2, roh2, simd_float(+16.0 / 5.0));    						// 1
+							p2 = fma(p2, roh, simd_float(-1.0 / 15.0));    						// 1
+							p2 *= rinv;    						// 1
 
-								simd_float p3 = simd_float(-32.0 / 5.0);
-								p3 = fma(p3, roh, simd_float(+48.0 / 5.0));    						// 1
-								p3 = fma(p3, roh2, simd_float(-16.0 / 3.0));    						// 1
-								p3 = fma(p3, roh2, simd_float(+14.0 / 5.0));    						// 1
-								p3 *= Hinv;    						// 1
+							simd_float p3 = simd_float(-32.0 / 5.0);
+							p3 = fma(p3, roh, simd_float(+48.0 / 5.0));    						// 1
+							p3 = fma(p3, roh2, simd_float(-16.0 / 3.0));    						// 1
+							p3 = fma(p3, roh2, simd_float(+14.0 / 5.0));    						// 1
+							p3 *= Hinv;    						// 1
 
-								Phi[i] -= simd_float((sw1 * p1 + sw2 * p2 + sw3 * p3) * m);    						// 10
-							}
-						} else {
-							const auto dXM = dX * m;
-							for (int dim = 0; dim < NDIM; dim++) {
-								G[i][dim] -= simd_float(dXM[dim] * f1);    						// 15
-							}
-							Phi[i] -= simd_float((p1) * m);    						// 10
-
+							Phi[i] -= simd_float((sw1 * p1 + sw2 * p2 + sw3 * p3) * m);    						// 10
 						}
 					}
 				}
