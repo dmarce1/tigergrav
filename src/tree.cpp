@@ -3,6 +3,7 @@
 #include <tigergrav/tree.hpp>
 #include <tigergrav/groups.hpp>
 #include <tigergrav/memory.hpp>
+#include <tigergrav/gravity_cuda.hpp>
 
 #include <atomic>
 #include <algorithm>
@@ -886,6 +887,9 @@ std::uint64_t tree::get_flop() {
 		for (int i = 1; i < localities.size(); i++) {
 			futs.push_back(hpx::async < get_flop_action > (localities[i]));
 		}
+	}
+	if( options::get().cuda) {
+		flop += cuda_reset_flop();
 	}
 	auto total = (std::uint64_t) flop;
 	for (auto &f : futs) {

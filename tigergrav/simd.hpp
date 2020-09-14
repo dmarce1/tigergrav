@@ -340,7 +340,7 @@ inline simd_float::simd_float(simd_int i) {
 #endif
 
 }
-inline simd_float two_pow(const simd_float &r) {											// 13
+inline simd_float two_pow(const simd_float &r) {											// 21
 	static const simd_float zero = simd_float(0.0);
 	static const simd_float one = simd_float(1.0);
 	static const simd_float c1 = simd_float(std::log(2));
@@ -372,14 +372,14 @@ inline simd_float two_pow(const simd_float &r) {											// 13
 #endif
 	auto x = r - r0;
 	auto y = c8;
-	y = fma(y, x, c7);																		// 1
-	y = fma(y, x, c6);																		// 1
-	y = fma(y, x, c5);																		// 1
-	y = fma(y, x, c4);																		// 1
-	y = fma(y, x, c3);																		// 1
-	y = fma(y, x, c2);																		// 1
-	y = fma(y, x, c1);																		// 1
-	y = fma(y, x, one);																		// 1
+	y = fma(y, x, c7);																		// 2
+	y = fma(y, x, c6);																		// 2
+	y = fma(y, x, c5);																		// 2
+	y = fma(y, x, c4);																		// 2
+	y = fma(y, x, c3);																		// 2
+	y = fma(y, x, c2);																		// 2
+	y = fma(y, x, c1);																		// 2
+	y = fma(y, x, one);																		// 2
 #ifdef USE_AVX512
 	static const auto sevenf =  _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f);
 	auto imm00 = _mm512_add_epi32(n[0], sevenf); // 1
@@ -415,7 +415,7 @@ inline simd_float round(const simd_float a) {
 	return v;
 }
 
-inline simd_float sin(const simd_float &x0) {						// 12
+inline simd_float sin(const simd_float &x0) {						// 17
 	auto x = x0;
 	// From : http://mooooo.ooo/chebyshev-sine-approximation/
 	static const simd_float pi_major(3.1415927);
@@ -423,22 +423,22 @@ inline simd_float sin(const simd_float &x0) {						// 12
 	x = x - round(x * (1.0 / (2.0 * M_PI))) * (2.0 * M_PI);			// 4
 	const simd_float x2 = x * x;									// 1
 	simd_float p = simd_float(0.00000000013291342);
-	p = fma(p, x2, simd_float(-0.000000023317787));				// 1
-	p = fma(p, x2, simd_float(0.0000025222919));					// 1
-	p = fma(p, x2, simd_float(-0.00017350505));					// 1
-	p = fma(p, x2, simd_float(0.0066208798));						// 1
-	p = fma(p, x2, simd_float(-0.10132118));						// 1
+	p = fma(p, x2, simd_float(-0.000000023317787));				// 2
+	p = fma(p, x2, simd_float(0.0000025222919));					// 2
+	p = fma(p, x2, simd_float(-0.00017350505));					// 2
+	p = fma(p, x2, simd_float(0.0066208798));						// 2
+	p = fma(p, x2, simd_float(-0.10132118));						// 2
 	const auto x1 = (x - pi_major - pi_minor);						// 2
 	const auto x3 = (x + pi_major + pi_minor);						// 2
 	auto res = x1 * x3 * p * x;										// 3
 	return res;
 }
 
-inline simd_float cos(const simd_float &x) {		// 13
+inline simd_float cos(const simd_float &x) {		// 18
 	return sin(x + simd_float(M_PI / 2.0));
 }
 
-inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {// 25
+inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {// 35
 //#ifdef __AVX512F__
 //	s->v = _mm512_sincos_ps(&(c->v),x.v);
 //#else
@@ -447,7 +447,7 @@ inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {// 25
 //#endif
 }
 
-inline simd_float exp(simd_float a) { 	// 16
+inline simd_float exp(simd_float a) { 	// 24
 	static const simd_float c0 = 1.0 / std::log(2);
 	static const auto hi = simd_float(88);
 	static const auto lo = simd_float(-88);

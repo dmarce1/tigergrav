@@ -146,7 +146,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				}
 			}
 
-			flop += gravity_PP_direct_cuda(std::move(entry.cunits));
+			gravity_PP_direct_cuda(std::move(entry.cunits));
 
 		} else {
 			thread_cnt++;
@@ -275,12 +275,6 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 						for (int dim = 0; dim < NDIM; dim++) {
 							G[i][dim] -= simd_float(dXM[dim] * f);    						// 15
 						}
-//					printf( "----\n");
-//					for( int k = 0; k < simd_float::size(); k++) {
-//						if( sw2[k] == 1.0 || sw3[k]==1.0 && roh[k] != 0.0) {
-//							printf( "%e\n", roh[k]);
-//						}
-//					}
 						if (do_phi) {
 							// 13S + 2D = 15
 							const simd_float p1 = rinv;

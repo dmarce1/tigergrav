@@ -7,13 +7,15 @@ __device__ const cuda_ewald_const& cuda_get_const();
 #endif
 // 43009,703
 template<class DOUBLE, class SINGLE> // 986 // 251936
-CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &Lacc, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald) { // 670/700 + 418 * NREAL + 50 * NFOUR
-	const expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
-	expansion<SINGLE> L;
+CUDA_EXPORT inline int multipole_interaction(expansion<DOUBLE> &L, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald) { // 670/700 + 418 * NREAL + 50 * NFOUR
+	int flop = 0;
+	expansion<SINGLE> D;
+	flop += ewald ? green_ewald(D,dX) : green_direct(D,dX);
 	auto &L0 = L;
 	for (int i = 0; i < LP; i++) {
-		L[i] = M[0] * D[i];
+		L[i] = fma( M[0], D[i], L[i]);
 	}
+	flop += 2 * LP;
 	L[0] = fma(M[1], D[4] * float(5.000000000e-01), L[0]);
 	L[1] = fma(M[1], D[10] * float(5.000000000e-01), L[1]);
 	L[0] = fma(-M[7], D[10] * float(1.666666670e-01), L[0]);
@@ -114,29 +116,35 @@ CUDA_EXPORT inline void multipole_interaction(expansion<DOUBLE> &Lacc, const mul
 	L[8] = fma(M[6], D[33] * float(5.000000000e-01), L[8]);
 	L[9] = fma(M[5], D[33], L[9]);
 	L[9] = fma(M[6], D[34] * float(5.000000000e-01), L[9]);
-	for (int i = 0; i < LP; i++) {
-		Lacc[i] += L[i];
-	}
+	flop += 306;
+	return flop;
 }
 
 template<class DOUBLE, class SINGLE> // 401 / 251351
-inline void multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SINGLE> dX, bool ewald = false) { // 390 / 47301
+inline int multipole_interaction(expansion<DOUBLE> &L, const SINGLE &M, vect<SINGLE> dX, bool ewald = false) { // 390 / 47301
 	static const expansion_factors<SINGLE> expansion_factor;
-	const expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
+	int flop = 0;
+	expansion<SINGLE> D;
+	flop += ewald ? green_ewald(D,dX) : green_direct(D,dX);
 	// 175
 	for (int i = 0; i < LP; i++) {
-		L[i] += M * D[i];
+		L[i] = fma( M, D[i], L[i]);
 	}
+	flop += 2 * LP;
+	return flop;
 }
 
 template<class DOUBLE, class SINGLE> // 516 / 251466
-CUDA_EXPORT inline void multipole_interaction(vect<DOUBLE> &g, DOUBLE &phi, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
-	const expansion<SINGLE> D = ewald ? green_ewald(dX) : green_direct(dX);
+CUDA_EXPORT inline int multipole_interaction(vect<DOUBLE> &g, DOUBLE &phi, const multipole<SINGLE> &M, vect<SINGLE> dX, bool ewald = false) { // 517 / 47428
+	int flop = 216;
+	expansion<SINGLE> D;
+	flop += ewald ? green_ewald(D,dX) : green_direct(D,dX);
 	SINGLE L[4];
 
 	for (int i = 0; i < 4; i++) {
 		L[i] = M[0] * D[i];
 	}
+	flop += 4;
 	L[0] = fma(M[1], D[4] * float(5.000000000e-01), L[0]);
 	L[1] = fma(M[1], D[10] * float(5.000000000e-01), L[1]);
 	L[0] = fma(-M[7], D[10] * float(1.666666670e-01), L[0]);
@@ -205,4 +213,6 @@ CUDA_EXPORT inline void multipole_interaction(vect<DOUBLE> &g, DOUBLE &phi, cons
 	for (int dim = 0; dim < NDIM; dim++) {
 		g[dim] = -L[1 + dim];
 	}
+	flop += 3;
+	return flop;
 }
