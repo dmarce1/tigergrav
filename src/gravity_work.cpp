@@ -67,6 +67,12 @@ struct gwork_group {
 mutex_type groups_mtx[GROUP_TABLE_SIZE];
 std::unordered_map<int, gwork_group> groups[GROUP_TABLE_SIZE];
 
+struct pair_hash {
+	std::size_t operator()(std::pair<part_iter, part_iter> p) const {
+		return p.first;
+	}
+};
+
 std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<pos_type>> *x, std::vector<std::pair<part_iter, part_iter>> y,
 		std::vector<const multi_src*> z, std::function<hpx::future<void>(void)> &&complete, bool do_phi) {
 	static const auto opts = options::get();
@@ -115,9 +121,39 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	std::uint64_t flop = 0;
 	if (do_work) {
 		if (opts.cuda) {
+			static thread_local std::vector<std::pair<part_iter, part_iter>> tmp;
+			std::unordered_map<std::pair<part_iter, part_iter>, std::pair<part_iter, part_iter>, pair_hash> ymap;
+			part_iter next_index = 0;
+			for (auto &unit : entry.cunits) {
+				for (auto &yiter : unit.yiters) {
+					const auto& iter = ymap.find(yiter);
+					if (iter == ymap.end()) {
+						auto &entry = ymap[yiter];
+						const auto size = yiter.second - yiter.first;
+						entry.first = next_index;
+						entry.second = next_index + size;
+						yiter = entry;
+						next_index += size;
+					} else {
+						yiter = iter->second;
+					}
+				}
+			}
+
+			std::vector < hpx::future < std::vector<vect<pos_type>> >> yfuts;
+			for (auto this_y : ymap) {
+				yfuts.push_back(part_vect_read_position(this_y.first.first, this_y.first.second));
+			}
+			int k = 0;
+			std::vector < vect < pos_type >> y(next_index);
+			for (auto this_y : ymap) {
+				auto tmp = yfuts[k].get();
+				std::copy(tmp.begin(), tmp.end(), y.begin() + this_y.second.first);
+				k++;
+			}
 			for (auto &unit : entry.cunits) {
 				if (unit.yiters.size()) {
-					static thread_local std::vector<std::pair<part_iter, part_iter>> tmp;
+
 					tmp.resize(0);
 					std::sort(unit.yiters.begin(), unit.yiters.end(), [](const std::pair<part_iter, part_iter> &a, const std::pair<part_iter, part_iter> &b) {
 						return a.first < b.first;
@@ -146,7 +182,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				}
 			}
 
-			gravity_PP_direct_cuda(std::move(entry.cunits), do_phi);
+			gravity_PP_direct_cuda(std::move(entry.cunits), std::move(y), do_phi);
 
 		} else {
 			thread_cnt++;
