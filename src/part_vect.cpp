@@ -1051,17 +1051,7 @@ inline bool almost_equal(double a, double b) {
 
 double part_vect_find_median_helper(part_iter b, part_iter e, part_iter median, double xmid, int dim) {
 	double r;
-//	printf("%i %i %i %.8e\n", b, e, median, xmid);
-//	if (e - b == 2) {
-//		printf( "!\n");
-//		for (auto i = b; i < std::min(part_end, e); i++) {
-//			printf("%.8e\n", parts(i).x[dim]);
-//		}
-//
-//	}
-	if (e - b <= 1) {
-		r = xmid;
-	} else {
+	while (e - b > 1) {
 		const auto m = part_vect_sort(b, e, xmid, dim);
 		if (median > m && median < e) {
 			const auto newid = part_vect_locality_id(m);
@@ -1072,30 +1062,36 @@ double part_vect_find_median_helper(part_iter b, part_iter e, part_iter median, 
 				const auto rc = hpx::async < part_vect_avg_pos_action > (localities[newid], m, e, dim).get();
 			}
 			if (almost_equal(rc.max, rc.avg)) {
-				r = rc.max;
+				xmid = rc.max;
+				break;
 			} else {
 				const auto new_xmid = rc.avg;
 				if (newid == myid) {
-					r = part_vect_find_median_helper(m, e, median, new_xmid, dim);
+					b = m;
+					xmid = new_xmid;
+					continue;
 				} else {
-					r = hpx::async < part_vect_find_median_helper_action > (localities[newid], m, e, median, new_xmid, dim).get();
+					return hpx::async < part_vect_find_median_helper_action > (localities[newid], m, e, median, new_xmid, dim).get();
 				}
 			}
 		} else if (median >= b && median < m) {
 			const auto rc = part_vect_avg_pos(b, m, dim);
 			if (almost_equal(rc.max, rc.avg)) {
-				r = rc.max;
+				xmid = rc.max;
+				break;
 			} else {
 				const auto new_xmid = rc.avg;
-				r = part_vect_find_median_helper(b, m, median, new_xmid, dim);
+				e = m;
+				xmid = new_xmid;
+				continue;
 			}
 		} else if (median == m) {
-			return xmid;
+			break;
 		} else {
 			assert(false);
 		}
 	}
-	return r;
+	return xmid;
 }
 
 double part_vect_find_median(part_iter b, part_iter e, int dim) {
