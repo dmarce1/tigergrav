@@ -95,7 +95,7 @@ void cuda_copy_particle_image(part_iter part_begin, part_iter part_end, const st
 
 #include <cstdint>
 
-__global__ void CC_ewald_kernel(expansion<float> *lptr, const vect<pos_type> X, const multi_src *y, int ysize, double *flop_ptr) {
+__global__ void CC_ewald_kernel(expansion<float> *lptr, const vect<pos_type> X, const multi_src *y, int ysize, bool do_phi, double *flop_ptr) {
 
 	int l = threadIdx.x + blockDim.x * blockIdx.x;
 	int n = threadIdx.x;
@@ -116,7 +116,7 @@ __global__ void CC_ewald_kernel(expansion<float> *lptr, const vect<pos_type> X, 
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = float(X[dim] - y[yi].x[dim]) * float(POS_INV); 		// 3
 			}
-			flop[n] += 3 + multipole_interaction(Lacc[n], y[yi].m, dX, true);
+			flop[n] += 3 + multipole_interaction(Lacc[n], y[yi].m, dX, true, do_phi);
 		}
 	}
 	for (int N = tb_size / 2; N > 0; N >>= 1) {
@@ -201,7 +201,7 @@ void push_context_ewald(cuda_context_ewald ctx) {
 	lock_ewald--;
 }
 
-void gravity_CC_ewald_cuda(expansion<float> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y) {
+void gravity_CC_ewald_cuda(expansion<float> &L, const vect<pos_type> &x, std::vector<const multi_src*> &y, bool do_phi) {
 
 	cuda_init();
 
@@ -216,7 +216,7 @@ void gravity_CC_ewald_cuda(expansion<float> &L, const vect<pos_type> &x, std::ve
 
 	int tb_size = (((y.size() - 1) / CCSIZE) + 1) * CCSIZE;
 
-	/**/CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size(), flop_ptr);
+	/**/CC_ewald_kernel<<<dim3(tb_size/CCSIZE,1,1),dim3(CCSIZE,1,1),0,ctx.stream>>>(ctx.L, x, ctx.y, y.size(), do_phi, flop_ptr);
 
 	CUDA_CHECK(cudaMemcpyAsync(ctx.Lp, ctx.L, sizeof(expansion<float> ), cudaMemcpyDeviceToHost, ctx.stream));
 	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
@@ -226,7 +226,9 @@ void gravity_CC_ewald_cuda(expansion<float> &L, const vect<pos_type> &x, std::ve
 	push_context_ewald(std::move(ctx));
 }
 
-__global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<pos_type> *y, const std::pair<part_iter, part_iter> *yiters, int *xindex,
+template<bool DO_PHI>
+/**/__global__ /**/
+void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<pos_type> *y, const std::pair<part_iter, part_iter> *yiters, int *xindex,
 		int *yindex, float m, float h, bool ewald, double *flop_ptr) {
 //	printf("sizeof(force) = %li\n", sizeof(force));
 
@@ -246,7 +248,7 @@ __global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<p
 	Ymem[NWARP][WARPSIZE][SYNCRATE];
 
 	__shared__ std::uint64_t
-	 flop[NWARP][WARPSIZE];
+	flop[NWARP][WARPSIZE];
 
 	flop[iwarp][n] = 0;
 
@@ -302,10 +304,10 @@ __global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<p
 								flop[iwarp][n] += 12;
 							}
 							const float r2 = dX.dot(dX);								   // 5
-							const float r = sqrt(r2);									   // 1
-							const float rinv = float(1) / max(r, halfh);             	   // 2
-							const float rinv3 = rinv * rinv * rinv;                        // 2
-							flop[iwarp][n] += 21;
+							const float r = sqrt(r2);// 1
+							const float rinv = float(1) / max(r, halfh);// 2
+							const float rinv3 = rinv * rinv * rinv;// 2
+							flop[iwarp][n] += DO_PHI ? 21 : 19;
 							float f, p;
 							if (r > h) {
 								f = rinv3;
@@ -313,57 +315,71 @@ __global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<p
 							} else if (r > 0.5 * h) {
 								const float roh = min(r * Hinv, 1.0);                         // 2
 								const float roh2 = roh * roh;                                 // 1
-								const float roh3 = roh2 * roh;                                // 1
+								const float roh3 = roh2 * roh;// 1
 								f = float(-32.0 / 3.0);
-								f = fma(f, roh, float(+192.0 / 5.0));							// 2
-								f = fma(f, roh, float(-48.0));								// 2
-								f = fma(f, roh, float(+64.0 / 3.0));							// 2
-								f = fma(f, roh3, float(-1.0 / 15.0));						// 2
-								f *= rinv3;														// 1
-								p = float(+32.0 / 15.0);
-								p = fma(p, roh, float(-48.0 / 5.0));							// 2
-								p = fma(p, roh, float(+16.0));								// 2
-								p = fma(p, roh, float(-32.0 / 3.0));							// 2
-								p = fma(p, roh2, float(+16.0 / 5.0));						// 2
-								p = fma(p, roh, float(-1.0 / 15.0));							// 2
-								p *= rinv;                                                    	// 1
-								flop[iwarp][n] += 24;
+								f = fma(f, roh, float(+192.0 / 5.0));// 2
+								f = fma(f, roh, float(-48.0));// 2
+								f = fma(f, roh, float(+64.0 / 3.0));// 2
+								f = fma(f, roh3, float(-1.0 / 15.0));// 2
+								f *= rinv3;// 1
+								flop[iwarp][n] += 13;
+								if (DO_PHI) {
+									p = float(+32.0 / 15.0);
+									p = fma(p, roh, float(-48.0 / 5.0));// 2
+									p = fma(p, roh, float(+16.0));// 2
+									p = fma(p, roh, float(-32.0 / 3.0));// 2
+									p = fma(p, roh2, float(+16.0 / 5.0));// 2
+									p = fma(p, roh, float(-1.0 / 15.0));// 2
+									p *= rinv;// 1
+									flop[iwarp][n] += 11;
+								}
 							} else {
 								const float roh = min(r * Hinv, 1.0);                           // 2
-								const float roh2 = roh * roh;                                 	// 1
+								const float roh2 = roh * roh;// 1
 								f = float(+32.0);
-								f = fma(f, roh, float(-192.0 / 5.0));						// 2
-								f = fma(f, roh2, float(+32.0 / 3.0));						// 2
-								f *= H3inv;                                                     // 1
-								p = float(-32.0 / 5.0);
-								p = fma(p, roh, float(+48.0 / 5.0));							// 2
-								p = fma(p, roh2, float(-16.0 / 3.0));						// 2
-								p = fma(p, roh2, float(+14.0 / 5.0));						// 2
-								p *= Hinv;														// 1
-								flop[iwarp][n] += 15;
+								f = fma(f, roh, float(-192.0 / 5.0));// 2
+								f = fma(f, roh2, float(+32.0 / 3.0));// 2
+								f *= H3inv;// 1
+								flop[iwarp][n] += 7;
+								if (DO_PHI) {
+									p = float(-32.0 / 5.0);
+									p = fma(p, roh, float(+48.0 / 5.0));							// 2
+									p = fma(p, roh2, float(-16.0 / 3.0));// 2
+									p = fma(p, roh2, float(+14.0 / 5.0));// 2
+									p *= Hinv;// 1
+									flop[iwarp][n] += 8;
+								}
 							}
 							const auto dXM = dX * m;								// 3
 							for (int dim = 0; dim < NDIM; dim++) {
 								G[iwarp][n].g[dim] -= dXM[dim] * f;    				// 6
 							}
 							// 13S + 2D = 15
-							G[iwarp][n].phi -= p * m;    							// 2
+							if( DO_PHI ) {
+								G[iwarp][n].phi -= p * m;    							// 2
+							}
 						}
 					}
 				}
 				for (int N = WARPSIZE / 2; N > 0; N >>= 1) {
 					if (n < N) {
 						G[iwarp][n].g += G[iwarp][n + N].g;
-						G[iwarp][n].phi += G[iwarp][n + N].phi;
 						flop[iwarp][n] += 4;
+						if( DO_PHI ) {
+							G[iwarp][n].phi += G[iwarp][n + N].phi;
+							flop[iwarp][n] += 1;
+						}
 					}
 				}
 				if (n == 0) {
 					for (int dim = 0; dim < NDIM; dim++) {
 						atomicAdd(&F[i].g[dim], G[iwarp][0].g[dim]);
 					}
-					atomicAdd(&F[i].phi, G[iwarp][0].phi);
 					flop[iwarp][n] += 4;
+					if( DO_PHI ) {
+						atomicAdd(&F[i].phi, G[iwarp][0].phi);
+						flop[iwarp][n] += 1;
+					}
 				}
 			}
 		}
@@ -379,7 +395,7 @@ __global__ void PP_direct_kernel(force *F, const vect<pos_type> *x, const vect<p
 }
 
 __global__
-void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_src *z, int *xindex, int *zindex, bool ewald, double *flop_ptr) {
+void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_src *z, int *xindex, int *zindex, bool ewald, bool do_phi, double *flop_ptr) {
 //	printf("sizeof(force) = %li\n", sizeof(force));
 
 	const int iwarp = threadIdx.y;
@@ -392,7 +408,7 @@ void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_src *z, int
 	__shared__ force
 	G[PCNWARP][WARPSIZE];
 	__shared__ std::uint64_t
-	 flop[NWARP][WARPSIZE];
+	flop[NWARP][WARPSIZE];
 
 	flop[iwarp][n] = 0;
 
@@ -426,7 +442,7 @@ void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_src *z, int
 
 				vect<double> g;
 				double phi;
-				flop[iwarp][n] += 4 + multipole_interaction(g, phi, M, dX); // 516
+				flop[iwarp][n] += 4 + multipole_interaction(g, phi, M, dX, false, do_phi); // 516
 				G[iwarp][n].g += g; // 0 / 3
 				G[iwarp][n].phi += phi; // 0 / 1
 			}
@@ -585,7 +601,7 @@ void push_context(cuda_context ctx) {
 	lock--;
 }
 
-void gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
+void gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units, bool do_phi) {
 	static const auto opts = options::get();
 	static const float m = opts.m_tot / opts.problem_size;
 	cuda_init();
@@ -638,92 +654,96 @@ void gravity_PP_direct_cuda(std::vector<cuda_work_unit> &&units) {
 		CUDA_CHECK(cudaMemcpyAsync(ctx.yi, ctx.yip, yibytes, cudaMemcpyHostToDevice, ctx.stream));
 		CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
 
-		/**/PP_direct_kernel<<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald, flop_ptr);
+		if (do_phi) {
+			/**/PP_direct_kernel<true><<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald, flop_ptr);
+	} else {
+		/**/PP_direct_kernel<false><<<dim3(units.size(),1,1),dim3(WARPSIZE,NWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,y_vect, ctx.y,ctx.xi,ctx.yi, m, opts.soft_len, opts.ewald, flop_ptr);
+}
 
-		CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
-		while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
-			yield_to_hpx();
+CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
+	yield_to_hpx();
+}
+int k = 0;
+for (const auto &unit : units) {
+	for (auto &this_f : *unit.fptr) {
+		this_f = ctx.fp[k];
+		k++;
+	}
+}
+push_context(ctx);
+
+}
+{
+static thread_local std::vector<int> xindex;
+static thread_local std::vector<int> zindex;
+static thread_local std::vector<force> f;
+static thread_local std::vector<vect<pos_type>> x;
+static thread_local std::vector<multi_src> z;
+xindex.resize(0);
+zindex.resize(0);
+f.resize(0);
+x.resize(0);
+z.resize(0);
+
+int xi = 0;
+int zi = 0;
+int size = 0;
+std::uint64_t interactions = 0;
+for (const auto &unit : units) {
+	if (unit.z.size()) {
+		xindex.push_back(xi);
+		zindex.push_back(zi);
+		xi += unit.xptr->size();
+		zi += unit.z.size();
+		f.insert(f.end(), unit.fptr->begin(), unit.fptr->end());
+		x.insert(x.end(), unit.xptr->begin(), unit.xptr->end());
+		for (int j = 0; j < unit.z.size(); j++) {
+			z.push_back(*unit.z[j]);
 		}
-		int k = 0;
-		for (const auto &unit : units) {
+		size++;
+	}
+}
+xindex.push_back(xi);
+zindex.push_back(zi);
+if (z.size()) {
+	const auto fbytes = sizeof(force) * f.size();
+	const auto xbytes = sizeof(vect<pos_type> ) * x.size();
+	const auto zbytes = sizeof(multi_src) * z.size();
+	const auto xibytes = sizeof(int) * xindex.size();
+	const auto zibytes = sizeof(int) * zindex.size();
+
+	auto ctx = pop_context(x.size(), 0, z.size(), zindex.size());
+	memcpy(ctx.fp, f.data(), fbytes);
+	memcpy(ctx.xp, x.data(), xbytes);
+	memcpy(ctx.zp, z.data(), zbytes);
+	memcpy(ctx.xip, xindex.data(), xibytes);
+	memcpy(ctx.zip, zindex.data(), zibytes);
+	CUDA_CHECK(cudaMemcpyAsync(ctx.f, ctx.fp, fbytes, cudaMemcpyHostToDevice, ctx.stream));
+//		printf( "%li %lli %lli\n", zbytes, ctx.z, ctx.zp);
+	CUDA_CHECK(cudaMemcpyAsync(ctx.z, ctx.zp, zbytes, cudaMemcpyHostToDevice, ctx.stream));
+	CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
+	CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
+	CUDA_CHECK(cudaMemcpyAsync(ctx.zi, ctx.zip, zibytes, cudaMemcpyHostToDevice, ctx.stream));
+
+	/**/PC_direct_kernel<<<dim3(size,1,1),dim3(WARPSIZE,PCNWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,ctx.z,ctx.xi,ctx.zi,opts.ewald, do_phi, flop_ptr);
+
+			CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
+	while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
+		yield_to_hpx();
+	}
+	int k = 0;
+	for (const auto &unit : units) {
+		if (unit.z.size()) {
 			for (auto &this_f : *unit.fptr) {
 				this_f = ctx.fp[k];
 				k++;
 			}
 		}
-		push_context(ctx);
-
 	}
-	{
-		static thread_local std::vector<int> xindex;
-		static thread_local std::vector<int> zindex;
-		static thread_local std::vector<force> f;
-		static thread_local std::vector<vect<pos_type>> x;
-		static thread_local std::vector<multi_src> z;
-		xindex.resize(0);
-		zindex.resize(0);
-		f.resize(0);
-		x.resize(0);
-		z.resize(0);
-
-		int xi = 0;
-		int zi = 0;
-		int size = 0;
-		std::uint64_t interactions = 0;
-		for (const auto &unit : units) {
-			if (unit.z.size()) {
-				xindex.push_back(xi);
-				zindex.push_back(zi);
-				xi += unit.xptr->size();
-				zi += unit.z.size();
-				f.insert(f.end(), unit.fptr->begin(), unit.fptr->end());
-				x.insert(x.end(), unit.xptr->begin(), unit.xptr->end());
-				for (int j = 0; j < unit.z.size(); j++) {
-					z.push_back(*unit.z[j]);
-				}
-				size++;
-			}
-		}
-		xindex.push_back(xi);
-		zindex.push_back(zi);
-		if (z.size()) {
-			const auto fbytes = sizeof(force) * f.size();
-			const auto xbytes = sizeof(vect<pos_type> ) * x.size();
-			const auto zbytes = sizeof(multi_src) * z.size();
-			const auto xibytes = sizeof(int) * xindex.size();
-			const auto zibytes = sizeof(int) * zindex.size();
-
-			auto ctx = pop_context(x.size(), 0, z.size(), zindex.size());
-			memcpy(ctx.fp, f.data(), fbytes);
-			memcpy(ctx.xp, x.data(), xbytes);
-			memcpy(ctx.zp, z.data(), zbytes);
-			memcpy(ctx.xip, xindex.data(), xibytes);
-			memcpy(ctx.zip, zindex.data(), zibytes);
-			CUDA_CHECK(cudaMemcpyAsync(ctx.f, ctx.fp, fbytes, cudaMemcpyHostToDevice, ctx.stream));
-//		printf( "%li %lli %lli\n", zbytes, ctx.z, ctx.zp);
-			CUDA_CHECK(cudaMemcpyAsync(ctx.z, ctx.zp, zbytes, cudaMemcpyHostToDevice, ctx.stream));
-			CUDA_CHECK(cudaMemcpyAsync(ctx.x, ctx.xp, xbytes, cudaMemcpyHostToDevice, ctx.stream));
-			CUDA_CHECK(cudaMemcpyAsync(ctx.xi, ctx.xip, xibytes, cudaMemcpyHostToDevice, ctx.stream));
-			CUDA_CHECK(cudaMemcpyAsync(ctx.zi, ctx.zip, zibytes, cudaMemcpyHostToDevice, ctx.stream));
-
-			/**/PC_direct_kernel<<<dim3(size,1,1),dim3(WARPSIZE,PCNWARP,1),0,ctx.stream>>>(ctx.f,ctx.x,ctx.z,ctx.xi,ctx.zi,opts.ewald, flop_ptr);
-
-			CUDA_CHECK(cudaMemcpyAsync(ctx.fp, ctx.f, fbytes, cudaMemcpyDeviceToHost, ctx.stream));
-			while (cudaStreamQuery(ctx.stream) != cudaSuccess) {
-				yield_to_hpx();
-			}
-			int k = 0;
-			for (const auto &unit : units) {
-				if (unit.z.size()) {
-					for (auto &this_f : *unit.fptr) {
-						this_f = ctx.fp[k];
-						k++;
-					}
-				}
-			}
-			push_context(ctx);
-		}
-	}
-	thread_cnt--;
+	push_context(ctx);
+}
+}
+thread_cnt--;
 }
 

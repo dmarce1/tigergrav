@@ -146,7 +146,7 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				}
 			}
 
-			gravity_PP_direct_cuda(std::move(entry.cunits));
+			gravity_PP_direct_cuda(std::move(entry.cunits), do_phi);
 
 		} else {
 			thread_cnt++;

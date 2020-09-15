@@ -547,8 +547,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 	for (auto &v : dmulti_futs) {
 		dmulti_srcs.push_back(v.get());
 	}
-	flop += gravity_CC_direct(L, multi.x, dmulti_srcs);
-	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters));
+	flop += gravity_CC_direct(L, multi.x, dmulti_srcs, do_out);
+	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters), do_out);
 	istats.CC_direct += dmulti_srcs.size();
 	istats.CP_direct += dsource_count;
 	if (opts.ewald) {
@@ -556,8 +556,8 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		for (auto &v : emulti_futs) {
 			emulti_srcs.push_back(v.get());
 		}
-		flop += gravity_CC_ewald(L, multi.x, emulti_srcs);
-		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters));
+		flop += gravity_CC_ewald(L, multi.x, emulti_srcs, do_out);
+		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters), do_out);
 		istats.CC_ewald += emulti_srcs.size();
 		istats.CP_ewald += esource_count;
 	}
@@ -714,7 +714,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			dmulti_srcs.push_back(v.get());
 		}
 		if (!opts.cuda || dmulti_srcs.size() < 32) {
-			flop += gravity_PC_direct(*fptr, *xptr, dmulti_srcs);
+			flop += gravity_PC_direct(*fptr, *xptr, dmulti_srcs, do_out);
 			dmulti_srcs.resize(0);
 		}
 //		printf( "%i\n", multi_srcs.size());
@@ -726,9 +726,9 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			for (auto &v : emulti_futs) {
 				emulti_srcs.push_back(v.get());
 			}
-			flop += gravity_PC_ewald(*fptr, *xptr, emulti_srcs);
+			flop += gravity_PC_ewald(*fptr, *xptr, emulti_srcs, do_out);
 //			printf( "%i\n", esource_iters.size());
-			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters));
+			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters), do_out);
 			istats.CP_ewald += xptr->size() * emulti_srcs.size();
 			istats.PP_ewald += xptr->size() * esource_count;
 		}
