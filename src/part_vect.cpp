@@ -125,6 +125,14 @@ bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_
 	return rc;
 }
 
+bool part_vect_is_local(const std::pair<part_iter, part_iter> &iter) {
+	return (iter.second - iter.first == 0) || (part_vect_locality_id(iter.first) == myid && part_vect_locality_id(iter.second - 1) == myid);
+}
+
+particle& part_vect_read_local(part_iter i) {
+	return parts(i);
+}
+
 void part_vect_init_groups() {
 	std::vector<hpx::future<void>> futs;
 	if (myid == 0) {

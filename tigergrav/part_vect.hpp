@@ -70,6 +70,8 @@ void part_vect_init_groups();
 bool part_vect_find_groups(part_iter b, part_iter e, std::vector<particle_group_info>);
 part_iter part_vect_sort(part_iter b, part_iter e, double mid, int dim);
 range part_vect_range(part_iter b, part_iter e);
+bool part_vect_is_local(const std::pair<part_iter,part_iter>&);
+particle& part_vect_read_local(part_iter);
 int part_vect_locality_id(part_iter);
 void part_vect_reset();
 std::pair<std::uint64_t, vect<double>> part_vect_center_of_mass(part_iter b, part_iter e);

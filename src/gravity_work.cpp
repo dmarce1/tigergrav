@@ -2,6 +2,7 @@
 #include <tigergrav/gravity_work.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
+#include <stack>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -73,6 +74,35 @@ struct pair_hash {
 	}
 };
 
+struct context {
+	std::vector<std::pair<part_iter, part_iter>> tmp;
+	std::unordered_map<std::pair<part_iter, part_iter>, std::pair<part_iter, part_iter>, pair_hash> ymap;
+	std::vector<hpx::future<std::vector<vect<pos_type>>>> yfuts;
+	pinned_vector<vect<pos_type>> y;
+	context() = default;
+	context(context&&) = default;
+	context& operator=(context&&) = default;
+};
+
+std::stack<context> stack;
+mutex_type stack_mtx;
+
+context pop_context() {
+	std::lock_guard<mutex_type> lock(stack_mtx);
+	context ctx;
+	if (!stack.empty()) {
+		ctx = std::move(stack.top());
+		stack.pop();
+	}
+	ctx.ymap.max_load_factor(8.0);
+	return std::move(ctx);
+}
+
+void push_context(context &&ctx) {
+	std::lock_guard<mutex_type> lock(stack_mtx);
+	stack.push(std::move(ctx));
+}
+
 std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<pos_type>> *x, std::vector<std::pair<part_iter, part_iter>> y,
 		std::vector<const multi_src*> z, std::function<hpx::future<void>(void)> &&complete, bool do_phi) {
 	static const auto opts = options::get();
@@ -121,12 +151,16 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 	std::uint64_t flop = 0;
 	if (do_work) {
 		if (opts.cuda) {
-			static thread_local std::vector<std::pair<part_iter, part_iter>> tmp;
-			std::unordered_map<std::pair<part_iter, part_iter>, std::pair<part_iter, part_iter>, pair_hash> ymap;
+			auto ctx = pop_context();
+			auto &tmp = ctx.tmp;
+			auto &ymap = ctx.ymap;
+			auto &yfuts = ctx.yfuts;
+			auto &y = ctx.y;
 			part_iter next_index = 0;
+			ymap.clear();
 			for (auto &unit : entry.cunits) {
 				for (auto &yiter : unit.yiters) {
-					const auto& iter = ymap.find(yiter);
+					const auto &iter = ymap.find(yiter);
 					if (iter == ymap.end()) {
 						auto &entry = ymap[yiter];
 						const auto size = yiter.second - yiter.first;
@@ -140,15 +174,26 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				}
 			}
 
-			std::vector < hpx::future < std::vector<vect<pos_type>> >> yfuts;
-			for (auto this_y : ymap) {
-				yfuts.push_back(part_vect_read_position(this_y.first.first, this_y.first.second));
-			}
+			yfuts.resize(ymap.size());
 			int k = 0;
-			std::vector < vect < pos_type >> y(next_index);
 			for (auto this_y : ymap) {
-				auto tmp = yfuts[k].get();
-				std::copy(tmp.begin(), tmp.end(), y.begin() + this_y.second.first);
+		//		if (!part_vect_is_local(this_y.first)) {
+					yfuts[k] = part_vect_read_position(this_y.first.first, this_y.first.second);
+		//		}
+				k++;
+			}
+			k = 0;
+			y.resize(next_index);
+			for (auto this_y : ymap) {
+//		//		if (part_vect_is_local(this_y.first)) {
+//					for (auto i = this_y.first.first; i < this_y.first.second; i++) {
+//						const auto &p = part_vect_read_local(i);
+//						y[this_y.second.first + i - this_y.first.first] = p.x;
+//					}
+//				} else {
+					auto tmp = yfuts[k].get();
+					std::copy(tmp.begin(), tmp.end(), y.begin() + this_y.second.first);
+//				}
 				k++;
 			}
 			for (auto &unit : entry.cunits) {
@@ -181,8 +226,8 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 					}
 				}
 			}
-
-			gravity_PP_direct_cuda(std::move(entry.cunits), std::move(y), do_phi);
+			gravity_PP_direct_cuda(std::move(entry.cunits), y, do_phi);
+			push_context(std::move(ctx));
 
 		} else {
 			thread_cnt++;
