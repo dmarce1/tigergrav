@@ -73,6 +73,7 @@ struct refine_return {
 	std::uint64_t nodes;
 	template<class A>
 	void serialize(A&& arc, unsigned) {
+		arc & rc;
 		arc & max_depth;
 		arc & min_depth;
 		arc & leaves;
