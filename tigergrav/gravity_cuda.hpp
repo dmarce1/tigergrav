@@ -8,6 +8,7 @@
 #ifndef TIGERGRAV_GRAVITY_CUDA_HPP_
 #define TIGERGRAV_GRAVITY_CUDA_HPP_
 
+#include <tigergrav/cuda_check.hpp>
 #include <tigergrav/gravity.hpp>
 #include <tigergrav/particle.hpp>
 
@@ -58,7 +59,7 @@ class pinned_vector {
 		}
 	}
 	void allocate() {
-		cudaMallocHost((void**) &ptr, sizeof(T) * cap);
+		CUDA_CHECK(cudaMallocHost((void**) &ptr, sizeof(T) * cap));
 	}
 public:
 	pinned_vector() {
@@ -66,12 +67,18 @@ public:
 		sz = 0;
 		ptr = nullptr;
 	}
+	pinned_vector(const pinned_vector&) = delete;
+	pinned_vector& operator=(const pinned_vector&) = delete;
 	pinned_vector(std::size_t this_sz) {
 		cap = this_sz;
 		sz = this_sz;
 		allocate();
 	}
+	~pinned_vector() {
+		free();
+	}
 	pinned_vector& operator=(pinned_vector &&other) {
+		free();
 		cap = other.cap;
 		sz = other.sz;
 		ptr = other.ptr;
@@ -81,12 +88,13 @@ public:
 		return *this;
 	}
 	pinned_vector(pinned_vector &&other) {
+		ptr = nullptr;
 		(*this) = std::move(other);
 	}
 	void resize(std::size_t new_sz) {
 		if (new_sz > cap) {
 			T *new_ptr;
-			cudaMallocHost((void**) &new_ptr, sizeof(T) * new_sz);
+			CUDA_CHECK(cudaMallocHost((void**) &new_ptr, sizeof(T) * new_sz));
 			if (sz) {
 				std::memcpy(new_ptr, ptr, sz * sizeof(T));
 			}

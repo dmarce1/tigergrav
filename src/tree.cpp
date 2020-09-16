@@ -388,6 +388,11 @@ struct workspace {
 	std::vector<std::pair<part_iter, part_iter>> esource_iters;
 	std::vector<const multi_src*> emulti_srcs;
 	std::vector<const multi_src*> dmulti_srcs;
+	workspace& operator=(const workspace&) = delete;
+	workspace& operator=(workspace&&) = default;
+	workspace(const workspace&) = delete;
+	workspace(workspace&&) = default;
+	workspace() = default;
 
 };
 
