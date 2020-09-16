@@ -89,12 +89,14 @@ void trash_checkptrs() {
 }
 
 template<class F>
-inline auto thread_if_avail(F &&f, bool left, int nparts, bool force, int stack_cnt) {
+inline auto thread_if_avail(F &&f, bool left, int nparts, bool force, bool remote, int stack_cnt) {
 	const auto opts = options::get();
 	bool thread;
 	bool thread_bcof_stack = false;
-
-	if (force) {
+	if (remote) {
+		thread = true;
+		thread_bcof_stack = false;
+	} else if (force) {
 		thread = true;
 		thread_bcof_stack = true;
 	} else {
@@ -171,11 +173,12 @@ refine_return tree::refine(int stack_cnt) {
 //	if( level_ == 1 ) {
 //		sleep(100);
 //	}
-	bool force_left, force_right;
+	bool force_fork;
+	bool remote_left, remote_right;
 	if (!is_leaf()) {
-		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
-		force_left = (!children[0].local()) || force_all;
-		force_right = (!children[1].local()) || force_all;
+		force_fork = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+		remote_left = !children[0].local();
+		remote_right = !children[1].local();
 	}
 	const auto &opts = options::get();
 
@@ -220,10 +223,10 @@ refine_return tree::refine(int stack_cnt) {
 	} else if (!is_leaf()) {
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].refine(stack_cnt);
-		}, true, part_end - part_begin, force_left, stack_cnt);
+		}, true, part_end - part_begin, force_fork, remote_left, stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
 			return children[1].refine(stack_cnt);
-		}, false, part_end - part_begin, force_right, stack_cnt);
+		}, false, part_end - part_begin, force_fork, remote_right, stack_cnt);
 		auto rc1 = rcr.get();
 		auto rc2 = rcl.get();
 		flags.ldepth = rc1.max_depth;
@@ -251,11 +254,12 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	if (flags.level == 0) {
 		gwork_reset();
 	}
-	bool force_left, force_right;
+	bool force_fork;
+	bool remote_left, remote_right;
 	if (!is_leaf()) {
-		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
-		force_left = (!children[0].local()) || force_all;
-		force_right = (!children[1].local()) || force_all;
+		force_fork = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+		remote_left = !children[0].local();
+		remote_right = !children[1].local();
 	}
 	const auto &opts = options::get();
 	range prange;
@@ -297,10 +301,10 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		multipole_return ml, mr;
 		auto rcl = thread_if_avail([=](int stack_cnt) {
 			return children[0].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
-		}, true, part_end - part_begin, force_left, stack_cnt);
+		}, true, part_end - part_begin, force_fork, remote_left, stack_cnt);
 		auto rcr = thread_if_avail([=](int stack_cnt) {
 			return children[1].compute_multipoles(mrung, do_out, gwork_id, stack_cnt);
-		}, false, part_end - part_begin, force_right, stack_cnt);
+		}, false, part_end - part_begin, force_fork, remote_right, stack_cnt);
 		mr = rcr.get();
 		ml = rcl.get();
 		rc.N = ml.N + mr.N;
@@ -429,12 +433,13 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 	static const auto opts = options::get();
 	static const float h = opts.soft_len;
 	decltype(group_ranges)().swap(group_ranges);
-	bool force_left, force_right;
 	interaction_stats istats;
+	bool force_fork;
+	bool remote_left, remote_right;
 	if (!is_leaf()) {
-		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
-		force_left = (!children[0].local()) || force_all;
-		force_right = (!children[1].local()) || force_all;
+		force_fork = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+		remote_left = !children[0].local();
+		remote_right = !children[1].local();
 	}
 	if (flags.level == 0) {
 		reset_node_cache();
@@ -583,10 +588,10 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
 			return children[0].kick_fmm(std::move(dchecklist), std::move(echecklist), multixdouble, L, min_rung, do_out, stack_cnt);
-		}, true, part_end - part_begin, force_left, stack_cnt);
+		}, true, part_end - part_begin, force_fork, remote_left, stack_cnt);
 		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
 			return children[1].kick_fmm(std::move(dchecklist), std::move(echecklist), multixdouble, L, min_rung, do_out, stack_cnt);
-		}, false, part_end - part_begin, force_right, stack_cnt);
+		}, false, part_end - part_begin, force_fork, remote_right, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 		istats += rc_r;
@@ -763,11 +768,12 @@ void tree::find_groups(std::vector<check_pair> checklist, int stack_cnt) {
 		part_vect_reset();
 		trash_checkptrs();
 	}
-	bool force_left, force_right;
+	bool force_fork;
+	bool remote_left, remote_right;
 	if (!is_leaf()) {
-		const bool force_all = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
-		force_left = (!children[0].local()) || force_all;
-		force_right = (!children[1].local()) || force_all;
+		force_fork = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+		remote_left = !children[0].local();
+		remote_right = !children[1].local();
 	}
 
 	if (part_end - part_begin == 0) {
@@ -808,10 +814,10 @@ void tree::find_groups(std::vector<check_pair> checklist, int stack_cnt) {
 	if (!is_leaf()) {
 		auto rc_l_fut = thread_if_avail([=](int stack_cnt) {
 			return children[0].find_groups(std::move(checklist), stack_cnt);
-		}, true, part_end - part_begin, force_left, stack_cnt);
+		}, true, part_end - part_begin, force_fork, remote_left, stack_cnt);
 		auto rc_r_fut = thread_if_avail([&](int stack_cnt) {
 			return children[1].find_groups(std::move(checklist), stack_cnt);
-		}, false, part_end - part_begin, force_right, stack_cnt);
+		}, false, part_end - part_begin, force_fork, remote_right, stack_cnt);
 		const auto rc_r = rc_r_fut.get();
 		const auto rc_l = rc_l_fut.get();
 	} else {
@@ -893,7 +899,7 @@ std::uint64_t tree::get_flop() {
 			futs.push_back(hpx::async < get_flop_action > (localities[i]));
 		}
 	}
-	if( options::get().cuda) {
+	if (options::get().cuda) {
 		flop += cuda_reset_flop();
 	}
 	auto total = (std::uint64_t) flop;
