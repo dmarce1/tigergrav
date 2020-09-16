@@ -31,7 +31,7 @@ static std::vector<hpx::id_type> localities;
 static int myid;
 
 #define POS_CACHE_SIZE 1024
-static std::unordered_map<part_iter, hpx::shared_future<std::vector<vect<pos_type>>>> pos_cache[POS_CACHE_SIZE];
+static std::unordered_map<std::pair<part_iter,part_iter>, hpx::shared_future<std::vector<vect<pos_type>>>, pair_hash> pos_cache[POS_CACHE_SIZE];
 static mutex_type pos_cache_mtx[POS_CACHE_SIZE];
 
 static std::unordered_map<part_iter, hpx::shared_future<std::vector<particle_group_info>>> group_cache[POS_CACHE_SIZE];
@@ -703,19 +703,20 @@ void part_vect_init() {
 inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_iter b, part_iter e) {
 	const int index = (b / sizeof(particle)) % POS_CACHE_SIZE;
 	std::unique_lock<mutex_type> lock(pos_cache_mtx[index]);
-	auto iter = pos_cache[index].find(b);
+	const auto key = std::make_pair(b,e);
+	auto iter = pos_cache[index].find(key);
 	if (iter == pos_cache[index].end()) {
 		hpx::lcos::local::promise < hpx::future < std::vector<vect<pos_type>> >> promise;
 		auto fut = promise.get_future();
-		pos_cache[index][b] = fut.then([b](decltype(fut) f) {
+		pos_cache[index][key] = fut.then([b](decltype(fut) f) {
 			return f.get().get();
 		});
 		lock.unlock();
 		promise.set_value(hpx::async < part_vect_read_position_action > (localities[part_vect_locality_id(b)], b, e));
 	}
-	return hpx::async(hpx::launch::deferred, [b, index]() {
+	return hpx::async(hpx::launch::deferred, [key, index]() {
 		std::unique_lock < mutex_type > lock(pos_cache_mtx[index]);
-		auto future = pos_cache[index][b];
+		auto future = pos_cache[index][key];
 		lock.unlock();
 		return future.get();
 	});

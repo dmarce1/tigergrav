@@ -68,11 +68,6 @@ struct gwork_group {
 mutex_type groups_mtx[GROUP_TABLE_SIZE];
 std::unordered_map<int, gwork_group> groups[GROUP_TABLE_SIZE];
 
-struct pair_hash {
-	std::size_t operator()(std::pair<part_iter, part_iter> p) const {
-		return p.first;
-	}
-};
 
 struct context {
 	std::vector<std::pair<part_iter, part_iter>> tmp;
@@ -177,23 +172,23 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 			yfuts.resize(ymap.size());
 			int k = 0;
 			for (auto this_y : ymap) {
-		//		if (!part_vect_is_local(this_y.first)) {
+				if (!part_vect_is_local(this_y.first)) {
 					yfuts[k] = part_vect_read_position(this_y.first.first, this_y.first.second);
-		//		}
+				}
 				k++;
 			}
 			k = 0;
 			y.resize(next_index);
 			for (auto this_y : ymap) {
-//		//		if (part_vect_is_local(this_y.first)) {
-//					for (auto i = this_y.first.first; i < this_y.first.second; i++) {
-//						const auto &p = part_vect_read_local(i);
-//						y[this_y.second.first + i - this_y.first.first] = p.x;
-//					}
-//				} else {
+				if (part_vect_is_local(this_y.first)) {
+					for (auto i = this_y.first.first; i < this_y.first.second; i++) {
+						const auto &p = part_vect_read_local(i);
+						y[this_y.second.first + i - this_y.first.first] = p.x;
+					}
+				} else {
 					auto tmp = yfuts[k].get();
 					std::copy(tmp.begin(), tmp.end(), y.begin() + this_y.second.first);
-//				}
+				}
 				k++;
 			}
 			for (auto &unit : entry.cunits) {

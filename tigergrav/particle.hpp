@@ -78,4 +78,11 @@ I bisect(I begin, I end, F &&below) {
 	return hi;
 }
 
+
+struct pair_hash {
+	std::size_t operator()(std::pair<part_iter, part_iter> p) const {
+		return p.first * p.second;
+	}
+};
+
 #endif /* TIGERGRAV_PARTICLE_HPP_ */
