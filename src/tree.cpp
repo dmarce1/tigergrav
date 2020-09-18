@@ -4,6 +4,7 @@
 #include <tigergrav/groups.hpp>
 #include <tigergrav/memory.hpp>
 #include <tigergrav/gravity_cuda.hpp>
+#include <tigergrav/timer.hpp>
 
 #include <atomic>
 #include <algorithm>
@@ -553,24 +554,35 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			}
 		}
 	}
+	auto t = timer_start();
 	dmulti_srcs.resize(0);
 	for (auto &v : dmulti_futs) {
 		dmulti_srcs.push_back(v.get());
 	}
+	timer_stop(t,"multi_srcs");
 	flop += gravity_CC_direct(L, multi.x, dmulti_srcs, do_out);
-	flop += gravity_CP_direct(L, multi.x, part_vect_read_positions(dsource_iters), do_out);
+	t = timer_start();
+	auto pos = part_vect_read_positions(dsource_iters);
+	timer_stop(t,"part_vect_read_positions");
+	flop += gravity_CP_direct(L, multi.x, std::move(pos), do_out);
 	istats.CC_direct += dmulti_srcs.size();
 	istats.CP_direct += dsource_count;
 	if (opts.ewald) {
+		t = timer_start();
 		emulti_srcs.resize(0);
 		for (auto &v : emulti_futs) {
 			emulti_srcs.push_back(v.get());
 		}
+		timer_stop(t,"multi_srcs");
 		flop += gravity_CC_ewald(L, multi.x, emulti_srcs, do_out);
-		flop += gravity_CP_ewald(L, multi.x, part_vect_read_positions(esource_iters), do_out);
+		t = timer_start();
+		auto pos = part_vect_read_positions(esource_iters);
+		timer_stop(t,"part_vect_read_positions");
+		flop += gravity_CP_ewald(L, multi.x, std::move(pos), do_out);
 		istats.CC_ewald += emulti_srcs.size();
 		istats.CP_ewald += esource_count;
 	}
+	t = timer_start();
 	for (auto &f : dfuts) {
 		auto c = f.get();
 		next_dchecklist.push_back(c->children[0]);
@@ -581,6 +593,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		next_echecklist.push_back(c->children[0]);
 		next_echecklist.push_back(c->children[1]);
 	}
+	timer_stop(t,"checklist");
 	std::swap(dchecklist, next_dchecklist);
 	std::swap(echecklist, next_echecklist);
 	next_dchecklist.resize(0);
@@ -631,11 +644,13 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 					}
 				}
 			}
+			t = timer_start();
 			for (auto &f : dfuts) {
 				auto c = f.get();
 				next_dchecklist.push_back(c->children[0]);
 				next_dchecklist.push_back(c->children[1]);
 			}
+			timer_stop(t, "checklist");
 			std::swap(dchecklist, next_dchecklist);
 			next_dchecklist.resize(0);
 		}
@@ -665,11 +680,13 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 						}
 					}
 				}
+				t = timer_start();
 				for (auto &f : efuts) {
 					auto c = f.get();
 					next_echecklist.push_back(c->children[0]);
 					next_echecklist.push_back(c->children[1]);
 				}
+				timer_stop(t, "checklist");
 				std::swap(echecklist, next_echecklist);
 				next_echecklist.resize(0);
 			}
@@ -719,10 +736,12 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			}
 		}
 
+		t = timer_start();
 		dmulti_srcs.resize(0);
 		for (auto &v : dmulti_futs) {
 			dmulti_srcs.push_back(v.get());
 		}
+		timer_stop(t, "multi_srcs");
 		if (!opts.cuda || dmulti_srcs.size() < 32) {
 			flop += gravity_PC_direct(*fptr, *xptr, dmulti_srcs, do_out);
 			dmulti_srcs.resize(0);
@@ -732,10 +751,12 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		istats.CP_direct += xptr->size() * dmulti_srcs.size();
 		istats.PP_direct += xptr->size() * dsource_count;
 		if (opts.ewald) {
+			t = timer_start();
 			emulti_srcs.resize(0);
 			for (auto &v : emulti_futs) {
 				emulti_srcs.push_back(v.get());
 			}
+			timer_stop(t, "multi_srcs");
 			flop += gravity_PC_ewald(*fptr, *xptr, emulti_srcs, do_out);
 //			printf( "%i\n", esource_iters.size());
 			flop += gravity_PP_ewald(*fptr, *xptr, part_vect_read_positions(esource_iters), do_out);

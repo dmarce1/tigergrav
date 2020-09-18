@@ -14,14 +14,12 @@
 #include <tigergrav/groups.hpp>
 #include <tigergrav/cosmo.hpp>
 #include <tigergrav/map.hpp>
+#include <tigergrav/timer.hpp>
 
 #include <algorithm>
 
 #include <fenv.h>
 
-double timer(void) {
-	return std::chrono::duration_cast < std::chrono::milliseconds > (std::chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
-}
 
 double fmm_time;
 double parts_per_sec;
@@ -328,6 +326,7 @@ int hpx_main(int argc, char *argv[]) {
 		show();
 //	root_ptr->output(t, oi);
 	}
+	timer_display();
 	return hpx::finalize();
 }
 

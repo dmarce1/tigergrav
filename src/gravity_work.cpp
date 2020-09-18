@@ -2,6 +2,7 @@
 #include <tigergrav/gravity_work.hpp>
 #include <tigergrav/options.hpp>
 #include <tigergrav/simd.hpp>
+#include <tigergrav/timer.hpp>
 #include <stack>
 
 #ifdef HPX_LITE
@@ -71,7 +72,7 @@ std::unordered_map<int, gwork_group> groups[GROUP_TABLE_SIZE];
 
 struct context {
 	std::vector<std::pair<part_iter, part_iter>> tmp;
-	std::unordered_map<std::pair<part_iter, part_iter>, std::pair<part_iter, part_iter>, pair_hash> ymap;
+	ymap_type ymap;
 	std::vector<hpx::future<std::vector<vect<pos_type>>>> yfuts;
 	pinned_vector<vect<pos_type>> y;
 	context() = default;
@@ -168,29 +169,31 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 					}
 				}
 			}
-
-			yfuts.resize(ymap.size());
-			int k = 0;
-			for (auto this_y : ymap) {
-				if (!part_vect_is_local(this_y.first)) {
-					yfuts[k] = part_vect_read_position(this_y.first.first, this_y.first.second);
-				}
-				k++;
-			}
-			k = 0;
 			y.resize(next_index);
-			for (auto this_y : ymap) {
-				if (part_vect_is_local(this_y.first)) {
-					for (auto i = this_y.first.first; i < this_y.first.second; i++) {
-						const auto &p = part_vect_read_local(i);
-						y[this_y.second.first + i - this_y.first.first] = p.x;
-					}
-				} else {
-					auto tmp = yfuts[k].get();
-					std::copy(tmp.begin(), tmp.end(), y.begin() + this_y.second.first);
-				}
-				k++;
-			}
+			auto time = timer_start();
+			part_vect_gather_positions( y, ymap).get();
+			timer_stop(time,"part_vect_gather_positions");
+//			yfuts.resize(ymap.size());
+//			int k = 0;
+//			for (auto this_y : ymap) {
+//				if (!part_vect_is_local(this_y.first)) {
+//					yfuts[k] = part_vect_read_position(this_y.first.first, this_y.first.second);
+//				}
+//				k++;
+//			}
+//			k = 0;
+//			for (auto this_y : ymap) {
+//				if (part_vect_is_local(this_y.first)) {
+//					for (auto i = this_y.first.first; i < this_y.first.second; i++) {
+//						const auto &p = part_vect_read_local(i);
+//						y[this_y.second.first + i - this_y.first.first] = p.x;
+//					}
+//				} else {
+//					auto tmp = yfuts[k].get();
+//					std::copy(tmp.begin(), tmp.end(), y.begin() + this_y.second.first);
+//				}
+//				k++;
+//			}
 			for (auto &unit : entry.cunits) {
 				if (unit.yiters.size()) {
 

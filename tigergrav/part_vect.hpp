@@ -6,6 +6,7 @@
 #include <tigergrav/range.hpp>
 #include <tigergrav/gravity.hpp>
 #include <tigergrav/time.hpp>
+#include <tigergrav/pinned_vector.hpp>
 
 #ifdef HPX_LITE
 #include <hpx/hpx_lite.hpp>
@@ -13,6 +14,7 @@
 #include <hpx/include/async.hpp>
 #endif
 
+#include <unordered_map>
 
 struct statistics {
 	vect<double> g;
@@ -56,7 +58,10 @@ struct kick_return {
 	}
 };
 
+using part_iter_pair = std::pair<part_iter,part_iter>;
+using ymap_type = std::unordered_map<part_iter_pair,part_iter_pair, pair_hash>;
 
+hpx::future<void> part_vect_gather_positions(pinned_vector<vect<pos_type>>&, ymap_type&);
 double part_vect_find_median(part_iter b, part_iter e, int dim);
 kick_return part_vect_kick_return();
 void part_vect_write_glass();

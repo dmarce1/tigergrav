@@ -31,7 +31,7 @@ static std::vector<hpx::id_type> localities;
 static int myid;
 
 #define POS_CACHE_SIZE 1024
-static std::unordered_map<std::pair<part_iter,part_iter>, hpx::shared_future<std::vector<vect<pos_type>>>, pair_hash> pos_cache[POS_CACHE_SIZE];
+static std::unordered_map<std::pair<part_iter, part_iter>, hpx::shared_future<std::vector<vect<pos_type>>>, pair_hash> pos_cache[POS_CACHE_SIZE];
 static mutex_type pos_cache_mtx[POS_CACHE_SIZE];
 
 static std::unordered_map<part_iter, hpx::shared_future<std::vector<particle_group_info>>> group_cache[POS_CACHE_SIZE];
@@ -66,6 +66,87 @@ inline particle& parts(part_iter i) {
 	}
 #endif
 	return particles[j];
+}
+
+std::vector<vect<pos_type>> part_vect_gather_positions_local(std::vector<part_iter_pair> iters) {
+	std::vector<vect<pos_type>> y;
+	std::size_t sz = 0;
+	for (const auto &i : iters) {
+		sz += i.second - i.first;
+	}
+	y.reserve(sz);
+	for (const auto &i : iters) {
+		for (auto j = i.first; j != i.second; j++) {
+			y.push_back(parts(j).x);
+		}
+	}
+	return y;
+}
+
+HPX_PLAIN_ACTION (part_vect_gather_positions_local);
+
+hpx::future<void> part_vect_gather_positions(pinned_vector<vect<pos_type>> &buf, ymap_type &ymap) {
+	const part_iter N = localities.size();
+	const part_iter M = options::get().problem_size;
+	using entry_type = std::pair<part_iter_pair,part_iter_pair>;
+	using request_type = std::vector<entry_type>;
+	using map_type = std::unordered_map<int,request_type>;
+	std::size_t buf_size = 0;
+	map_type map;
+	if (ymap.size() == 0) {
+		return hpx::make_ready_future();
+	}
+	for (const auto &iter : ymap) {
+		if (iter.first.second - iter.first.first) {
+			const auto imin = part_vect_locality_id(iter.first.first);
+			const auto imax = part_vect_locality_id(iter.first.second - 1);
+			buf_size = std::max(buf_size, iter.second.second);
+			for (int i = imin; i <= imax; i++) {
+				if (i != myid) {
+					const auto this_min = std::max(iter.first.first, i * M / N);
+					const auto this_max = std::min(iter.first.second, (i + 1) * M / N);
+					entry_type entry;
+					entry.first = std::make_pair(this_min, this_max);
+					entry.second.first = this_min - iter.first.first + iter.second.first;
+					entry.second.second = entry.second.first + this_max - this_min;
+					map[i].push_back(std::move(entry));
+				}
+			}
+		}
+	}
+	std::vector < hpx::future < std::vector<vect<pos_type>> >> futs;
+	for (const auto &iter : map) {
+		std::vector<part_iter_pair> req;
+		req.reserve(iter.second.size());
+		for (int i = 0; i < iter.second.size(); i++) {
+			req.push_back(iter.second[i].first);
+		}
+		futs.push_back(hpx::async < part_vect_gather_positions_local_action > (localities[iter.first], std::move(req)));
+	}
+	buf.resize(buf_size);
+	for (const auto &iter : ymap) {
+		if (iter.first.second - iter.first.first) {
+			const auto this_min = std::max(iter.first.first, myid * M / N);
+			const auto this_max = std::min(iter.first.second, (myid + 1) * M / N);
+			if (this_max > this_min) {
+				auto k = this_min - iter.first.first + iter.second.first;
+				for (auto j = this_min; j < this_max; j++) {
+					buf[k++] = parts(j).x;
+				}
+			}
+		}
+	}
+	int k = 0;
+	for (const auto &iter : map) {
+		auto req = futs[k++].get();
+		int l = 0;
+		for (int i = 0; i < iter.second.size(); i++) {
+			for (int j = iter.second[i].second.first; j < iter.second[i].second.second; j++) {
+				buf[j] = req[l++];
+			}
+		}
+	}
+	return hpx::make_ready_future();
 }
 
 kick_return part_vect_kick_return() {
@@ -617,7 +698,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 		for (int j = 0; j < NDIM; j++) {
 			for (int k = 0; k <= j; k++) {
 				const auto Xjk = dx[j] * dx[k];							// 6 OP
-				M(j, k) += mass * Xjk;									// 12 OP
+				M(j, k) += mass * Xjk;							// 12 OP
 				for (int l = 0; l <= k; l++) {
 					M(j, k, l) += mass * Xjk * dx[l];					// 30 OP
 				}
@@ -703,7 +784,7 @@ void part_vect_init() {
 inline hpx::future<std::vector<vect<pos_type>>> part_vect_read_pos_cache(part_iter b, part_iter e) {
 	const int index = (b / sizeof(particle)) % POS_CACHE_SIZE;
 	std::unique_lock<mutex_type> lock(pos_cache_mtx[index]);
-	const auto key = std::make_pair(b,e);
+	const auto key = std::make_pair(b, e);
 	auto iter = pos_cache[index].find(key);
 	if (iter == pos_cache[index].end()) {
 		hpx::lcos::local::promise < hpx::future < std::vector<vect<pos_type>> >> promise;
