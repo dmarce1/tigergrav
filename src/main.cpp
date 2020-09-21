@@ -68,7 +68,7 @@ std::pair<kick_return, interaction_stats> solve_gravity(tree_client root_ptr, ru
 		fmm_time_total += fmm_time;
 		fmm_parts_total += mrc.m.num_active;
 	}
-//	printf("fmm took %e seconds\n", timer() - start);
+	printf("fmm took %e seconds\n", timer() - start);
 	return std::make_pair(rc, istats);
 }
 
@@ -326,7 +326,7 @@ int hpx_main(int argc, char *argv[]) {
 		show();
 //	root_ptr->output(t, oi);
 	}
-	timer_display();
+//	timer_display();
 	return hpx::finalize();
 }
 

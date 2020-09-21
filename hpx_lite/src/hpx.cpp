@@ -213,6 +213,7 @@ void remote_action(int target, obuffer_type&& buffer) {
 int server(int argc, char* argv[]) {
 	obuffer_type buffer;
 	bool found_stuff;
+	std::uint64_t message_count = 0;
 	do {
 		found_stuff = false;
 		int rc;
@@ -231,6 +232,10 @@ int server(int argc, char* argv[]) {
 				rc = MPI_Recv(buffer.data(), count, MPI_BYTE, src, count, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 				HPX_MPI_CALL(rc);
 				auto buffer_ptr = std::make_shared < obuffer_type > (std::move(buffer));
+				message_count++;
+//				if( message_count % 1000 == 0 ) {
+//					printf( "%li\n", message_count);
+//				}
 				hpx::thread([=]() {
 					handle_incoming_message(src, *buffer_ptr);
 				}).detach();
