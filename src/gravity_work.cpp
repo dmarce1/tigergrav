@@ -170,9 +170,9 @@ std::uint64_t gwork_pp_complete(int id, std::vector<force> *g, std::vector<vect<
 				}
 			}
 			y.resize(next_index);
-			auto time = timer_start();
+	//		auto time = timer_start();
 			part_vect_gather_positions( y, ymap).get();
-			timer_stop(time,"part_vect_gather_positions");
+	//		timer_stop(time,"part_vect_gather_positions");
 //			yfuts.resize(ymap.size());
 //			int k = 0;
 //			for (auto this_y : ymap) {

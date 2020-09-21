@@ -34,6 +34,13 @@ struct future_data {
 			return data;
 		}
 	}
+	bool is_ready() const {
+		if (fut.valid()) {
+			return fut.is_ready();
+		} else {
+			return true;
+		}
+	}
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & data;

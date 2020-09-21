@@ -312,6 +312,10 @@ refine_return tree::refine(int stack_cnt) {
 multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int workid, int stack_cnt) {
 	if (flags.level == 0) {
 		gwork_reset();
+		reset_node_cache();
+		part_vect_reset();
+		trash_checkptrs();
+		trash_multi_srcs();
 	}
 	bool force_fork;
 	bool remote_left, remote_right;
@@ -491,12 +495,6 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		force_fork = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
 		remote_left = !children[0].local();
 		remote_right = !children[1].local();
-	}
-	if (flags.level == 0) {
-		reset_node_cache();
-		part_vect_reset();
-		trash_checkptrs();
-		trash_multi_srcs();
 	}
 
 	if ((part_end - part_begin == 0) || (!num_active && !do_out)) {

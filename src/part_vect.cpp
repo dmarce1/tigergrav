@@ -85,14 +85,33 @@ std::vector<vect<pos_type>> part_vect_gather_positions_local(std::vector<part_it
 
 HPX_PLAIN_ACTION (part_vect_gather_positions_local);
 
+using map_type = std::unordered_map<int,std::vector<std::pair<part_iter_pair,part_iter_pair>>>;
+std::stack<map_type> map_stack;
+mutex_type map_mtx;
+
+map_type pop_map() {
+	map_type map;
+	std::lock_guard<mutex_type> lock(map_mtx);
+	if (!map_stack.empty()) {
+		map = std::move(map_stack.top());
+		map_stack.pop();
+	}
+	return std::move(map);
+}
+
+void push_map(map_type &&map) {
+	std::lock_guard<mutex_type> lock(map_mtx);
+	map_stack.push(std::move(map));
+}
+
 hpx::future<void> part_vect_gather_positions(pinned_vector<vect<pos_type>> &buf, ymap_type &ymap) {
 	const part_iter N = localities.size();
 	const part_iter M = options::get().problem_size;
 	using entry_type = std::pair<part_iter_pair,part_iter_pair>;
 	using request_type = std::vector<entry_type>;
-	using map_type = std::unordered_map<int,request_type>;
 	std::size_t buf_size = 0;
-	map_type map;
+	auto map = pop_map();
+	map.clear();
 	if (ymap.size() == 0) {
 		return hpx::make_ready_future();
 	}
@@ -146,6 +165,7 @@ hpx::future<void> part_vect_gather_positions(pinned_vector<vect<pos_type>> &buf,
 			}
 		}
 	}
+	push_map(std::move(map));
 	return hpx::make_ready_future();
 }
 
