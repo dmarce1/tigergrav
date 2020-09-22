@@ -23,6 +23,11 @@ error compute_error(std::vector<output> test, std::vector<output> direct) {
 	if (test.size() != direct.size()) {
 		ERROR();
 	}
+	double norm = 0.0;
+	for (int i = 0; i < test.size(); i++) {
+		const auto gd = abs(test[i].g);
+		norm += gd;
+	}
 	for (int i = 0; i < test.size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			if (test[i].x[dim] != direct[i].x[dim]) {
@@ -31,10 +36,9 @@ error compute_error(std::vector<output> test, std::vector<output> direct) {
 			}
 		}
 		const auto dg = abs(test[i].g - direct[i].g);
-		const auto gd = abs(test[i].g);
-		const auto this_err = dg / gd;
+		const auto this_err = dg / norm * test.size();
 		err.g = err.g + test[i].g * opts.G / opts.problem_size;
-		err.err += this_err;
+		err.err += this_err * this_err;
 		if (top_errs.size() < test.size() / 100) {
 			top_errs.insert(this_err);
 		} else {
@@ -44,8 +48,9 @@ error compute_error(std::vector<output> test, std::vector<output> direct) {
 			}
 		}
 	}
-	err.g = err.g / test.size();
 	err.err /= test.size();
+	err.err = sqrt(err.err);
+	err.g = err.g / test.size();
 	err.err99 = *(top_errs.begin());
 	return err;
 }

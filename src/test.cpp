@@ -36,167 +36,144 @@ int main() {
 //		}
 //	}
 //
+	int flop = 0;
+	printf("D[0] = d0;\n");
+	for (int a = 0; a < NDIM; a++) {
+		flop += 1;
+		printf("D[%i] = dx[%i] * d1;\n", 1 + a, a);
+		for (int b = 0; b <= a; b++) {
+			flop += 1;
+			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
+			flop += 1;
+			printf("D[%i] = dxadxb * d2;\n", 4 + (int) map2[a][b]);
+			for (int c = 0; c <= b; c++) {
+				flop += 1;
+				printf("dxadxbdxc = dxadxb * dx[%i];\n", c);
+				flop += 1;
+				printf("D[%i] = dxadxbdxc * d3;\n", 10 + (int) map3[a][b][c]);
+				for (int d = 0; d <= c; d++) {
+					flop += 2;
+					printf("D[%i] = dxadxbdxc * dx[%i] * d4;\n", 20 + (int) map4[a][b][c][d], d);
+				}
+			}
+		}
+	}
+//
+	for (int a = 0; a < NDIM; a++) {
+		flop += 1;
+		printf("dxadxa = dx[%i] * dx[%i];\n", a, a);
+		flop += 1;
+		printf("D[%i] += d1;\n", 4 + (int) map2[a][a]);
+		flop += 3;
+		printf("D[%i] = fma(float(3)*dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][a], a, 10 + (int) map3[a][a][a]);
+		flop += 3;
+		printf("D[%i] = fma(float(6)*dxadxa, d3, D[%i]);\n", 20 + (int) map4[a][a][a][a], 20 + (int) map4[a][a][a][a]);
+		flop += 2;
+		printf("D[%i] = fma(float(2), d2, D[%i]);\n", 20 + (int) map4[a][a][a][a], 20 + (int) map4[a][a][a][a]);
+		flop += 1;
+		printf("D[%i] += d2;\n", 20 + (int) map4[a][a][a][a]);
+		for (int b = 0; b < a; b++) {
+			flop += 1;
+			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
+			flop += 1;
+			printf("threedxadxb = float(3) * dxadxb;\n");
+			flop += 2;
+			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][b], b, 10 + (int) map3[a][a][b]);
+			flop += 2;
+			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][b][b], a, 10 + (int) map3[a][b][b]);
+			flop += 2;
+			printf("D[%i] = fma(threedxadxb, d3, D[%i]);\n", 20 + (int) map4[a][a][a][b], 20 + (int) map4[a][a][a][b]);
+			flop += 2;
+			printf("D[%i] = fma(threedxadxb, d3, D[%i]);\n", 20 + (int) map4[a][b][b][b], 20 + (int) map4[a][b][b][b]);
+			flop += 1;
+			printf("D[%i] += d2;\n", 20 + (int) map4[a][a][b][b]);
+			flop += 3;
+			printf("D[%i] = fma(dx[%i] * dx[%i], d3, D[%i]);\n", 20 + (int) map4[a][a][b][b], b, b, 20 + (int) map4[a][a][b][b]);
+			flop += 2;
+			printf("D[%i] = fma(dxadxa, d3, D[%i]);\n", 20 + (int) map4[a][a][b][b], 20 + (int) map4[a][a][b][b]);
+			for (int c = 0; c < b; c++) {
+				flop += 3;
+				printf("D[%i] = fma(dx[%i] * dx[%i], d3, D[%i]);\n", 20 + (int) map4[a][a][b][c], b, c, 20 + (int) map4[a][a][b][c]);
+				flop += 2;
+				printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][b][c][c], 20 + (int) map4[a][b][c][c]);
+				flop += 3;
+				printf("D[%i] = fma(dx[%i] * dx[%i],  d3, D[%i]);\n", 20 + (int) map4[a][b][b][c], a, c, 20 + (int) map4[a][b][b][c]);
+			}
+		}
+	}
+	printf("FLOP = %i\n", flop);
+
 //	int flop = 0;
-////	D() = d0;													// 1
-//	printf("D[0] = d0;\n");
-//	for (int a = 0; a < NDIM; a++) {
-////		auto &Da = D(a);
-////		Da = dx[a] * d1;										// 3
-//		flop += 1;
-//		printf("D[%i] = dx[%i] * d1;\n", 1 + a, a);
-//		for (int b = 0; b <= a; b++) {
-////			auto &Dab = D(a, b);
-////			const auto dxadxb = dx[a] * dx[b];					// 6
-//			//			Dab = dxadxb * d2;									// 6
-//			flop += 1;
-//			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
-//			flop += 1;
-//			printf("D[%i] = dxadxb * d2;\n", 4 + (int) map2[a][b]);
-//			for (int c = 0; c <= b; c++) {
-////				auto &Dabc = D(a, b, c);
-////				const auto dxadxbdxc = dxadxb * dx[c];			// 10
-////				Dabc = dxadxbdxc * d3;							// 10
-//				flop += 1;
-//				printf("dxadxbdxc = dxadxb * dx[%i];\n", c);
-//				flop += 1;
-//				printf("D[%i] = dxadxbdxc * d3;\n", 10 + (int) map3[a][b][c]);
-//				for (int d = 0; d <= c; d++) {
-////					auto &Dabcd = D(a, b, c, d);
-////					Dabcd = dxadxbdxc * dx[d] * d4;				// 30
-//					flop += 2;
-//					printf("D[%i] = dxadxbdxc * dx[%i] * d4;\n", 20 + (int) map4[a][b][c][d], d);
+//	for (int a = 0; a < 3; a++) {
+//		for (int b = a; b < 3; b++) {
+////			L0() = fma(M2(a, b) * D(a, b), expansion_factor(a, b), L0());						// 36
+//			if (expansion_factor(a, b) == 1.0) {
+//				flop += 2;
+//				printf("L[0] = fma( M2[%i], D[%i], L[0]);\n", 1 + (int) (int) map2[a][b], 4 + (int) (int) map2[a][b]);
+//			} else {
+//				flop += 3;
+//				printf("L[0] = fma( M2[%i], D[%i] * float(%.9e), L[0]);\n", 1 + (int) (int) map2[a][b], 4 + (int) (int) map2[a][b], expansion_factor(a, b));
+//			}
+//			for (int c = b; c < 3; c++) {
+////				L0() = fma(-M2(a, b, c) * D(a, b, c), expansion_factor(a, b, c), L0());			// 60
+//				if (expansion_factor(a, b, c) == 1.0) {
+//					flop += 3;
+//					printf("L[0] = fma( -M2[%i], D[%i], L[0]);\n", 7 + (int) map3[a][b][c], 10 + (int) map3[a][b][c]);
+//				} else {
+//					flop += 4;
+//					printf("L[0] = fma( -M2[%i], D[%i] * float(%.9e), L[0]);\n", 7 + (int) map3[a][b][c], 10 + (int) map3[a][b][c], expansion_factor(a, b, c));
 //				}
 //			}
 //		}
 //	}
-////
-//	for (int a = 0; a < NDIM; a++) {
-////		auto &Daa = D(a, a);
-////		auto &Daaa = D(a, a, a);
-////		auto &Daaaa = D(a, a, a, a);
-////		Daa += d1;												// 3
-//		flop += 1;
-//		printf("D[%i] += d1;\n", 4 + (int) map2[a][a]);
-////		Daaa = fma(dx[a], d2, Daaa);							// 3
-//		flop += 2;
-//		printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][a], a, 10 + (int) map3[a][a][a]);
-//		//		Daaaa = fma(dx[a] * dx[a], d3, Daaaa);				// 6
-//		flop += 3;
-//		printf("D[%i] = fma(dx[%i]*dx[%i], d3, D[%i]);\n", 20 + (int) map4[a][a][a][a], a, a, 20 + (int) map4[a][a][a][a]);
-//		//	//		Daaaa = fma(two, d2, Daaaa);							// 3
-//		printf("D[%i] = fma(float(2.0), d2, D[%i]);\n", 20 + (int) map4[a][a][a][a], 20 + (int) map4[a][a][a][a]);
-//		for (int b = 0; b <= a; b++) {
-////			auto &Daab = D(a, a, b);
-////			auto &Dabb = D(a, b, b);
-////			auto &Daaab = D(a, a, a, b);
-////			auto &Daabb = D(a, a, b, b);
-////			auto &Dabbb = D(a, b, b, b);
-////			const auto dxadxb = dx[a] * dx[b];					// 6
-//			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
-////			Daab = fma(dx[b], d2, Daab);						// 6
-//			flop += 2;
-//			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][b], b, 10 + (int) map3[a][a][b]);
-////			Dabb = fma(dx[a], d2, Dabb);						// 6
-//			flop += 2;
-//			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][b][b], a, 10 + (int) map3[a][b][b]);
-////			Daaab = fma(dxadxb, d3, Daaab);					// 6
-//			flop += 2;
-//			printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][a][a][b], 20 + (int) map4[a][a][a][b]);
-////			Dabbb = fma(dxadxb, d3, Dabbb);					// 6
-//			flop += 2;
-//			printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][b][b][b], 20 + (int) map4[a][b][b][b]);
-////			Daabb += d2;										// 6
-//			flop += 1;
-//			printf("D[%i] += d2;\n", 20 + (int) map4[a][a][b][b]);
-//			for (int c = 0; c <= b; c++) {
-//				//			auto &Daabc = D(a, a, b, c);
-//				//			auto &Dabcc = D(a, b, c, c);
-//				//			auto &Dabbc = D(a, b, b, c);
-//				//			Daabc = fma(dx[b], dx[c] * d3, Daabc);		// 20
-//				flop += 3;
-//				printf("D[%i] = fma(dx[%i], dx[%i] * d3, D[%i]);\n", 20 + (int) map4[a][a][b][c], b, c, 20 + (int) map4[a][a][b][c]);
-//				//			Dabcc = fma(dxadxb, d3, Dabcc);				// 10
-//				printf("D[%i] = fma(dxadxb, d3, D[%i]);\n", 20 + (int) map4[a][b][c][c], 20 + (int) map4[a][b][c][c]);
-////				Dabbc = fma(dx[a], dx[c] * d3, Dabbc);		// 20
-//				flop += 3;
-//				printf("D[%i] = fma(dx[%i], dx[%i] * d3, D[%i]);\n", 20 + (int) map4[a][b][b][c], a, c, 20 + (int) map4[a][b][b][c]);
+//
+//	for (int a = 0; a < 3; a++) {
+////		auto &La = L(a);
+//		for (int b = 0; b < 3; b++) {
+//			for (int c = b; c < 3; c++) {
+////				La = fma(M2(c, b) * D(a, b, c), expansion_factor(c, b), La);				// 108
+//				if (expansion_factor(b, c) == 1.0) {
+//					flop += 2;
+//					printf("L[%i] = fma( M2[%i], D[%i], L[%i]);\n", 1 + a, 1 + (int) map2[c][b], 10 + (int) map3[a][b][c], 1 + a);
+//				} else {
+//					flop += 3;
+//					printf("L[%i] = fma( M2[%i], D[%i] * float(%.9e), L[%i]);\n", 1 + a, 1 + (int) map2[c][b], 10 + (int) map3[a][b][c], expansion_factor(b, c),
+//							1 + a);
+//				}
+//				for (int d = c; d < 3; d++) {
+//					//				La = fma(-M2(b, c, d) * D(a, b, c, d), expansion_factor(b, c, d), La);	//180
+//					if (expansion_factor(b, c, d) == 1.0) {
+//						flop += 3;
+//						printf("L[%i] = fma( -M2[%i], D[%i], L[%i]);\n", 1 + a, 7 + (int) map3[b][c][d], 20 + (int) map4[a][b][c][d], 1 + a);
+//					} else {
+//						flop += 4;
+//						printf("L[%i] = fma( -M2[%i], D[%i] * float(%.9e), L[%i]);\n", 1 + a, 7 + (int) map3[b][c][d], 20 + (int) map4[a][b][c][d],
+//								expansion_factor(b, c, d), 1 + a);
+//					}
+//				}
 //			}
 //		}
 //	}
-//	printf( "FLOP = %i\n", flop);
-
-	int flop = 0;
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-//			L0() = fma(M2(a, b) * D(a, b), expansion_factor(a, b), L0());						// 36
-			if (expansion_factor(a, b) == 1.0) {
-				flop += 2;
-				printf("L[0] = fma( M2[%i], D[%i], L[0]);\n", 1 + (int) (int) map2[a][b], 4 + (int) (int) map2[a][b]);
-			} else {
-				flop += 3;
-				printf("L[0] = fma( M2[%i], D[%i] * float(%.9e), L[0]);\n", 1 + (int) (int) map2[a][b], 4 + (int) (int) map2[a][b], expansion_factor(a, b));
-			}
-			for (int c = b; c < 3; c++) {
-//				L0() = fma(-M2(a, b, c) * D(a, b, c), expansion_factor(a, b, c), L0());			// 60
-				if (expansion_factor(a, b, c) == 1.0) {
-					flop += 3;
-					printf("L[0] = fma( -M2[%i], D[%i], L[0]);\n", 7 + (int) map3[a][b][c], 10 + (int) map3[a][b][c]);
-				} else {
-					flop += 4;
-					printf("L[0] = fma( -M2[%i], D[%i] * float(%.9e), L[0]);\n", 7 + (int) map3[a][b][c], 10 + (int) map3[a][b][c], expansion_factor(a, b, c));
-				}
-			}
-		}
-	}
-
-
-	for (int a = 0; a < 3; a++) {
-//		auto &La = L(a);
-		for (int b = 0; b < 3; b++) {
-			for (int c = b; c < 3; c++) {
-//				La = fma(M2(c, b) * D(a, b, c), expansion_factor(c, b), La);				// 108
-				if (expansion_factor(b, c) == 1.0) {
-					flop += 2;
-					printf("L[%i] = fma( M2[%i], D[%i], L[%i]);\n", 1 + a, 1 + (int) map2[c][b], 10 + (int) map3[a][b][c], 1 + a);
-				} else {
-					flop += 3;
-					printf("L[%i] = fma( M2[%i], D[%i] * float(%.9e), L[%i]);\n", 1 + a, 1 + (int) map2[c][b], 10 + (int) map3[a][b][c], expansion_factor(b, c),
-							1 + a);
-				}
-				for (int d = c; d < 3; d++) {
-					//				La = fma(-M2(b, c, d) * D(a, b, c, d), expansion_factor(b, c, d), La);	//180
-					if (expansion_factor(b, c, d) == 1.0) {
-						flop += 3;
-						printf("L[%i] = fma( -M2[%i], D[%i], L[%i]);\n", 1 + a, 7 + (int) map3[b][c][d], 20 + (int) map4[a][b][c][d], 1 + a);
-					} else {
-						flop += 4;
-						printf("L[%i] = fma( -M2[%i], D[%i] * float(%.9e), L[%i]);\n", 1 + a, 7 + (int) map3[b][c][d], 20 + (int) map4[a][b][c][d],
-								expansion_factor(b, c, d), 1 + a);
-					}
-				}
-			}
-		}
-	}
-
-	for (int a = 0; a < 3; a++) {
-		for (int b = a; b < 3; b++) {
-//			auto &Lab = L(a, b);
-			for (int c = 0; c < 3; c++) {
-				for (int d = c; d < 3; d++) {
-//					Lab = fma(M2(c, d) * D(a, b, c, d), expansion_factor(c, d), Lab);	 // 216
-					if (expansion_factor(c, d) == 1.0) {
-						flop += 2;
-						printf("L[%i] = fma( M2[%i], D[%i], L[%i]);\n", 4 + (int) map2[a][b], 1 + (int) map2[c][d], 20 + (int) map4[a][b][c][d],
-								4 + (int) map2[a][b]);
-					} else {
-						flop += 3;
-						printf("L[%i] = fma( M2[%i], D[%i] * float(%.9e), L[%i]);\n", 4 + (int) map2[a][b], 1 + (int) map2[c][d], 20 + (int) map4[a][b][c][d],
-								expansion_factor(c, d), 4 + (int) map2[a][b]);
-					}
-				}
-			}
-		}
-	}
-	printf( "%i\n", flop);
+//
+//	for (int a = 0; a < 3; a++) {
+//		for (int b = a; b < 3; b++) {
+////			auto &Lab = L(a, b);
+//			for (int c = 0; c < 3; c++) {
+//				for (int d = c; d < 3; d++) {
+////					Lab = fma(M2(c, d) * D(a, b, c, d), expansion_factor(c, d), Lab);	 // 216
+//					if (expansion_factor(c, d) == 1.0) {
+//						flop += 2;
+//						printf("L[%i] = fma( M2[%i], D[%i], L[%i]);\n", 4 + (int) map2[a][b], 1 + (int) map2[c][d], 20 + (int) map4[a][b][c][d],
+//								4 + (int) map2[a][b]);
+//					} else {
+//						flop += 3;
+//						printf("L[%i] = fma( M2[%i], D[%i] * float(%.9e), L[%i]);\n", 4 + (int) map2[a][b], 1 + (int) map2[c][d], 20 + (int) map4[a][b][c][d],
+//								expansion_factor(c, d), 4 + (int) map2[a][b]);
+//					}
+//				}
+//			}
+//		}
+//	}
+//	printf("%i\n", flop);
 	return 0;
 }
