@@ -162,7 +162,7 @@ CUDA_EXPORT int green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, co
 	D[28] = fma(dx[1] * dx[0], d3, D[28]);
 	D[24] = fma(dxadxb, d3, D[24]);
 	D[27] = fma(dx[2] * dx[0],  d3, D[27]);
-	return 151;
+	return 145;
 }
 
 template<class T>  // 576
@@ -267,7 +267,7 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 	D[28] = fma(dx[1] * dx[0], d3, D[28]);
 	D[24] = fma(dxadxb, d3, D[24]);
 	D[27] = fma(dx[2] * dx[0],  d3, D[27]);
-	return 151 + 35;
+	return 145 + 35;
 }
 
 template<class T>
