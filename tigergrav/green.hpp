@@ -119,13 +119,13 @@ CUDA_EXPORT int green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, co
 	D[34] = dxadxbdxc * dx[2] * d4;
 	dxadxa = dx[0] * dx[0];
 	D[4] += d1;
-	D[10] = fma(T(3)*dx[0], d2, D[10]);
-	D[20] = fma(T(6)*dxadxa, d3, D[20]);
+	D[10] = fma(T(3) * dx[0], d2, D[10]);
+	D[20] = fma(T(6) * dxadxa, d3, D[20]);
 	D[20] = fma(T(3), d2, D[20]);
 	dxadxa = dx[1] * dx[1];
 	D[7] += d1;
-	D[16] = fma(T(3)*dx[1], d2, D[16]);
-	D[30] = fma(T(6)*dxadxa, d3, D[30]);
+	D[16] = fma(T(3) * dx[1], d2, D[16]);
+	D[30] = fma(T(6) * dxadxa, d3, D[30]);
 	D[30] = fma(T(3), d2, D[30]);
 	dxadxb = dx[1] * dx[0];
 	threedxadxb = T(3) * dxadxb;
@@ -138,8 +138,8 @@ CUDA_EXPORT int green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, co
 	D[23] = fma(dxadxa, d3, D[23]);
 	dxadxa = dx[2] * dx[2];
 	D[9] += d1;
-	D[19] = fma(T(3)*dx[2], d2, D[19]);
-	D[34] = fma(T(6)*dxadxa, d3, D[34]);
+	D[19] = fma(T(3) * dx[2], d2, D[19]);
+	D[34] = fma(T(6) * dxadxa, d3, D[34]);
 	D[34] = fma(T(3), d2, D[34]);
 	dxadxb = dx[2] * dx[0];
 	threedxadxb = T(3) * dxadxb;
@@ -161,7 +161,7 @@ CUDA_EXPORT int green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, co
 	D[32] = fma(dxadxa, d3, D[32]);
 	D[28] = fma(dx[1] * dx[0], d3, D[28]);
 	D[24] = fma(dxadxb, d3, D[24]);
-	D[27] = fma(dx[2] * dx[0],  d3, D[27]);
+	D[27] = fma(dx[2] * dx[0], d3, D[27]);
 	return 145;
 }
 
@@ -201,7 +201,7 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 	D[22] = fma(dxadxbdxc * dx[0], d4, D[22]);
 	dxadxb = dx[2] * dx[1];
 	D[8] = fma(dxadxb, d2, D[8]);
-	dxadxbdxc =dxadxb * dx[0];
+	dxadxbdxc = dxadxb * dx[0];
 	D[14] = fma(dxadxbdxc, d3, D[14]);
 	D[24] = fma(dxadxbdxc * dx[0], d4, D[24]);
 	dxadxbdxc = dxadxb * dx[1];
@@ -224,13 +224,13 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 	D[34] = fma(dxadxbdxc * dx[2], d4, D[34]);
 	dxadxa = dx[0] * dx[0];
 	D[4] += d1;
-	D[10] = fma(T(3)*dx[0], d2, D[10]);
-	D[20] = fma(T(6)*dxadxa, d3, D[20]);
+	D[10] = fma(T(3) * dx[0], d2, D[10]);
+	D[20] = fma(T(6) * dxadxa, d3, D[20]);
 	D[20] = fma(T(3), d2, D[20]);
 	dxadxa = dx[1] * dx[1];
 	D[7] += d1;
-	D[16] = fma(T(3)*dx[1], d2, D[16]);
-	D[30] = fma(T(6)*dxadxa, d3, D[30]);
+	D[16] = fma(T(3) * dx[1], d2, D[16]);
+	D[30] = fma(T(6) * dxadxa, d3, D[30]);
 	D[30] = fma(T(3), d2, D[30]);
 	dxadxb = dx[1] * dx[0];
 	threedxadxb = T(3) * dxadxb;
@@ -243,8 +243,8 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 	D[23] = fma(dxadxa, d3, D[23]);
 	dxadxa = dx[2] * dx[2];
 	D[9] += d1;
-	D[19] = fma(T(3)*dx[2], d2, D[19]);
-	D[34] = fma(T(6)*dxadxa, d3, D[34]);
+	D[19] = fma(T(3) * dx[2], d2, D[19]);
+	D[34] = fma(T(6) * dxadxa, d3, D[34]);
 	D[34] = fma(T(3), d2, D[34]);
 	dxadxb = dx[2] * dx[0];
 	threedxadxb = T(3) * dxadxb;
@@ -266,12 +266,12 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 	D[32] = fma(dxadxa, d3, D[32]);
 	D[28] = fma(dx[1] * dx[0], d3, D[28]);
 	D[24] = fma(dxadxb, d3, D[24]);
-	D[27] = fma(dx[2] * dx[0],  d3, D[27]);
+	D[27] = fma(dx[2] * dx[0], d3, D[27]);
 	return 145 + 35;
 }
 
 template<class T>
-CUDA_EXPORT inline int green_direct(expansion<T>& D, const vect<T> &dX) {
+CUDA_EXPORT inline int green_direct(expansion<T> &D, const vect<T> &dX) {
 	static const T r0 = 1.0e-9;
 //	static const T H = options::get().soft_len;
 	static const T nthree(-3.0);
@@ -410,19 +410,9 @@ CUDA_EXPORT int green_ewald(expansion<float>& D, const vect<float> &X) {
 
 	expansion<float> D1;
 	flop += green_direct(D1, X);
-	const float rinv = -D1();														// 1
-	D() = (M_PI / 4.0) + D() + zmask * rinv;										// 3
-	for (int a = 0; a < NDIM; a++) {
-		D(a) = (D(a) - zmask * D1(a));												// 6
-		for (int b = 0; b <= a; b++) {
-			D(a, b) = (D(a, b) - zmask * D1(a, b));									// 12
-			for (int c = 0; c <= b; c++) {
-				D(a, b, c) = (D(a, b, c) - zmask * D1(a, b, c));					// 20
-				for (int d = 0; d <= c; d++) {
-					D(a, b, c, d) = (D(a, b, c, d) - zmask * D1(a, b, c, d));		// 30
-				}
-			}
-		}
+	D() = (M_PI / 4.0) + D();
+	for( int i = 0; i < LP; i++) {
+		D[i] = fma(-zmask, D1[i], D[i]);
 	}
 	flop += 72;
 	return flop;
@@ -432,7 +422,7 @@ CUDA_EXPORT int green_ewald(expansion<float>& D, const vect<float> &X) {
 #ifndef __CUDACC__
 
 template<class T>
-inline int green_ewald(expansion<T>& rcD, const vect<T> &X) {		// 251176
+inline int green_ewald(expansion<T> &rcD, const vect<T> &X) {		// 251176
 	static const periodic_parts periodic;
 	expansion<T> D;
 	D = 0.0;
@@ -512,20 +502,10 @@ inline int green_ewald(expansion<T>& rcD, const vect<T> &X) {		// 251176
 		rcD[i] = D[i];																	// 70
 	}
 	expansion<T> D1;
-	green_direct(D1,X);													// 167
-	const T rinv = -D1();														// 2
-	rcD() = T(M_PI / 4.0) + rcD() + zmask * rinv;												// 2
-	for (int a = 0; a < NDIM; a++) {
-		rcD(a) = (rcD(a) - zmask * D1(a));												// 6
-		for (int b = 0; b <= a; b++) {
-			rcD(a, b) = (rcD(a, b) - zmask * D1(a, b));									// 12
-			for (int c = 0; c <= b; c++) {
-				rcD(a, b, c) = (rcD(a, b, c) - zmask * D1(a, b, c));					// 20
-				for (int d = 0; d <= c; d++) {
-					rcD(a, b, c, d) = (rcD(a, b, c, d) - zmask * D1(a, b, c, d));		// 30
-				}
-			}
-		}
+	green_direct(D1, X);													// 167
+	rcD() = T(M_PI / 4.0) + rcD();
+	for (int i = 0; i < LP; i++) {
+		rcD[i] = fma(-zmask, D1[i], rcD[i]);
 	}
 	return 251176;
 }
