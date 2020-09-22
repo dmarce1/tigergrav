@@ -69,9 +69,7 @@ int main() {
 		flop += 3;
 		printf("D[%i] = fma(float(6)*dxadxa, d3, D[%i]);\n", 20 + (int) map4[a][a][a][a], 20 + (int) map4[a][a][a][a]);
 		flop += 2;
-		printf("D[%i] = fma(float(2), d2, D[%i]);\n", 20 + (int) map4[a][a][a][a], 20 + (int) map4[a][a][a][a]);
-		flop += 1;
-		printf("D[%i] += d2;\n", 20 + (int) map4[a][a][a][a]);
+		printf("D[%i] = fma(float(3), d2, D[%i]);\n", 20 + (int) map4[a][a][a][a], 20 + (int) map4[a][a][a][a]);
 		for (int b = 0; b < a; b++) {
 			flop += 1;
 			printf("dxadxb = dx[%i] * dx[%i];\n", a, b);
