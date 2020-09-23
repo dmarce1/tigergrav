@@ -302,20 +302,17 @@ CUDA_EXPORT int green_ewald(expansion<float>& D, const vect<float> &X) {
 	const float fouroversqrtpi(4.0 / sqrt(M_PI));
 	static const float one(1.0);
 	static const float two(2.0);
-	static const float four(4.0);
-	static const float eight(8.0);
-	static const float fifteen(15.0);
-	static const float thirtyfive(35.0);
-	static const float fourty(40.0);
-	static const float fiftysix(56.0);
-	static const float sixtyfour(64.0);
+	static const float nthree(-3.0);
+	static const float nfour(-4.0);
+	static const float nfive(-5.0);
+	static const float nseven(-7.0);
+	static const float neight(-8.0);
 	static const float p(0.3275911);
 	static const float a1(0.254829592);
 	static const float a2(-0.284496736);
 	static const float a3(1.421413741);
 	static const float a4(-1.453152027);
 	static const float a5(1.061405429);
-	static const float onehundredfive(105.0);
 	static const float rcut(1.0e-6);
 	const float r = abs(X);				// 5
 	const float zmask = r > rcut;		// 1
@@ -331,8 +328,8 @@ CUDA_EXPORT int green_ewald(expansion<float>& D, const vect<float> &X) {
 		if (r2 < (EWALD_RADIUS_CUTOFF * EWALD_RADIUS_CUTOFF)) {	// 1
 			const float r = sqrt(r2);					// 1
 			const float r4 = r2 * r2;					// 1
-			const float cmask = 1.0 - (n.dot(n) > 0.0); // 7
-			const float mask = (1.0 - (1.0 - zmask) * cmask); // 3
+			const float cmask = one - (n.dot(n) > 0.0); // 7
+			const float mask = (one - (one - zmask) * cmask); // 3
 			const float rinv = mask / max(r, rcut);		// 2
 			const float r2inv = rinv * rinv;			// 1
 			const float r3inv = r2inv * rinv;			// 1
@@ -344,14 +341,18 @@ CUDA_EXPORT int green_ewald(expansion<float>& D, const vect<float> &X) {
 			const float t3 = t2 * t1;								// 1
 			const float t4 = t2 * t2;								// 1
 			const float t5 = t2 * t3;								// 1
-			const float exp0 = expf(-four * r * r);					// 27
+			const float exp0 = expf(nfour * r2);					// 27
 			const float erfc0 = (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * exp0; 			// 10
 			const float expfactor = fouroversqrtpi * r * exp0; 	// 2
+			const float e1 = expfactor * r3inv;
+			const float e2 = neight * e1;
+			const float e3 = neight * e2;
+			const float e4 = neight * e3;
 			const float d0 = -erfc0 * rinv;							// 2
-			const float d1 = (expfactor + erfc0) * r3inv;			// 2
-			const float d2 = -fma(expfactor, fma(eight, r2, three), three * erfc0) * r5inv;		// 7
-			const float d3 = fma(expfactor, (fifteen + fma(fourty, r2, sixtyfour * r4)), fifteen * erfc0) * r7inv;		// 8
-			const float d4 = -fma(expfactor, fma(eight * r2, (thirtyfive + fma(fiftysix, r2, sixtyfour * r4)), onehundredfive), onehundredfive * erfc0) * r9inv;// 12
+			const float d1 = fma(-d0,  r2inv, e1);			// 2
+			const float d2 = fma(nthree*d1, r2inv,  e2);			// 2
+			const float d3 = fma(nfive*d2, r2inv,  e3);			// 2
+			const float d4 = fma(nseven*d3, r2inv,  e4);			// 2
 			flop += 97 + green_deriv_ewald(Dreal, d0, d1, d2, d3, d4, dx);
 		}
 	}
@@ -465,11 +466,15 @@ inline int green_ewald(expansion<T> &rcD, const vect<T> &X) {		// 251176
 		T expfac;
 		const T erfc = erfcexp(two * r, &expfac);			// 76
 		const T expfactor = fouroversqrtpi * r * expfac; 	// 2
+		const T e1 = expfactor * r3inv;
+		const T e2 = -T(8) * e1;
+		const T e3 = -T(8) * e2;
+		const T e4 = -T(8) * e3;
 		const T d0 = -erfc * rinv;							// 2
-		const T d1 = (expfactor + erfc) * r3inv;			// 2
-		const T d2 = -fma(expfactor, fma(eight, T(r2), three), three * erfc) * r5inv;		// 5
-		const T d3 = fma(expfactor, (fifteen + fma(fourty, T(r2), sixtyfour * T(r4))), fifteen * erfc) * r7inv;		// 6
-		const T d4 = -fma(expfactor, fma(eight * T(r2), (thirtyfive + fma(fiftysix, r2, sixtyfour * r4)), onehundredfive), onehundredfive * erfc) * r9inv;	// 9
+		const T d1 = fma(-d0, r2inv, e1);			// 2
+		const T d2 = fma(-T(3)*d1, r2inv, e2);			// 2
+		const T d3 = fma(-T(5)*d2, r2inv, e3);			// 2
+		const T d4 = fma(-T(7)*d3, r2inv, e4);			// 2
 		green_deriv_ewald(D, d0, d1, d2, d3, d4, dx);			// 576
 	}
 	for (int i = 0; i < indices_four.size(); i++) {		// 207 * 123 = 			// 25461
