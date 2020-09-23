@@ -440,8 +440,8 @@ void PC_direct_kernel(force *F, const vect<pos_type> *x, const multi_src *z, int
 					flop[iwarp][n] += 12;
 				}
 
-				vect<double> g;
-				double phi;
+				vect<float> g;
+				float phi;
 				flop[iwarp][n] += 4 + multipole_interaction(g, phi, M, dX, false, do_phi); // 516
 				G[iwarp][n].g += g; // 0 / 3
 				G[iwarp][n].phi += phi; // 0 / 1

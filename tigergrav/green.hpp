@@ -327,15 +327,11 @@ CUDA_EXPORT int green_ewald(expansion<float>& D, const vect<float> &X) {
 		flop += 8;
 		if (r2 < (EWALD_RADIUS_CUTOFF * EWALD_RADIUS_CUTOFF)) {	// 1
 			const float r = sqrt(r2);					// 1
-			const float r4 = r2 * r2;					// 1
 			const float cmask = one - (n.dot(n) > 0.0); // 7
 			const float mask = (one - (one - zmask) * cmask); // 3
 			const float rinv = mask / max(r, rcut);		// 2
 			const float r2inv = rinv * rinv;			// 1
 			const float r3inv = r2inv * rinv;			// 1
-			const float r5inv = r2inv * r3inv;			// 1
-			const float r7inv = r2inv * r5inv;			// 1
-			const float r9inv = r2inv * r7inv;			// 1
 			const float t1 = float(1) / (float(1) + p * two * r); 	//4
 			const float t2 = t1 * t1;								// 1
 			const float t3 = t2 * t1;								// 1
@@ -452,17 +448,12 @@ inline int green_ewald(expansion<T> &rcD, const vect<T> &X) {		// 251176
 		n = h;
 		const vect<T> dx = X - n;				// 3
 		const T r2 = dx.dot(dx);				// 5
-		const T r4 = r2 * r2;					// 1
-		const T r6 = r2 * r4;					// 1
 		const T r = sqrt(r2);					// 7
 		const T cmask = T(1) - (n.dot(n) > 0.0);
 		const T mask = (T(1) - (T(1) - zmask) * cmask) * (r < EWALD_RADIUS_CUTOFF);
 		const T rinv = mask / max(r, rcut);		// 36
 		const T r2inv = rinv * rinv;			// 1
 		const T r3inv = r2inv * rinv;			// 1
-		const T r5inv = r2inv * r3inv;			// 1
-		const T r7inv = r2inv * r5inv;			// 1
-		const T r9inv = r2inv * r7inv;			// 1
 		T expfac;
 		const T erfc = erfcexp(two * r, &expfac);			// 76
 		const T expfactor = fouroversqrtpi * r * expfac; 	// 2
