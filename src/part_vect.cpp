@@ -720,7 +720,7 @@ multipole_info part_vect_multipole_info(vect<double> com, rung_type mrung, part_
 				const auto Xjk = dx[j] * dx[k];							// 6 OP
 				M(j, k) += mass * Xjk;							// 12 OP
 				for (int l = 0; l <= k; l++) {
-					M(j, k, l) += mass * Xjk * dx[l];					// 30 OP
+					M(j, k, l) -= mass * Xjk * dx[l];					// 30 OP
 				}
 			}
 		}
