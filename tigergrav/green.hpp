@@ -341,19 +341,19 @@ CUDA_EXPORT int green_ewald(expansion<float>& D, const vect<float> &X) {
 			const float t3 = t2 * t1;								// 1
 			const float t4 = t2 * t2;								// 1
 			const float t5 = t2 * t3;								// 1
-			const float exp0 = expf(nfour * r2);					// 27
+			const float exp0 = expf(nfour * r2);					// 26
 			const float erfc0 = (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * exp0; 			// 10
 			const float expfactor = fouroversqrtpi * r * exp0; 	// 2
-			const float e1 = expfactor * r3inv;
-			const float e2 = neight * e1;
-			const float e3 = neight * e2;
-			const float e4 = neight * e3;
+			const float e1 = expfactor * r3inv;						// 1
+			const float e2 = neight * e1;							// 1
+			const float e3 = neight * e2;							// 1
+			const float e4 = neight * e3;							// 1
 			const float d0 = -erfc0 * rinv;							// 2
-			const float d1 = fma(-d0,  r2inv, e1);			// 2
-			const float d2 = fma(nthree*d1, r2inv,  e2);			// 2
-			const float d3 = fma(nfive*d2, r2inv,  e3);			// 2
-			const float d4 = fma(nseven*d3, r2inv,  e4);			// 2
-			flop += 97 + green_deriv_ewald(Dreal, d0, d1, d2, d3, d4, dx);
+			const float d1 = fma(-d0,  r2inv, e1);					// 3
+			const float d2 = fma(nthree*d1, r2inv,  e2);			// 3
+			const float d3 = fma(nfive*d2, r2inv,  e3);				// 3
+			const float d4 = fma(nseven*d3, r2inv,  e4);			// 3
+			flop += 74 + green_deriv_ewald(Dreal, d0, d1, d2, d3, d4, dx);
 		}
 	}
 	static const float twopi = 2.0 * M_PI;
