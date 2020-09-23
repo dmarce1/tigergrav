@@ -51,7 +51,6 @@ CUDA_EXPORT inline int multipole_interaction(expansion<DOUBLE> &L, const multipo
 	L[1] = fma(-M[15], D[28] * float(5.000000000e-01), L[1]);
 	L[1] = fma(M[6], D[15] * float(5.000000000e-01), L[1]);
 	L[1] = fma(-M[16], D[29] * float(1.666666670e-01), L[1]);
-
 	L[2] = fma(M[1], D[11] * float(5.000000000e-01), L[2]);
 	L[3] = fma(M[1], D[12] * float(5.000000000e-01), L[3]);
 	L[2] = fma(-M[7], D[21] * float(1.666666670e-01), L[2]);
