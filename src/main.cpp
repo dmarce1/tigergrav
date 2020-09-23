@@ -68,7 +68,6 @@ std::pair<kick_return, interaction_stats> solve_gravity(tree_client root_ptr, ru
 		fmm_time_total += fmm_time;
 		fmm_parts_total += mrc.m.num_active;
 	}
-	printf("fmm took %e seconds\n", timer() - start);
 	return std::make_pair(rc, istats);
 }
 

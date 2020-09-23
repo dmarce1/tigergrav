@@ -68,6 +68,62 @@ inline particle& parts(part_iter i) {
 	return particles[j];
 }
 
+part_iter part_vect_massvolume_sort(part_iter b, part_iter e, int dim) {
+	assert(part_vect_locality(b) == myid);
+	assert(b != e);
+	assert(part_vect_locality(e - 1) == myid);
+	if (e - b == 1) {
+		return b;
+	} else if (e - b == 2) {
+		return b + 1;
+	} else {
+		std::sort(particles.begin() + b - part_begin, particles.end() + e - part_begin, [dim](const particle &a, const particle &b) {
+			return a.x[dim] < b.x[dim];
+		});
+		const auto N = e - b;
+		vect<pos_type> lomin, lomax, himin, himax;
+		std::vector<float> himv(N), lomv(N);
+		lomin = lomax = parts(b).x;
+		himin = max = parts(e - 1).x;
+		lomv[0] = 0.0;
+		himv[N - 1] = 0.0;
+		for (int i = 1; i < N; i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				const auto this_x = parts(b + i).x[dim];
+				lomin[dim] = std::min(lomin[dim], this_x);
+				lomax[dim] = std::max(lomax[dim], this_x);
+			}
+			float d2;
+			for (int dim = 0; dim < NDIM; dim++) {
+				d2 += std::pow(pos_to_double(lomax[dim] - lomin[dim]), 2);
+			}
+			lomv[i] = (i + 1) * std::pow(d2, 1.5);
+		}
+		for (int i = N - 2; i >= 0; i--) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				const auto this_x = parts(b + i).x[dim];
+				himin[dim] = std::min(himin[dim], this_x);
+				max[dim] = std::max(max[dim], this_x);
+			}
+			float d2;
+			for (int dim = 0; dim < NDIM; dim++) {
+				d2 += std::pow(pos_to_double(max[dim] - himin[dim]), 2);
+			}
+			himv[i] = (N - i) * std::pow(d2, 1.5);
+		}
+		int min_index;
+		float min_mv = std::numeric_limits<float>::max();
+		for (int i = 0; i < N - 1; i++) {
+			float this_mv = lomv[i] + himv[i + 1];
+			if (this_mv < min_mv) {
+				min_mv = this_mv;
+				min_index = i;
+			}
+		}
+		return b + min_index + 1;
+	}
+}
+
 std::vector<vect<pos_type>> part_vect_gather_positions_local(std::vector<part_iter_pair> iters) {
 	std::vector<vect<pos_type>> y;
 	std::size_t sz = 0;

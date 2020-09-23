@@ -36,17 +36,17 @@ int main() {
 //		}
 //	}
 //
-	printf( "const auto dx0dx0 = dx[0] * dx[0];\n"
+	printf("const auto dx0dx0 = dx[0] * dx[0];\n"
 			"const auto dx0dx1 = dx[0] * dx[1];\n"
 			"const auto dx0dx2 = dx[0] * dx[2];\n"
 			"const auto dx1dx1 = dx[1] * dx[1];\n"
 			"const auto dx1dx2 = dx[1] * dx[2];\n"
-			"const auto dx2dx2 = dx[2] * dx[2];\n" );
+			"const auto dx2dx2 = dx[2] * dx[2];\n");
 	int flop = 0;
 	printf("D[0] = d0;\n");
 	for (int a = 0; a < NDIM; a++) {
 		flop += 1;
-		printf("D[%i] = fma( dx[%i], d1, D[%i]);\n", 1 + a, a, 1+ a);
+		printf("D[%i] = fma( dx[%i], d1, D[%i]);\n", 1 + a, a, 1 + a);
 		for (int b = 0; b <= a; b++) {
 			flop += 1;
 			printf("D[%i] = fma( dx%idx%i, d2, D[%i]);\n", 4 + (int) map2[a][b], a, b, 4 + (int) map2[a][b]);
@@ -83,11 +83,15 @@ int main() {
 //		}
 //	}
 	flop += 6;
+	printf("\n");
+	printf("const auto dx0d2 = dx[0] * d2;\n"
+			"const auto dx1d2 = dx[1] * d2;\n"
+			"const auto dx2d2 = dx[2] * d2;\n");
 	for (int a = 0; a < NDIM; a++) {
 		flop += 1;
 		printf("D[%i] += d1;\n", 4 + (int) map2[a][a]);
-		flop += 3;
-		printf("D[%i] = fma(float(3)*dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][a], a, 10 + (int) map3[a][a][a]);
+		flop += 2;
+		printf("D[%i] = fma(float(3), dx%id2, D[%i]);\n", 10 + (int) map3[a][a][a], a, 10 + (int) map3[a][a][a]);
 		flop += 3;
 		printf("D[%i] = fma(float(6)*dx%idx%i, d3, D[%i]);\n", 20 + (int) map4[a][a][a][a], a, a, 20 + (int) map4[a][a][a][a]);
 		flop += 2;
@@ -97,10 +101,10 @@ int main() {
 		for (int b = 0; b < a; b++) {
 			flop += 1;
 			printf("threedxadxb = float(3) * dx%idx%i;\n", a, b);
-			flop += 2;
-			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][a][b], b, 10 + (int) map3[a][a][b]);
-			flop += 2;
-			printf("D[%i] = fma(dx[%i], d2, D[%i]);\n", 10 + (int) map3[a][b][b], a, 10 + (int) map3[a][b][b]);
+			flop += 1;
+			printf("D[%i] += dx%id2;\n", 10 + (int) map3[a][a][b], b);
+			flop += 1;
+			printf("D[%i] += dx%id2;\n", 10 + (int) map3[a][b][b], a);
 			flop += 2;
 			printf("D[%i] = fma(threedxadxb, d3, D[%i]);\n", 20 + (int) map4[a][a][a][b], 20 + (int) map4[a][a][a][b]);
 			flop += 2;

@@ -332,7 +332,7 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 	}
 
 	multipole_return rc;
-	if (part_end - part_begin == 0) {
+	if (part_end - part_begin == 0 && is_leaf()) {
 		range box = box_id_to_range(boxid);
 		rc.N = 0;
 		multi.m = 0.0;
@@ -374,33 +374,42 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		if (rc.N != 0) {
 			multi.x = double_to_pos((pos_to_double(ml.m.x) * ml.N + pos_to_double(mr.m.x) * mr.N) / (double) rc.N);
 		} else {
-			ERROR();
+			range box = box_id_to_range(boxid);
+			for (int dim = 0; dim < NDIM; dim++) {
+				multi.x[dim] = double_to_pos(0.5 * (box.max[dim] - box.min[dim]));
+			}
 		}
 		const auto multixdouble = pos_to_double(multi.x);
 		const auto mlmxdouble = pos_to_double(ml.m.x);
 		const auto mrmxdouble = pos_to_double(mr.m.x);
 		multi.m = (ml.m.m >> (mlmxdouble - multixdouble)) + (mr.m.m >> (mrmxdouble - multixdouble));
 		num_active = ml.m.num_active + mr.m.num_active;
-		if (ml.N == 0) {
-			r = mr.m.r;
-		} else if (mr.N == 0) {
+		if( ml.N == 0 ) {
+			if( mr.N == 0 ) {
+				r = 0.0;
+			} else {
+				r = mr.m.r;
+			}
+		} if( mr.N == 0 ) {
 			r = ml.m.r;
 		} else {
 			r = std::max(abs(mlmxdouble - multixdouble) + ml.m.r, abs(mrmxdouble - multixdouble) + mr.m.r);
 		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
-			prange.min[dim] = std::min(ml.r.min[dim], mr.r.min[dim]);
+		if (mr.N || ml.N) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				prange.max[dim] = std::max(ml.r.max[dim], mr.r.max[dim]);
+				prange.min[dim] = std::min(ml.r.min[dim], mr.r.min[dim]);
+			}
+			double rmax = abs(multixdouble - vect<double>( { prange.min[0], prange.min[1], prange.min[2] }));
+			rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.min[1], prange.min[2] })));
+			rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.min[2] })));
+			rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.min[2] })));
+			rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.min[1], prange.max[2] })));
+			rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.min[1], prange.max[2] })));
+			rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
+			rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
+			r = std::min(r, (float) rmax);
 		}
-		double rmax = abs(multixdouble - vect<double>( { prange.min[0], prange.min[1], prange.min[2] }));
-		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.min[1], prange.min[2] })));
-		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.min[2] })));
-		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.min[2] })));
-		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.min[1], prange.max[2] })));
-		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.min[1], prange.max[2] })));
-		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.min[0], prange.max[1], prange.max[2] })));
-		rmax = std::max(rmax, abs(multixdouble - vect<double>( { prange.max[0], prange.max[1], prange.max[2] })));
-		r = std::min(r, (float) rmax);
 		child_check.children[0] = ml.c;
 		child_check.children[1] = mr.c;
 	}
@@ -560,6 +569,9 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		const simd_float far = dX2 > (radius * radius);
 		for (int this_ci = ci; this_ci < std::min(ci + (int) simd_float::size(), max_ci + 1); this_ci++) {
 			auto &c = dchecklist[this_ci];
+			if (c.chk->pend == c.chk->pbegin) {
+				continue;
+			}
 			if (far[this_ci - ci] == 1.0) {
 				if (c.opened) {
 					dsource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));

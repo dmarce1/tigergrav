@@ -118,40 +118,44 @@ CUDA_EXPORT int green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, co
 	D[29] = dxadxbdxc * dx[0] * d4;
 	D[33] = dxadxbdxc * dx[1] * d4;
 	D[34] = dxadxbdxc * dx[2] * d4;
+
+	const auto dx0d2 = dx[0] * d2;
+	const auto dx1d2 = dx[1] * d2;
+	const auto dx2d2 = dx[2] * d2;
 	D[4] += d1;
-	D[10] = fma(float(3)*dx[0], d2, D[10]);
+	D[10] = fma(float(3), dx0d2, D[10]);
 	D[20] = fma(float(6)*dx0dx0, d3, D[20]);
 	D[20] = fma(float(2), d2, D[20]);
 	D[20] += d2;
 	D[7] += d1;
-	D[16] = fma(float(3)*dx[1], d2, D[16]);
+	D[16] = fma(float(3), dx1d2, D[16]);
 	D[30] = fma(float(6)*dx1dx1, d3, D[30]);
 	D[30] = fma(float(2), d2, D[30]);
 	D[30] += d2;
 	threedxadxb = float(3) * dx1dx0;
-	D[13] = fma(dx[0], d2, D[13]);
-	D[11] = fma(dx[1], d2, D[11]);
+	D[13] += dx0d2;
+	D[11] += dx1d2;
 	D[26] = fma(threedxadxb, d3, D[26]);
 	D[21] = fma(threedxadxb, d3, D[21]);
 	D[23] += d2;
 	D[23] = fma(dx0dx0, d3, D[23]);
 	D[23] = fma(dx1dx1, d3, D[23]);
 	D[9] += d1;
-	D[19] = fma(float(3)*dx[2], d2, D[19]);
+	D[19] = fma(float(3), dx2d2, D[19]);
 	D[34] = fma(float(6)*dx2dx2, d3, D[34]);
 	D[34] = fma(float(2), d2, D[34]);
 	D[34] += d2;
 	threedxadxb = float(3) * dx2dx0;
-	D[15] = fma(dx[0], d2, D[15]);
-	D[12] = fma(dx[2], d2, D[12]);
+	D[15] += dx0d2;
+	D[12] += dx2d2;
 	D[29] = fma(threedxadxb, d3, D[29]);
 	D[22] = fma(threedxadxb, d3, D[22]);
 	D[25] += d2;
 	D[25] = fma(dx0dx0, d3, D[25]);
 	D[25] = fma(dx2dx2, d3, D[25]);
 	threedxadxb = float(3) * dx2dx1;
-	D[18] = fma(dx[1], d2, D[18]);
-	D[17] = fma(dx[2], d2, D[17]);
+	D[18] += dx1d2;
+	D[17] += dx2d2;
 	D[33] = fma(threedxadxb, d3, D[33]);
 	D[31] = fma(threedxadxb, d3, D[31]);
 	D[32] += d2;
@@ -160,7 +164,7 @@ CUDA_EXPORT int green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, co
 	D[28] = fma(dx1dx0, d3, D[28]);
 	D[24] = fma(dx2dx1, d3, D[24]);
 	D[27] = fma(dx2dx0,  d3, D[27]);
-	return 143;
+	return 134;
 }
 
 template<class T>  // 576
@@ -221,40 +225,44 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 	D[29] = fma( dxadxbdxc * dx[0], d4, D[29]);
 	D[33] = fma( dxadxbdxc * dx[1], d4, D[33]);
 	D[34] = fma( dxadxbdxc * dx[2], d4, D[34]);
+
+	const auto dx0d2 = dx[0] * d2;
+	const auto dx1d2 = dx[1] * d2;
+	const auto dx2d2 = dx[2] * d2;
 	D[4] += d1;
-	D[10] = fma(float(3)*dx[0], d2, D[10]);
+	D[10] = fma(float(3), dx0d2, D[10]);
 	D[20] = fma(float(6)*dx0dx0, d3, D[20]);
 	D[20] = fma(float(2), d2, D[20]);
 	D[20] += d2;
 	D[7] += d1;
-	D[16] = fma(float(3)*dx[1], d2, D[16]);
+	D[16] = fma(float(3), dx1d2, D[16]);
 	D[30] = fma(float(6)*dx1dx1, d3, D[30]);
 	D[30] = fma(float(2), d2, D[30]);
 	D[30] += d2;
 	threedxadxb = float(3) * dx1dx0;
-	D[13] = fma(dx[0], d2, D[13]);
-	D[11] = fma(dx[1], d2, D[11]);
+	D[13] += dx0d2;
+	D[11] += dx1d2;
 	D[26] = fma(threedxadxb, d3, D[26]);
 	D[21] = fma(threedxadxb, d3, D[21]);
 	D[23] += d2;
 	D[23] = fma(dx0dx0, d3, D[23]);
 	D[23] = fma(dx1dx1, d3, D[23]);
 	D[9] += d1;
-	D[19] = fma(float(3)*dx[2], d2, D[19]);
+	D[19] = fma(float(3), dx2d2, D[19]);
 	D[34] = fma(float(6)*dx2dx2, d3, D[34]);
 	D[34] = fma(float(2), d2, D[34]);
 	D[34] += d2;
 	threedxadxb = float(3) * dx2dx0;
-	D[15] = fma(dx[0], d2, D[15]);
-	D[12] = fma(dx[2], d2, D[12]);
+	D[15] += dx0d2;
+	D[12] += dx2d2;
 	D[29] = fma(threedxadxb, d3, D[29]);
 	D[22] = fma(threedxadxb, d3, D[22]);
 	D[25] += d2;
 	D[25] = fma(dx0dx0, d3, D[25]);
 	D[25] = fma(dx2dx2, d3, D[25]);
 	threedxadxb = float(3) * dx2dx1;
-	D[18] = fma(dx[1], d2, D[18]);
-	D[17] = fma(dx[2], d2, D[17]);
+	D[18] += dx1d2;
+	D[17] += dx2d2;
 	D[33] = fma(threedxadxb, d3, D[33]);
 	D[31] = fma(threedxadxb, d3, D[31]);
 	D[32] += d2;
@@ -263,7 +271,7 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 	D[28] = fma(dx1dx0, d3, D[28]);
 	D[24] = fma(dx2dx1, d3, D[24]);
 	D[27] = fma(dx2dx0,  d3, D[27]);
-	return 143 + 35;
+	return 134 + 35;
 }
 
 template<class T>
