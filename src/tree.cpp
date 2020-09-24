@@ -261,9 +261,15 @@ refine_return tree::refine(int stack_cnt) {
 			mid_iter = (part_begin + part_end) / 2;
 			boxl.max[max_dim] = boxr.min[max_dim] = mid_x;
 		} else {
-			double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
-			boxl.max[max_dim] = boxr.min[max_dim] = mid;
-			mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
+//			if (part_vect_locality_id(b) != myid || part_vect_locality_id(e - 1) != myid) {
+				double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
+				boxl.max[max_dim] = boxr.min[max_dim] = mid;
+				mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
+//			} else {
+//				mid_iter = part_vect_massvolume_sort(part_begin, part_end, max_dim);
+//				mid_iter = (part_begin + part_end) / 2;
+//				boxl.max[max_dim] = boxr.min[max_dim] = mid_x;
+//			}
 		}
 		auto rcl = hpx::new_ < tree > (localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
 		auto rcr = hpx::new_ < tree > (localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
@@ -384,13 +390,14 @@ multipole_return tree::compute_multipoles(rung_type mrung, bool do_out, int work
 		const auto mrmxdouble = pos_to_double(mr.m.x);
 		multi.m = (ml.m.m >> (mlmxdouble - multixdouble)) + (mr.m.m >> (mrmxdouble - multixdouble));
 		num_active = ml.m.num_active + mr.m.num_active;
-		if( ml.N == 0 ) {
-			if( mr.N == 0 ) {
+		if (ml.N == 0) {
+			if (mr.N == 0) {
 				r = 0.0;
 			} else {
 				r = mr.m.r;
 			}
-		} if( mr.N == 0 ) {
+		}
+		if (mr.N == 0) {
 			r = ml.m.r;
 		} else {
 			r = std::max(abs(mlmxdouble - multixdouble) + ml.m.r, abs(mrmxdouble - multixdouble) + mr.m.r);
