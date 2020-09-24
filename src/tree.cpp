@@ -262,9 +262,9 @@ refine_return tree::refine(int stack_cnt) {
 			boxl.max[max_dim] = boxr.min[max_dim] = mid_x;
 		} else {
 //			if (part_vect_locality_id(b) != myid || part_vect_locality_id(e - 1) != myid) {
-			double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
-			boxl.max[max_dim] = boxr.min[max_dim] = mid;
-			mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
+				double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
+				boxl.max[max_dim] = boxr.min[max_dim] = mid;
+				mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
 //			} else {
 //				mid_iter = part_vect_massvolume_sort(part_begin, part_end, max_dim);
 //				mid_iter = (part_begin + part_end) / 2;
@@ -542,9 +542,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 	std::uint64_t esource_count = 0;
 
 	vect<simd_int> X;
-	simd_float R = r;
-	simd_float H = h;
-	simd_float Tinv = simd_float(theta_inv);
+	simd_float RpH = r + h;
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = multi.x[dim];
 	}
@@ -555,7 +553,6 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 	for (int ci = 0; ci < dchecklist.size(); ci += simd_float::size()) {
 		vect<simd_int> Y;
 		simd_float CR;
-		simd_float CO;
 		for (int dim = 0; dim < NDIM; dim++) {
 			for (int k = 0; k < simd_float::size(); k++) {
 				const int index = std::min((ci + k), max_ci);
@@ -565,7 +562,6 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		for (int k = 0; k < simd_float::size(); k++) {
 			const int index = std::min((ci + k), max_ci);
 			CR[k] = dchecklist[index].chk->r;
-			CO[k] = dchecklist[index].opened;
 		}
 		vect<simd_float> dX;
 		for (int dim = 0; dim < NDIM; dim++) {
@@ -576,8 +572,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			}
 		}
 		const simd_float dX2 = dX.dot(dX);
-		const simd_float sw = (CO > 0);
-		const simd_float radius = R * Tinv + CR * (sw + (simd_float(1) - sw) * theta_inv) + H;
+		const simd_float radius = (RpH + CR) * simd_float(theta_inv);
 		const simd_float far = dX2 > (radius * radius);
 		for (int this_ci = ci; this_ci < std::min(ci + (int) simd_float::size(), max_ci + 1); this_ci++) {
 			auto &c = dchecklist[this_ci];
@@ -602,48 +597,26 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		}
 	}
 	if (opts.ewald) {
-		for (int ci = 0; ci < echecklist.size(); ci += simd_float::size()) {
-			vect<simd_int> Y;
-			simd_float CR;
-			simd_float CO;
-			for (int dim = 0; dim < NDIM; dim++) {
-				for (int k = 0; k < simd_float::size(); k++) {
-					const int index = std::min((ci + k), max_ci);
-					Y[dim][k] = echecklist[index].chk->multi->x[dim];
-				}
+		for (auto c : echecklist) {
+			if (c.chk->pend == c.chk->pbegin) {
+				continue;
 			}
-			for (int k = 0; k < simd_float::size(); k++) {
-				const int index = std::min((ci + k), max_ci);
-				CR[k] = echecklist[index].chk->r;
-				CO[k] = echecklist[index].opened;
-			}
-			vect<simd_float> dX;
-			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = simd_float(X[dim] - Y[dim]) * POS_INV;
-			}
-			const simd_float dX2 = max(dX.dot(dX), 0.25 * 0.25);
-			const simd_float sw = (CO > 0);
-			const simd_float radius = R * Tinv + CR * (sw + (simd_float(1) - sw) * theta_inv) + H;
-			const simd_float far = dX2 > (radius * radius);
-			for (int this_ci = ci; this_ci < std::min(ci + (int) simd_float::size(), max_ci + 1); this_ci++) {
-				auto &c = echecklist[this_ci];
-				if (c.chk->pend == c.chk->pbegin) {
-					continue;
-				}
-				if (far[this_ci - ci] == 1.0) {
-					if (c.opened) {
-						esource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
-						esource_count += c.chk->pend - c.chk->pbegin;
-					} else {
-						emulti_srcs.push_back(c.chk->multi);
-					}
+			const float dx2 = ewald_far_separation2(multi.x, c.chk->multi->x);
+			const float radius = (r + c.chk->r + h) * theta_inv;
+			const bool far = dx2 > radius * radius;
+			if (far) {
+				if (c.opened) {
+					esource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
+					esource_count += c.chk->pend - c.chk->pbegin;
 				} else {
-					if (c.chk->is_leaf) {
-						c.opened = true;
-						next_echecklist.push_back(c);
-					} else {
-						efuts.push_back(c.chk->node.get_node_attributes());
-					}
+					emulti_srcs.push_back(c.chk->multi);
+				}
+			} else {
+				if (c.chk->is_leaf) {
+					c.opened = true;
+					next_echecklist.push_back(c);
+				} else {
+					efuts.push_back(c.chk->node.get_node_attributes());
 				}
 			}
 		}
@@ -704,7 +677,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 					dsource_count += c.chk->pend - c.chk->pbegin;
 				} else {
 					const float dx2 = separation2(multi.x, c.chk->multi->x);
-					const float radius = r + c.chk->r * theta_inv + h;
+					const float radius = (r + c.chk->r + h) * theta_inv;
 					const bool far = dx2 > radius * radius;
 					if (far) {
 						dmulti_srcs.push_back(c.chk->multi);
@@ -734,7 +707,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 						continue;
 					}
 					const float dx2 = ewald_far_separation2(multi.x, c.chk->multi->x);
-					const float radius = r + c.chk->r * theta_inv + h;
+					const float radius = (r + c.chk->r + h) * theta_inv;
 					const bool far = dx2 > radius * radius;
 					if (c.opened) {
 						esource_iters.push_back(std::make_pair(c.chk->pbegin, c.chk->pend));
