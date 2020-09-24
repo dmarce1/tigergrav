@@ -42,7 +42,7 @@ bool options::process_options(int argc, char *argv[]) {
 	("glass", po::value<bool>(&glass)->default_value(0), "Produce glass file") //
 	("groups", po::value<bool>(&groups)->default_value(0), "find groups") //
 	("gravity", po::value<bool>(&gravity)->default_value(1), "solve for gravity") //
-	("balanced_tree", po::value<bool>(&balanced_tree)->default_value(0), "balanced tree ") //
+//	("balanced_tree", po::value<bool>(&balanced_tree)->default_value(0), "balanced tree ") //
 	("cuda", po::value<bool>(&cuda)->default_value(0), "use CUDA") //
 	("ewald", po::value<bool>(&ewald)->default_value(1), "periodic gravity boundary") //
 	("oversubscription", po::value<int>(&oversubscription)->default_value(4), "thread oversubscription rate hint") //

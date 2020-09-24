@@ -18,7 +18,7 @@ public:
 	std::uint64_t problem_size;
 	bool cosmic;
 	bool cuda;
-	bool balanced_tree;
+//	bool balanced_tree;
 	bool glass;
 	bool groups;
 	bool map;

@@ -147,6 +147,7 @@ int hpx_main(int argc, char *argv[]) {
 		const auto direct = kr.first.out;
 		printf("%11s %11s %11s %11s %11s %11s %11s %11s\n", "theta", "time", "GFLOPS", "error", "error99", "gx", "gy", "gz");
 		for (double theta = 1.0; theta >= 0.17; theta -= 0.1) {
+			root_ptr.destroy(0);
 			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			refine_return refine_rc;
 			do {
@@ -289,13 +290,16 @@ int hpx_main(int argc, char *argv[]) {
 			}
 //			printf("drift took %e seconds\n", timer() - ts);
 			ts = timer();
-			root_ptr = hpx::invalid_id;
-//			printf( "Forming tree\n");
+			printf( "Destroying tree\n");
+			root_ptr.destroy(0);
+			printf("Destroying took %e seconds\n", timer() - ts);
+			ts = timer();
+			printf( "Forming tree\n");
 			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			do {
 				refine_rc = root_ptr.refine(0);
 			} while (refine_rc.rc);
-//			printf("Tree took %e seconds\n", timer() - ts);
+			printf("Tree took %e seconds\n", timer() - ts);
 			itime = inc(itime, kr.first.rung);
 			if (time_to_double(itime) >= opts.t_max) {
 				oi = opts.nout + 1;

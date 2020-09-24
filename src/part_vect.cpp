@@ -68,65 +68,6 @@ inline particle& parts(part_iter i) {
 	return particles[j];
 }
 
-part_iter part_vect_massvolume_sort(part_iter b, part_iter e, int dim, double &xmid) {
-	assert(part_vect_locality(b) == myid);
-	assert(b != e);
-	assert(part_vect_locality(e - 1) == myid);
-	if (e - b == 1) {
-		xmid = pos_to_double(parts(b).x[dim]);
-		return b;
-	} else if (e - b == 2) {
-		xmid = (pos_to_double(parts(b).x[dim]) + pos_to_double(parts(b + 1).x[dim])) / 2.0;
-		return b + 1;
-	} else {
-		std::sort(particles.begin() + b - part_begin, particles.end() + e - part_begin, [dim](const particle &a, const particle &b) {
-			return a.x[dim] < b.x[dim];
-		});
-		const auto N = e - b;
-		vect<pos_type> lomin, lomax, himin, himax;
-		std::vector<float> himv(N), lomv(N);
-		lomin = lomax = parts(b).x;
-		himin = himax = parts(e - 1).x;
-		lomv[0] = 0.0;
-		himv[N - 1] = 0.0;
-		for (int i = 1; i < N; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto this_x = parts(b + i).x[dim];
-				lomin[dim] = std::min(lomin[dim], this_x);
-				lomax[dim] = std::max(lomax[dim], this_x);
-			}
-			float d2;
-			for (int dim = 0; dim < NDIM; dim++) {
-				d2 += std::pow(pos_to_double(lomax[dim] - lomin[dim]), 2);
-			}
-			lomv[i] = (i + 1) * std::pow(d2, 1.5);
-		}
-		for (int i = N - 2; i >= 0; i--) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				const auto this_x = parts(b + i).x[dim];
-				himin[dim] = std::min(himin[dim], this_x);
-				himax[dim] = std::max(himax[dim], this_x);
-			}
-			float d2;
-			for (int dim = 0; dim < NDIM; dim++) {
-				d2 += std::pow(pos_to_double(himax[dim] - himin[dim]), 2);
-			}
-			himv[i] = (N - i) * std::pow(d2, 1.5);
-		}
-		int min_index;
-		float min_mv = std::numeric_limits<float>::max();
-		for (int i = 0; i < N - 1; i++) {
-			float this_mv = lomv[i] + himv[i + 1];
-			if (this_mv < min_mv) {
-				min_mv = this_mv;
-				min_index = i;
-			}
-		}
-		xmid = (pos_to_double(parts(b+min_index).x[dim]) + pos_to_double(parts(b+min_index).x[dim]))/2.0;
-		return b + min_index + 1;
-	}
-}
-
 std::vector<vect<pos_type>> part_vect_gather_positions_local(std::vector<part_iter_pair> iters) {
 	std::vector<vect<pos_type>> y;
 	std::size_t sz = 0;
@@ -371,6 +312,7 @@ void part_vect_write_glass() {
 
 void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, int dim) {
 	static const auto opts = options::get();
+	const pos_type xmid_int = double_to_pos(xmid);
 	if (b == mid || e == mid) {
 //		printf("%i %i %i\n", b, mid, e);
 		return;
@@ -383,18 +325,18 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, 
 	}
 	int nproc = part_vect_locality_id(e - 1) - part_vect_locality_id(b) + 1;
 	int low_proc = part_vect_locality_id(b);
-	int chunk_size = opts.problem_size / localities.size() / 10 + 1;
+	int chunk_size = opts.problem_size / localities.size() / 8;
 	bool done = false;
 	part_iter begin = std::max(b, part_begin);
 	for (int round = 0; !done; round++) {
 		int other = round_robin(myid - low_proc, round, nproc) + low_proc;
 		if (other >= 0 && other >= part_vect_locality_id(mid)) {
 			std::vector<particle> send;
-			send.reserve(chunk_size);
+//			send.reserve(chunk_size);
 			done = true;
 			std::unique_lock<mutex_type> lock(sort_mutex);
 			for (part_iter i = begin; i < std::min(part_end, mid); i++) {
-				if (pos_to_double(parts(i).x[dim]) >= xmid) {
+				if (parts(i).x[dim] >= xmid_int) {
 					send.push_back(parts(i));
 					done = false;
 					if (send.size() >= chunk_size) {
@@ -410,7 +352,7 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, 
 				if (recv.size()) {
 					for (part_iter i = begin; i < std::min(part_end, mid); i++) {
 						begin = i;
-						if (pos_to_double(parts(i).x[dim]) >= xmid) {
+						if (parts(i).x[dim] >= xmid_int) {
 							parts(i) = recv[j++];
 							if (recv.size() == j) {
 								break;
@@ -424,15 +366,38 @@ void part_vect_sort_begin(part_iter b, part_iter e, part_iter mid, double xmid, 
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
+std::unordered_map<part_iter, part_iter> end_map;
+
+void part_vect_reset_sort();
+
+HPX_PLAIN_ACTION (part_vect_reset_sort);
+
+void part_vect_reset_sort() {
+	std::vector<hpx::future<void>> futs;
+	if (myid == 0) {
+		for (int i = 1; i < localities.size(); i++) {
+			futs.push_back(hpx::async < part_vect_reset_sort_action > (localities[i]));
+		}
+	}
+	end_map.clear();
+	hpx::wait_all(futs.begin(), futs.end());
+}
+
 std::vector<particle> part_vect_sort_end(part_iter b, part_iter e, part_iter mid, double xmid, int dim, std::vector<particle> low) {
+	const pos_type xmid_int = double_to_pos(xmid);
 	std::lock_guard<mutex_type> lock(sort_mutex);
+	if (end_map.find(b) == end_map.end()) {
+		end_map[b] = std::max(mid, part_begin);
+	}
+	int start = end_map[b];
 	int j = 0;
-	for (part_iter i = std::max(mid, part_begin); i < std::min(part_end, e); i++) {
-		if (pos_to_double(parts(i).x[dim]) < xmid) {
+	for (part_iter i = start; i < std::min(part_end, e); i++) {
+		if (parts(i).x[dim] < xmid_int) {
 			auto tmp = parts(i);
 			parts(i) = low[j];
 			low[j++] = tmp;
 			if (j == low.size()) {
+				end_map[b] = i + 1;
 				break;
 			}
 		}

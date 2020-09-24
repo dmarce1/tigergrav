@@ -196,6 +196,29 @@ inline auto thread_if_avail(F &&f, bool left, int nparts, bool force, bool remot
 	}
 }
 
+int tree::destroy(int stack_cnt) {
+	if (!is_leaf()) {
+		bool force_fork;
+		bool remote_left, remote_right;
+		if (!is_leaf()) {
+			force_fork = (flags.depth >= MAX_STACK && (flags.ldepth < MAX_STACK || flags.rdepth < MAX_STACK));
+			remote_left = !children[0].local();
+			remote_right = !children[1].local();
+		}
+		auto rcl = thread_if_avail([=](int stack_cnt) {
+			return children[0].destroy(stack_cnt);
+		}, true, part_end - part_begin, force_fork, remote_left, stack_cnt);
+		auto rcr = thread_if_avail([=](int stack_cnt) {
+			return children[1].destroy(stack_cnt);
+		}, false, part_end - part_begin, force_fork, remote_right, stack_cnt);
+		rcr.get();
+		rcl.get();
+		children[0] = tree_client(hpx::invalid_id);
+		children[1] = tree_client(hpx::invalid_id);
+	}
+	return 0;
+}
+
 HPX_PLAIN_ACTION(tree::set_theta, set_theta_action);
 
 void tree::set_theta(double t) {
@@ -219,7 +242,6 @@ void tree::set_theta(double t) {
 }
 
 tree::tree(box_id_type id_, part_iter b, part_iter e, int level_) {
-	const auto &opts = options::get();
 	part_begin = b;
 	part_end = e;
 	boxid = id_;
@@ -227,11 +249,12 @@ tree::tree(box_id_type id_, part_iter b, part_iter e, int level_) {
 	flags.leaf = true;
 }
 
+
 refine_return tree::refine(int stack_cnt) {
 //	printf("Forming %i %i\n", b, e);
-//	if( level_ == 1 ) {
-//		sleep(100);
-//	}
+	if (flags.level == 0) {
+		part_vect_reset_sort();
+	}
 	bool force_fork;
 	bool remote_left, remote_right;
 	if (!is_leaf()) {
@@ -253,29 +276,39 @@ refine_return tree::refine(int stack_cnt) {
 				max_dim = dim;
 			}
 		}
-		range boxl = box;
-		range boxr = box;
 		part_iter mid_iter;
-		if (opts.balanced_tree) {
-			const auto mid_x = part_vect_find_median(part_begin, part_end, max_dim);
-			mid_iter = (part_begin + part_end) / 2;
-			boxl.max[max_dim] = boxr.min[max_dim] = mid_x;
-		} else {
-//			if (part_vect_locality_id(b) != myid || part_vect_locality_id(e - 1) != myid) {
-				double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
-				boxl.max[max_dim] = boxr.min[max_dim] = mid;
-				mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
-//			} else {
-//				mid_iter = part_vect_massvolume_sort(part_begin, part_end, max_dim);
-//				mid_iter = (part_begin + part_end) / 2;
-//				boxl.max[max_dim] = boxr.min[max_dim] = mid_x;
-//			}
-		}
-		auto rcl = hpx::new_ < tree > (localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
-		auto rcr = hpx::new_ < tree > (localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
+		double mid = (box.max[max_dim] + box.min[max_dim]) * 0.5;
+		mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
 
-		children[1] = rcr.get();
-		children[0] = rcl.get();
+		hpx::future<id_type> rcl, rcr;
+		hpx::future<void> il, ir;
+		bool found_left = false;
+		bool found_right = false;
+		hpx::id_type lid, rid;
+		if (found_left) {
+			children[0] = lid;
+			il = children[0].init(boxid << 1, part_begin, mid_iter, flags.level + 1);
+		} else {
+			rcl = hpx::new_ < tree > (localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
+		}
+		if (found_right) {
+			children[1] = rid;
+			ir = children[1].init((boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
+		} else {
+			rcr = hpx::new_ < tree > (localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
+		}
+
+		if (!found_left) {
+			children[0] = rcl.get();
+		} else {
+			il.get();
+		}
+		if (!found_right) {
+			children[1] = rcr.get();
+		} else {
+			ir.get();
+		}
+
 		flags.leaf = false;
 		flags.depth = 1;
 		flags.rdepth = 0;

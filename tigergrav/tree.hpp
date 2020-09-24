@@ -131,6 +131,9 @@ public:
 	bool local() const {
 		return hpx::naming::get_locality_id_from_gid(ptr) == hpx::get_locality_id();
 	}
+	id_type get_id() const {
+		return ptr;
+	}
 	tree_client() = default;
 	tree_client(id_type ptr_);
 	check_item get_check_item() const;
@@ -138,6 +141,7 @@ public:
 	double drift(double t, rung_type r) const;
 	interaction_stats kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_cnt) const;
+	int destroy(int) const;
 	int find_groups(std::vector<check_pair> dchecklist, int stack_cnt) const;
 	refine_return refine(int) const;
 };
@@ -172,8 +176,7 @@ struct check_item {
 	part_iter pend;
 	float r;
 	bool is_leaf;
-	const multi_src *multi;
-	HPX_SERIALIZATION_SPLIT_MEMBER();
+	const multi_src *multi;HPX_SERIALIZATION_SPLIT_MEMBER();
 	check_item() {
 		multi = nullptr;
 	}
@@ -200,7 +203,7 @@ struct check_item {
 		arc & r;
 		arc & pbegin;
 		arc & pend;
-		if( multi ) {
+		if (multi) {
 			arc & false;
 			arc & *multi;
 		} else {
@@ -324,6 +327,7 @@ public:
 	double drift(double, rung_type);
 	interaction_stats kick_fmm(std::vector<check_pair> dchecklist, std::vector<check_pair> echecklist, const vect<double> &Lcom, expansion<float> L,
 			rung_type min_rung, bool do_output, int stack_ccnt);
+	int destroy(int);
 
 	void find_groups(std::vector<check_pair> checklist, int stack_ccnt);
 
@@ -332,6 +336,7 @@ public:
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,compute_multipoles);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,find_groups);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,kick_fmm);//
+	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,destroy);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,drift);//
 	HPX_DEFINE_COMPONENT_DIRECT_ACTION(tree,get_check_item);
 	//
@@ -347,6 +352,10 @@ inline raw_tree_client::raw_tree_client(raw_id_type ptr_) {
 
 inline check_item tree_client::get_check_item() const {
 	return tree::get_check_item_action()(ptr);
+}
+
+inline int tree_client::destroy(int s) const {
+	return tree::destroy_action()(ptr, s);
 }
 
 inline multipole_return tree_client::compute_multipoles(rung_type min_rung, bool do_out, int wid, int stack_cnt) const {
