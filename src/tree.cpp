@@ -577,7 +577,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 		}
 		const simd_float dX2 = dX.dot(dX);
 		const simd_float sw = (CO > 0);
-		const simd_float radius = R * Tinv + CR * (sw + (simd_float(1) - sw) * Tinv) + H;
+		const simd_float radius = R * Tinv + CR * (sw + (simd_float(1) - sw) * theta_inv) + H;
 		const simd_float far = dX2 > (radius * radius);
 		for (int this_ci = ci; this_ci < std::min(ci + (int) simd_float::size(), max_ci + 1); this_ci++) {
 			auto &c = dchecklist[this_ci];
@@ -623,7 +623,7 @@ interaction_stats tree::kick_fmm(std::vector<check_pair> dchecklist, std::vector
 			}
 			const simd_float dX2 = max(dX.dot(dX), 0.25 * 0.25);
 			const simd_float sw = (CO > 0);
-			const simd_float radius = R * Tinv + CR * (sw + (simd_float(1) - sw) * Tinv) + H;
+			const simd_float radius = R * Tinv + CR * (sw + (simd_float(1) - sw) * theta_inv) + H;
 			const simd_float far = dX2 > (radius * radius);
 			for (int this_ci = ci; this_ci < std::min(ci + (int) simd_float::size(), max_ci + 1); this_ci++) {
 				auto &c = echecklist[this_ci];
