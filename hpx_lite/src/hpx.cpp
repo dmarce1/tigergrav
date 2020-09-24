@@ -36,6 +36,7 @@ void register_action_name(const std::string& strname, naked_action_type fptr) {
 }
 
 naked_action_type lookup_action(const std::string& strname) {
+	assert(!strname.empty());
 	return action_dir()[strname];
 }
 
@@ -276,10 +277,12 @@ static void handle_incoming_message(int return_rank, obuffer_type message) {
 			std::string function_name;
 			message >> function_name;
 			func_ptr = lookup_action(function_name);
+			assert(func_ptr);
 		} else if (itype == ADDRESS) {
 			std::uintptr_t function_name;
 			message >> function_name;
 			func_ptr = reinterpret_cast<naked_action_type>(function_name);
+			assert(func_ptr);
 		} else {
 			assert(false);
 			func_ptr = nullptr;

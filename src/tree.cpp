@@ -21,7 +21,9 @@ using find_groups_action_type = tree::find_groups_action;
 using drift_action_type = tree:: drift_action;
 using get_check_item_action_type = tree::get_check_item_action;
 using refine_action_type = tree::refine_action;
+using destroy_action_type = tree::destroy_action;
 
+HPX_REGISTER_ACTION(destroy_action_type);
 HPX_REGISTER_ACTION(refine_action_type);
 HPX_REGISTER_ACTION(compute_multipoles_action_type);
 HPX_REGISTER_ACTION(find_groups_action_type);
@@ -249,7 +251,6 @@ tree::tree(box_id_type id_, part_iter b, part_iter e, int level_) {
 	flags.leaf = true;
 }
 
-
 refine_return tree::refine(int stack_cnt) {
 //	printf("Forming %i %i\n", b, e);
 	if (flags.level == 0) {
@@ -281,33 +282,10 @@ refine_return tree::refine(int stack_cnt) {
 		mid_iter = part_vect_sort(part_begin, part_end, mid, max_dim);
 
 		hpx::future<id_type> rcl, rcr;
-		hpx::future<void> il, ir;
-		bool found_left = false;
-		bool found_right = false;
-		hpx::id_type lid, rid;
-		if (found_left) {
-			children[0] = lid;
-			il = children[0].init(boxid << 1, part_begin, mid_iter, flags.level + 1);
-		} else {
-			rcl = hpx::new_ < tree > (localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
-		}
-		if (found_right) {
-			children[1] = rid;
-			ir = children[1].init((boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
-		} else {
-			rcr = hpx::new_ < tree > (localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
-		}
-
-		if (!found_left) {
-			children[0] = rcl.get();
-		} else {
-			il.get();
-		}
-		if (!found_right) {
-			children[1] = rcr.get();
-		} else {
-			ir.get();
-		}
+		rcl = hpx::new_ < tree > (localities[part_vect_locality_id(part_begin)], (boxid << 1), part_begin, mid_iter, flags.level + 1);
+		rcr = hpx::new_ < tree > (localities[part_vect_locality_id(mid_iter)], (boxid << 1) + 1, mid_iter, part_end, flags.level + 1);
+		children[0] = rcl.get();
+		children[1] = rcr.get();
 
 		flags.leaf = false;
 		flags.depth = 1;

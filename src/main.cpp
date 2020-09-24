@@ -290,16 +290,16 @@ int hpx_main(int argc, char *argv[]) {
 			}
 //			printf("drift took %e seconds\n", timer() - ts);
 			ts = timer();
-			printf( "Destroying tree\n");
+	//		printf( "Destroying tree\n");
 			root_ptr.destroy(0);
-			printf("Destroying took %e seconds\n", timer() - ts);
+	//		printf("Destroying took %e seconds\n", timer() - ts);
 			ts = timer();
-			printf( "Forming tree\n");
+	//		printf( "Forming tree\n");
 			root_ptr = hpx::new_ < tree > (hpx::find_here(), 1, 0, opts.problem_size, 0).get();
 			do {
 				refine_rc = root_ptr.refine(0);
 			} while (refine_rc.rc);
-			printf("Tree took %e seconds\n", timer() - ts);
+	//		printf("Tree took %e seconds\n", timer() - ts);
 			itime = inc(itime, kr.first.rung);
 			if (time_to_double(itime) >= opts.t_max) {
 				oi = opts.nout + 1;
