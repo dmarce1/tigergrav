@@ -180,7 +180,7 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 	const auto& dx1dx0 = dx0dx1;
 	const auto& dx2dx0 = dx0dx2;
 	const auto& dx2dx1 = dx1dx2;
-	D[0] = d0;
+	D[0] += d0;
 	D[1] = fma( dx[0], d1, D[1]);
 	D[4] = fma( dx0dx0, d2, D[4]);
 	dxadxbdxc = dx0dx0 * dx[0];
